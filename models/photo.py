@@ -34,3 +34,6 @@ class Photo(Base):
     )
 
     project: Mapped["Project"] = relationship(back_populates="photos")  # noqa: F821
+    adjustment: Mapped["PhotoAdjustment | None"] = relationship(  # noqa: F821
+        back_populates="photo", cascade="all, delete-orphan"
+    )

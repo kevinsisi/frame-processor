@@ -1,0 +1,236 @@
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Response, status
+from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from api.config import settings
+from api.database import get_db
+from api.queue import default_queue
+from models.adjustment_job import AdjustmentJob
+from models.adjustment_preset import AdjustmentPreset
+from models.enums import ProcessingJobStatus
+from models.photo import Photo
+from models.project import Project
+from services import adjustment_renderer, adjustments
+
+router = APIRouter(tags=["adjustments"])
+
+
+class AdjustmentParams(BaseModel):
+    exposure: float = Field(default=0, ge=-5, le=5)
+    contrast: float = Field(default=0, ge=-100, le=100)
+    highlights: float = Field(default=0, ge=-100, le=100)
+    shadows: float = Field(default=0, ge=-100, le=100)
+    temperature: float = Field(default=0, ge=-100, le=100)
+    tint: float = Field(default=0, ge=-100, le=100)
+    saturation: float = Field(default=0, ge=-100, le=100)
+    vibrance: float = Field(default=0, ge=-100, le=100)
+    clarity: float = Field(default=0, ge=-100, le=100)
+    sharpness: float = Field(default=0, ge=-100, le=100)
+    rotation: float = Field(default=0, ge=-45, le=45)
+    crop_zoom: float = Field(default=1, ge=1, le=3)
+    crop_x: float = Field(default=0, ge=-100, le=100)
+    crop_y: float = Field(default=0, ge=-100, le=100)
+    distortion: float = Field(default=0, ge=-100, le=100)
+    hsl: dict[str, dict[str, float]] = Field(default_factory=dict)
+
+    def normalized(self) -> dict[str, Any]:
+        return adjustments.normalize_params(self.model_dump())
+
+
+class AdjustmentApplyOut(BaseModel):
+    photo_id: UUID
+    processed_path: str
+    params: dict[str, Any]
+
+
+class AdjustmentBatchCreate(BaseModel):
+    params: AdjustmentParams
+    photo_ids: list[UUID] = Field(default_factory=list)
+
+
+class AdjustmentJobOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    project_id: UUID
+    status: ProcessingJobStatus
+    params: dict[str, Any]
+    photo_ids: list[UUID]
+    progress: int
+    total: int
+    error: str | None
+    created_at: datetime
+    completed_at: datetime | None
+
+
+class AdjustmentPresetCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    params: AdjustmentParams
+    project_id: UUID | None = None
+
+
+class AdjustmentPresetOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    project_id: UUID | None
+    name: str
+    params: dict[str, Any]
+    created_at: datetime
+
+
+@router.post("/photos/{photo_id}/preview")
+def preview_photo_adjustment(
+    photo_id: UUID,
+    payload: AdjustmentParams,
+    db: Session = Depends(get_db),
+) -> Response:
+    photo = _get_photo(db, photo_id)
+    src = settings.storage_root / adjustment_renderer.source_relative_path(photo)
+    if not src.exists():
+        raise HTTPException(status_code=410, detail="source image missing on disk")
+    from PIL import Image, ImageOps
+
+    with Image.open(src) as raw:
+        image = ImageOps.exif_transpose(raw)
+        body = adjustments.preview_jpeg(image, payload.normalized())
+    return Response(content=body, media_type="image/jpeg")
+
+
+@router.post("/photos/{photo_id}/adjustments", response_model=AdjustmentApplyOut)
+def apply_photo_adjustment(
+    photo_id: UUID,
+    payload: AdjustmentParams,
+    db: Session = Depends(get_db),
+) -> AdjustmentApplyOut:
+    photo = _get_photo(db, photo_id)
+    params = payload.normalized()
+    try:
+        relative = adjustment_renderer.apply_to_photo(db, photo, params)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=410, detail=str(exc)) from exc
+    db.commit()
+    return AdjustmentApplyOut(photo_id=photo.id, processed_path=relative, params=params)
+
+
+@router.post(
+    "/projects/{project_id}/adjustments/apply",
+    response_model=AdjustmentJobOut,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def create_adjustment_job(
+    project_id: UUID,
+    payload: AdjustmentBatchCreate,
+    db: Session = Depends(get_db),
+) -> AdjustmentJobOut:
+    project = db.get(Project, project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="project not found")
+    if payload.photo_ids:
+        photo_ids = list(payload.photo_ids)
+        existing = (
+            db.execute(
+                select(Photo.id).where(
+                    Photo.project_id == project_id,
+                    Photo.id.in_(photo_ids),
+                )
+            )
+            .scalars()
+            .all()
+        )
+        missing = set(photo_ids) - set(existing)
+        if missing:
+            raise HTTPException(
+                status_code=400,
+                detail=f"photos not in project: {sorted(str(m) for m in missing)}",
+            )
+    else:
+        photo_ids = list(
+            db.execute(select(Photo.id).where(Photo.project_id == project_id)).scalars().all()
+        )
+        if not photo_ids:
+            raise HTTPException(status_code=400, detail="project has no photos")
+    job = AdjustmentJob(
+        project_id=project_id,
+        status=ProcessingJobStatus.PENDING,
+        params=payload.params.normalized(),
+        photo_ids=list(photo_ids),
+        progress=0,
+        total=len(photo_ids),
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    default_queue.enqueue("worker.jobs.apply_adjustments_job", str(job.id), job_timeout=1800)
+    return AdjustmentJobOut.model_validate(job)
+
+
+@router.get("/adjustment-jobs/{job_id}", response_model=AdjustmentJobOut)
+def get_adjustment_job(job_id: UUID, db: Session = Depends(get_db)) -> AdjustmentJobOut:
+    job = db.get(AdjustmentJob, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="adjustment job not found")
+    return AdjustmentJobOut.model_validate(job)
+
+
+@router.post(
+    "/adjustment-presets",
+    response_model=AdjustmentPresetOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_adjustment_preset(
+    payload: AdjustmentPresetCreate,
+    db: Session = Depends(get_db),
+) -> AdjustmentPresetOut:
+    if payload.project_id is not None and db.get(Project, payload.project_id) is None:
+        raise HTTPException(status_code=404, detail="project not found")
+    preset = AdjustmentPreset(
+        project_id=payload.project_id,
+        name=payload.name.strip(),
+        params=payload.params.normalized(),
+    )
+    db.add(preset)
+    db.commit()
+    db.refresh(preset)
+    return AdjustmentPresetOut.model_validate(preset)
+
+
+@router.get("/adjustment-presets", response_model=list[AdjustmentPresetOut])
+def list_adjustment_presets(
+    project_id: UUID | None = None,
+    db: Session = Depends(get_db),
+) -> list[AdjustmentPresetOut]:
+    stmt = select(AdjustmentPreset).order_by(AdjustmentPreset.created_at.desc())
+    if project_id is not None:
+        stmt = stmt.where(
+            (AdjustmentPreset.project_id.is_(None))
+            | (AdjustmentPreset.project_id == project_id)
+        )
+    presets = db.execute(stmt).scalars().all()
+    return [AdjustmentPresetOut.model_validate(preset) for preset in presets]
+
+
+@router.delete("/adjustment-presets/{preset_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_adjustment_preset(
+    preset_id: UUID,
+    db: Session = Depends(get_db),
+) -> None:
+    preset = db.get(AdjustmentPreset, preset_id)
+    if preset is None:
+        raise HTTPException(status_code=404, detail="preset not found")
+    db.delete(preset)
+    db.commit()
+
+
+def _get_photo(db: Session, photo_id: UUID) -> Photo:
+    photo = db.get(Photo, photo_id)
+    if photo is None:
+        raise HTTPException(status_code=404, detail="photo not found")
+    return photo

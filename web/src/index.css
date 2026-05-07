@@ -18,6 +18,8 @@ html {
   background: var(--ink-base);
   color-scheme: dark;
   font-size: 16px;
+  width: 100%;
+  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: geometricPrecision;
@@ -30,6 +32,8 @@ body,
 }
 
 body {
+  width: 100%;
+  min-width: 0;
   font-family: var(--font-body);
   font-weight: 400;
   font-feature-settings: "ss01", "cv11";
@@ -116,6 +120,8 @@ button {
 /* Editorial primitives — opt-in classes used across pages */
 
 .page {
+  width: 100%;
+  min-width: 0;
   max-width: var(--page-max);
   margin: 0 auto;
   padding: var(--space-7) var(--space-7) var(--space-9);
@@ -350,7 +356,23 @@ button {
   .page {
     padding: var(--space-5) var(--space-4) var(--space-9);
   }
+  .hero,
+  .section,
+  .section__head,
+  .cta {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .cta {
+    letter-spacing: 0.1em;
+    overflow-wrap: anywhere;
+    text-align: center;
+  }
   .hero__title {
     font-size: clamp(28px, 8vw, 40px);
+    overflow-wrap: anywhere;
+  }
+  .hero__lede {
+    max-width: 100%;
   }
 }

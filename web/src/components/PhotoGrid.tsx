@@ -1,5 +1,5 @@
 import { api } from "@/api/client";
-import type { Photo } from "@/types";
+import type { ColorGradePreset, Photo } from "@/types";
 
 import "./PhotoGrid.css";
 
@@ -14,14 +14,18 @@ export interface PhotoGridProps {
   photos: Photo[];
   selectable?: boolean;
   selectedIds?: Set<string>;
+  activeId?: string | null;
   onToggleSelect?: (photoId: string) => void;
+  onOpenPreview?: (photoId: string) => void;
 }
 
 export function PhotoGrid({
   photos,
   selectable = false,
   selectedIds,
+  activeId,
   onToggleSelect,
+  onOpenPreview,
 }: PhotoGridProps) {
   if (photos.length === 0) {
     return (
@@ -34,14 +38,22 @@ export function PhotoGrid({
     <ul className="photo-grid">
       {photos.map((photo) => {
         const selected = selectedIds?.has(photo.id) ?? false;
+        const active = activeId === photo.id;
+        const processedPresets = Object.keys(photo.processed_paths ?? {});
+        const firstProcessedPreset = processedPresets[0] as
+          | ColorGradePreset
+          | "adjusted"
+          | undefined;
         const Tag: "li" = "li";
         const handleClick = () => {
-          if (selectable && onToggleSelect) onToggleSelect(photo.id);
+          onOpenPreview?.(photo.id);
         };
         return (
           <Tag
             key={photo.id}
             className={`photo-tile${selected ? " photo-tile--selected" : ""}${
+              active ? " photo-tile--active" : ""
+            }${
               selectable ? " photo-tile--selectable" : ""
             }`}
             onClick={handleClick}
@@ -65,20 +77,40 @@ export function PhotoGrid({
                 </span>
               </div>
               {selectable && (
-                <span className="photo-tile__check" aria-hidden>
+                <button
+                  type="button"
+                  className="photo-tile__check"
+                  aria-label={selected ? "取消選取" : "選取照片"}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onToggleSelect?.(photo.id);
+                  }}
+                >
                   ✓
-                </span>
+                </button>
               )}
             </div>
-            <a
-              href={api.photoFileUrl(photo.id)}
-              target="_blank"
-              rel="noreferrer"
-              className="photo-tile__open mono"
-              onClick={(e) => e.stopPropagation()}
-            >
-              開原檔 ↗
-            </a>
+            <div className="photo-tile__actions">
+              <a
+                href={api.photoFileUrl(photo.id)}
+                target="_blank"
+                rel="noreferrer"
+                className="photo-tile__open mono"
+                onClick={(e) => e.stopPropagation()}
+              >
+                開原檔 ↗
+              </a>
+              {firstProcessedPreset && (
+                <a
+                  href={api.processedPhotoUrl(photo.id, firstProcessedPreset)}
+                  download
+                  className="photo-tile__open mono"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  下載處理後 ↓
+                </a>
+              )}
+            </div>
           </Tag>
         );
       })}

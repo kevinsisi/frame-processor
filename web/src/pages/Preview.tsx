@@ -2,6 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { api } from "@/api/client";
+import {
+  AdjustmentPanel,
+  DEFAULT_ADJUSTMENT_PARAMS,
+} from "@/components/AdjustmentPanel";
 import { BeforeAfter } from "@/components/BeforeAfter";
 import { PhotoGrid } from "@/components/PhotoGrid";
 import { PipelinePanel } from "@/components/PipelinePanel";
@@ -9,6 +13,9 @@ import { Spinner } from "@/components/Spinner";
 import { useToast } from "@/components/Toast";
 import type {
   ColorGradePreset,
+  AdjustmentParams,
+  AdjustmentJob,
+  AdjustmentPreset,
   ProcessingJob,
   ProcessingJobCreate,
   ProjectDetail,
@@ -22,9 +29,18 @@ export default function PreviewPage() {
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [activePhotoId, setActivePhotoId] = useState<string | null>(null);
+  const [adjustmentParams, setAdjustmentParams] = useState<AdjustmentParams>(() =>
+    structuredClone(DEFAULT_ADJUSTMENT_PARAMS),
+  );
+  const [preview, setPreview] = useState<{ photoId: string; url: string } | null>(null);
+  const [presets, setPresets] = useState<AdjustmentPreset[]>([]);
   const [job, setJob] = useState<ProcessingJob | null>(null);
+  const [adjustmentJob, setAdjustmentJob] = useState<AdjustmentJob | null>(null);
   const [busy, setBusy] = useState(false);
   const pollRef = useRef<number | null>(null);
+  const adjustmentPollRef = useRef<number | null>(null);
+  const previewRequestRef = useRef(0);
 
   function reload() {
     if (!projectId) return;
@@ -32,6 +48,14 @@ export default function PreviewPage() {
       .getProject(projectId)
       .then((p) => setProject(p))
       .catch((err) => setError(String(err)));
+  }
+
+  function reloadPresets() {
+    if (!projectId) return;
+    api
+      .listAdjustmentPresets(projectId)
+      .then(setPresets)
+      .catch((err) => toast(`讀取 preset 失敗：${String(err)}`, "error"));
   }
 
   useEffect(() => {
@@ -46,13 +70,60 @@ export default function PreviewPage() {
       .then((p) => {
         setProject(p);
         setSelected(new Set(p.photos.map((ph) => ph.id)));
+        setActivePhotoId(
+          p.photos.find((ph) => Object.keys(ph.processed_paths ?? {}).length > 0)?.id ??
+            p.photos[0]?.id ??
+            null,
+        );
+        reloadPresets();
       })
       .catch((err) => setError(String(err)));
   }, [projectId]);
 
   useEffect(() => {
+    if (!activePhotoId) {
+      setPreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev.url);
+        return null;
+      });
+      return;
+    }
+    const requestId = ++previewRequestRef.current;
+    setPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev.url);
+      return null;
+    });
+    const handle = window.setTimeout(async () => {
+      try {
+        const blob = await api.previewAdjustment(activePhotoId, adjustmentParams);
+        const url = URL.createObjectURL(blob);
+        if (previewRequestRef.current !== requestId) {
+          URL.revokeObjectURL(url);
+          return;
+        }
+        setPreview((prev) => {
+          if (prev) URL.revokeObjectURL(prev.url);
+          return { photoId: activePhotoId, url };
+        });
+      } catch (err) {
+        console.warn("adjustment preview failed", err);
+      }
+    }, 120);
+    return () => window.clearTimeout(handle);
+  }, [activePhotoId, adjustmentParams]);
+
+  useEffect(() => {
+    return () => {
+      if (preview) URL.revokeObjectURL(preview.url);
+    };
+  }, [preview]);
+
+  useEffect(() => {
     return () => {
       if (pollRef.current !== null) window.clearInterval(pollRef.current);
+      if (adjustmentPollRef.current !== null) {
+        window.clearInterval(adjustmentPollRef.current);
+      }
     };
   }, []);
 
@@ -116,6 +187,74 @@ export default function PreviewPage() {
     }
   }
 
+  async function applyAdjustment(photoIds: string[]) {
+    if (photoIds.length === 0) return;
+    setBusy(true);
+    try {
+      if (photoIds.length === 1) {
+        await api.applyAdjustment(photoIds[0], adjustmentParams);
+        toast("已套用微調", "success");
+        reload();
+        setBusy(false);
+        return;
+      }
+      if (!projectId) {
+        setBusy(false);
+        return;
+      }
+      const created = await api.createAdjustmentJob(projectId, adjustmentParams, photoIds);
+      setAdjustmentJob(created);
+      toast(`已開始套用微調，共 ${created.total} 張`, "info");
+      if (adjustmentPollRef.current !== null) {
+        window.clearInterval(adjustmentPollRef.current);
+      }
+      adjustmentPollRef.current = window.setInterval(async () => {
+        try {
+          const next = await api.getAdjustmentJob(created.id);
+          setAdjustmentJob(next);
+          if (next.status === "done" || next.status === "failed") {
+            if (adjustmentPollRef.current !== null) {
+              window.clearInterval(adjustmentPollRef.current);
+              adjustmentPollRef.current = null;
+            }
+            setBusy(false);
+            if (next.status === "done") {
+              toast("批次微調完成", "success");
+              reload();
+            } else {
+              toast(`批次微調失敗：${next.error ?? "unknown error"}`, "error");
+            }
+          }
+        } catch (err) {
+          console.warn("poll adjustment job failed", err);
+        }
+      }, 1500);
+    } catch (err) {
+      toast(`套用微調失敗：${String(err)}`, "error");
+      setBusy(false);
+    }
+  }
+
+  async function savePreset(name: string) {
+    try {
+      await api.createAdjustmentPreset(name, adjustmentParams, projectId);
+      toast("已儲存 preset", "success");
+      reloadPresets();
+    } catch (err) {
+      toast(`儲存 preset 失敗：${String(err)}`, "error");
+    }
+  }
+
+  async function deletePreset(preset: AdjustmentPreset) {
+    try {
+      await api.deleteAdjustmentPreset(preset.id);
+      toast(`已刪除 preset：${preset.name}`, "success");
+      reloadPresets();
+    } catch (err) {
+      toast(`刪除 preset 失敗：${String(err)}`, "error");
+    }
+  }
+
   if (!projectId) {
     return (
       <main className="page page--narrow preview-empty">
@@ -164,15 +303,30 @@ export default function PreviewPage() {
     );
   }
 
+  const activePhoto = project.photos.find((p) => p.id === activePhotoId) ?? null;
   const samplePhoto =
+    activePhoto ??
     project.photos.find((p) => Object.keys(p.processed_paths ?? {}).length > 0) ??
     null;
-  const samplePreset =
-    samplePhoto && Object.keys(samplePhoto.processed_paths)[0]
-      ? (Object.keys(samplePhoto.processed_paths)[0] as ColorGradePreset)
-      : null;
+  const processedKeys = samplePhoto ? Object.keys(samplePhoto.processed_paths ?? {}) : [];
+  const samplePreset = processedKeys[0] ? (processedKeys[0] as ColorGradePreset | "adjusted") : null;
+  const basePreset = processedKeys.find((key) => key !== "adjusted") as
+    | ColorGradePreset
+    | undefined;
+  const activePreviewUrl =
+    preview && preview.photoId === samplePhoto?.id ? preview.url : null;
+  const baseDisplayUrl =
+    samplePhoto && basePreset
+      ? api.processedPhotoUrl(samplePhoto.id, basePreset)
+      : samplePhoto
+        ? api.photoFileUrl(samplePhoto.id)
+        : "";
   const progressPct =
     job && job.total > 0 ? Math.round((job.progress / job.total) * 100) : 0;
+  const adjustmentProgressPct =
+    adjustmentJob && adjustmentJob.total > 0
+      ? Math.round((adjustmentJob.progress / adjustmentJob.total) * 100)
+      : 0;
 
   return (
     <main className="page preview">
@@ -234,18 +388,62 @@ export default function PreviewPage() {
         </section>
       )}
 
-      {samplePhoto && samplePreset && (
+      {samplePhoto && (
         <section className="section">
           <header className="section__head">
             <h2 className="section__title">前後對比</h2>
-            <span className="section__meta mono">{samplePreset}</span>
+            <span className="section__meta mono">
+              {activePreviewUrl ? "manual_adjust" : samplePreset ?? "original"}
+            </span>
           </header>
           <BeforeAfter
-            beforeUrl={api.photoFileUrl(samplePhoto.id)}
-            afterUrl={api.processedPhotoUrl(samplePhoto.id, samplePreset)}
+            key={`${samplePhoto.id}:${activePreviewUrl ?? samplePreset ?? "original"}`}
+            beforeUrl={baseDisplayUrl}
+            afterUrl={
+              activePreviewUrl ??
+              (samplePreset
+                ? api.processedPhotoUrl(samplePhoto.id, samplePreset)
+                : api.photoFileUrl(samplePhoto.id))
+            }
             alt={samplePhoto.original_filename}
           />
         </section>
+      )}
+
+      {adjustmentJob && (
+        <section className="job-status">
+          <header className="job-status__head">
+            <span className="mono">adjust #{adjustmentJob.id.slice(0, 8)}</span>
+            <span className={`job-status__pill job-status__pill--${adjustmentJob.status}`}>
+              {adjustmentJob.status}
+            </span>
+          </header>
+          <div className="job-status__bar" aria-hidden>
+            <div
+              className="job-status__bar-fill"
+              style={{ width: `${adjustmentProgressPct}%` }}
+            />
+          </div>
+          <p className="job-status__meta mono">
+            {adjustmentJob.progress} / {adjustmentJob.total} 微調完成
+            {adjustmentJob.error ? ` · ${adjustmentJob.error}` : ""}
+          </p>
+        </section>
+      )}
+
+      {activePhotoId && (
+        <AdjustmentPanel
+          params={adjustmentParams}
+          presets={presets}
+          busy={busy}
+          onChange={setAdjustmentParams}
+          onApplyCurrent={() => void applyAdjustment([activePhotoId])}
+          onApplySelected={() => void applyAdjustment(Array.from(selected))}
+          onReset={() => setAdjustmentParams(structuredClone(DEFAULT_ADJUSTMENT_PARAMS))}
+          onSavePreset={(name) => void savePreset(name)}
+          onLoadPreset={(preset) => setAdjustmentParams(preset.params)}
+          onDeletePreset={(preset) => void deletePreset(preset)}
+        />
       )}
 
       <section className="section">
@@ -286,7 +484,9 @@ export default function PreviewPage() {
           photos={project.photos}
           selectable
           selectedIds={selected}
+          activeId={samplePhoto?.id ?? activePhotoId}
           onToggleSelect={toggle}
+          onOpenPreview={setActivePhotoId}
         />
       </section>
     </main>

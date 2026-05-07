@@ -117,10 +117,10 @@ def _largest_box_in(w: int, h: int, target: tuple[int, int]) -> tuple[int, int]:
     tw, th = target
     if w * th >= h * tw:
         crop_h = h
-        crop_w = int(round(h * tw / th))
+        crop_w = round(h * tw / th)
     else:
         crop_w = w
-        crop_h = int(round(w * th / tw))
+        crop_h = round(w * th / tw)
     return min(crop_w, w), min(crop_h, h)
 
 

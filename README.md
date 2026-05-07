@@ -2,7 +2,7 @@
 
 照片批次後製工具。上傳 N 張 → 選 preset + 處理選項 → 全部一鍵處理 → 下載 zip。
 
-目前狀態：**v0.2.2 — bundled processing pipeline + settings key import shipped**（NAFNet AI 降噪 / 廣角畸變矯正 / Gemini Vision 水平校正 / YOLOv8 自動裁剪 / Pillow 色調 preset / before-after 對比 / per-photo queue progress / Gemini key 設定頁）。已部署至 [frame.sisihome.org](https://frame.sisihome.org)。
+目前狀態：**v0.3.0 in progress — bundled pipeline + settings key import + manual adjustment panel**（NAFNet AI 降噪 / 廣角畸變矯正 / Gemini Vision 水平校正 / YOLOv8 自動裁剪 / Pillow 色調 preset / before-after 對比 / per-photo queue progress / Gemini key 設定頁 / 手動曝光、對比、亮暗部、色溫、色偏、飽和、自然飽和、清晰度、銳利化、HSL 微調與 preset 儲存載入）。已部署至 [frame.sisihome.org](https://frame.sisihome.org)。
 
 ## Quick start
 
@@ -20,13 +20,13 @@ docker compose up -d --build
 
 ### 必要環境變數
 
-`deploy/docker-compose.yml` 從同目錄 `.env` 讀取（或主機 env 直接 inject）：
+`deploy/docker-compose.yml` 從同目錄 `deploy/.env` 讀取（或主機 env 直接 inject）：
 
 ```bash
 GEMINI_API_KEY=xxx          # 水平校正必要（Gemini Vision 估角度）；缺則 level_correct 會 fail
-GEMINI_MODEL=gemini-2.0-flash   # 預設值
+GEMINI_MODEL=gemini-2.5-flash   # 預設值
 SETTINGS_ADMIN_TOKEN=xxx    # /settings 修改金鑰必要；只用於 PUT/DELETE/sync mutation
-KEY_MANAGER_URL=http://key.sisihome.org:7823  # 後端固定同步來源，避免前端任意 URL
+KEY_MANAGER_URL=            # 可選；空白代表不啟用 key-manager 同步，直接貼 key 即可
 ULTRALYTICS_DIR=/data/models-weights/ultralytics  # YOLOv8 權重 cache
 NAFNET_DIR=/data/models-weights/nafnet            # NAFNet 權重 cache
 ```
@@ -73,6 +73,12 @@ npm run dev
 ## Pipeline 順序
 
 固定 `denoise → lens_distort → level_correct → auto_crop → color_grade`。每階段獨立 toggle；理由見 `ARCHITECTURE.md` § Pipeline 順序 與 `docs/adr/0002-bundled-v0.2.0-processing.md`。
+
+## Manual Adjustments
+
+`/preview` 目前支援點選任一照片後在上方 Before/After 載入該照片，並以同步 preview API 顯示手動調整結果。可調整水平旋轉、裁切縮放/偏移、手動變形修正、曝光、對比、亮部、暗部、色溫、色偏、飽和、自然飽和、清晰度、銳利化與 HSL 六色區。按「套用目前照片」會寫入 `processed_paths.adjusted`；按「套用到已選照片」會建立 `adjustment_jobs` worker job 並顯示進度。匯出 zip 時優先使用 `adjusted`，再 fallback 到 pipeline preset output，最後才用原圖。
+
+已處理的單張照片可從照片卡片下載 processed JPG。使用者 preset 存在 `adjustment_presets`，單張調整參數存在 `photo_adjustments`。Manual adjustment 永遠從非 `adjusted` 的基準圖（pipeline output 或原圖）重新計算，不會把上一次 adjusted 結果當來源重複累加。手動水平、裁切、變形修正不會呼叫 Gemini AI。
 
 ## 對象使用者
 

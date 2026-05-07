@@ -4,7 +4,7 @@
 
 - [x] Add `models/app_setting.py` and export it from `models/__init__.py`.
 - [x] Add alembic migration `0003_app_settings.py`.
-- [x] Add `services/settings_store.py` with Gemini key parsing, summary, DB/env fallback, set, clear, and key-manager sync helpers.
+- [x] Add `services/settings_store.py` with Gemini key parsing, summary, DB/env fallback, set, clear, and optional key-manager sync helpers.
 - [x] Add `api/routers/settings.py` and mount it in `api/main.py`.
 - [x] Make level correction resolve the active Gemini key via settings store.
 - [x] Require `SETTINGS_ADMIN_TOKEN` for key mutations and use backend `KEY_MANAGER_URL` only.

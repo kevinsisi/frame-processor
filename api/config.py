@@ -13,9 +13,9 @@ class Settings(BaseSettings):
 
     # AI integrations
     gemini_api_key: str | None = None
-    gemini_model: str = "gemini-2.0-flash"
+    gemini_model: str = "gemini-2.5-flash"
     settings_admin_token: str | None = None
-    key_manager_url: str = "http://key.sisihome.org:7823"
+    key_manager_url: str | None = None
 
     # Model weight cache directories (mounted as Docker volumes in deploy)
     ultralytics_dir: Path = Path("./data/models-weights/ultralytics")

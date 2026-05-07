@@ -18,8 +18,6 @@ from api.config import settings
 from models.app_setting import AppSetting
 
 GEMINI_API_KEYS_KEY = "gemini_api_keys"
-DEFAULT_KEY_MANAGER_URL = "http://key.sisihome.org:7823"
-
 _GEMINI_KEY_RE = re.compile(r"^AIzaSy[0-9A-Za-z_\-]{30,40}$")
 
 
@@ -158,7 +156,7 @@ def merge_gemini_api_keys(db: Session, incoming: list[str], replace: bool) -> tu
 
 def sync_from_key_manager(
     db: Session,
-    url: str = DEFAULT_KEY_MANAGER_URL,
+    url: str,
     *,
     trusted_only: bool = True,
     replace: bool = False,

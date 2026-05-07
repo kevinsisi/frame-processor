@@ -1,4 +1,6 @@
 .settings {
+  width: 100%;
+  min-width: 0;
   max-width: 880px;
 }
 
@@ -118,6 +120,7 @@
 .settings__textarea,
 .settings__input {
   width: 100%;
+  min-width: 0;
   font-size: var(--t-sm);
   background: var(--ink-elevated);
   color: var(--text-primary);
@@ -194,6 +197,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
+  min-width: 0;
 }
 
 .settings__notice {
@@ -211,6 +215,10 @@
   color: var(--status-down);
 }
 
+.settings__notice--info {
+  color: var(--text-secondary);
+}
+
 .settings__notice code {
   font-family: var(--font-mono);
   color: var(--text-primary);
@@ -223,7 +231,11 @@
   }
 
   .settings__actions {
-    justify-content: flex-end;
+    justify-content: stretch;
+  }
+
+  .settings__actions .cta {
+    flex: 1 1 140px;
   }
 
   .settings__kv {

@@ -3,20 +3,15 @@ from datetime import datetime
 
 from sqlalchemy import DateTime, ForeignKey, Integer, Text, func
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy.dialects.postgresql import ARRAY, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.database import Base
-from models.enums import (
-    AspectRatio,
-    ColorGradePreset,
-    DenoiseStrength,
-    ProcessingJobStatus,
-)
+from models.enums import ProcessingJobStatus
 
 
-class ProcessingJob(Base):
-    __tablename__ = "processing_jobs"
+class AdjustmentJob(Base):
+    __tablename__ = "adjustment_jobs"
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -36,33 +31,7 @@ class ProcessingJob(Base):
         nullable=False,
         default=ProcessingJobStatus.PENDING,
     )
-    preset: Mapped[ColorGradePreset] = mapped_column(
-        SAEnum(
-            ColorGradePreset,
-            name="color_grade_preset",
-            values_callable=lambda enum_cls: [m.value for m in enum_cls],
-        ),
-        nullable=False,
-    )
-    denoise_strength: Mapped[DenoiseStrength] = mapped_column(
-        SAEnum(
-            DenoiseStrength,
-            name="denoise_strength",
-            values_callable=lambda enum_cls: [m.value for m in enum_cls],
-        ),
-        nullable=False,
-        default=DenoiseStrength.NONE,
-    )
-    lens_distort_correct: Mapped[bool] = mapped_column(nullable=False, default=False)
-    level_correct: Mapped[bool] = mapped_column(nullable=False, default=False)
-    auto_crop_aspect: Mapped[AspectRatio | None] = mapped_column(
-        SAEnum(
-            AspectRatio,
-            name="aspect_ratio",
-            values_callable=lambda enum_cls: [m.value for m in enum_cls],
-        ),
-        nullable=True,
-    )
+    params: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     photo_ids: Mapped[list[uuid.UUID]] = mapped_column(
         ARRAY(UUID(as_uuid=True)), nullable=False, default=list
     )
@@ -76,4 +45,4 @@ class ProcessingJob(Base):
         DateTime(timezone=True), nullable=True
     )
 
-    project: Mapped["Project"] = relationship(back_populates="processing_jobs")  # noqa: F821
+    project: Mapped["Project"] = relationship(back_populates="adjustment_jobs")  # noqa: F821

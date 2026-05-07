@@ -64,7 +64,7 @@
 子版本：
 - **v0.2.0** — bundled pipeline ship（commit `5e7fc80` → merge `791e851` → cleanup `208c9b9`）
 - **v0.2.1** — post-ship FE 修正：per-photo queue progress（job 列出每張 done/running/queued 狀態）、AppFooter 拿掉 carsmeet/8891 字眼
-- **v0.2.2** — 設定頁 + Gemini API key 匯入：DB-backed runtime key pool、env fallback、key-manager trusted-only 同步，供水平校正使用
+- **v0.2.2** — 設定頁 + Gemini API key 匯入：DB-backed runtime key pool、env fallback；key-manager trusted-only 同步只在後端明確設定 `KEY_MANAGER_URL` 時作為可選捷徑，供水平校正使用
 
 ---
 
@@ -72,11 +72,13 @@
 
 **目標**：preset + auto pipeline 解決 80% 場景；剩下 20% 需要手動微調 sliders。
 
-範圍（提案中，4 個 open question 待簽核）：
-- `services/adjustments.py` 14+ ops：曝光 / 對比 / 亮部 / 暗部 / 白色 / 黑色 / 色溫 / 色調 / 飽和度 / 鮮豔度 / 清晰度 / HSL × 6 色 / 銳化 / 色偏修正
-- `models/adjustment_preset.py` + `models/photo_adjustment.py` + alembic 0003
-- API：`POST /photos/{id}/adjustments`、`POST /photos/{id}/preview` (live 同步)、`POST /projects/{id}/apply-adjustments`、preset CRUD
-- FE：`AdjustmentPanel` + `HslWheel` + `PresetManager` + 即時 preview slider
+範圍（第一版已部署，持續收斂）：
+- `services/adjustments.py`：手動水平 / 裁切縮放與偏移 / 手動變形修正 / 曝光 / 對比 / 亮部 / 暗部 / 色溫 / 色偏 / 飽和 / 自然飽和 / 清晰度 / 銳利化 / HSL × 6 色
+- `models/adjustment_preset.py` + `models/photo_adjustment.py` + alembic `0004_adjustment_panel`
+- API：`POST /photos/{id}/adjustments`、`POST /photos/{id}/preview` (live 同步)、`POST /projects/{id}/adjustments/apply` worker batch、preset CRUD
+- FE：`AdjustmentPanel` + 即時 preview slider + preset save/load/delete + 點照片同步上方 Before/After + 單張 processed download
+- Export zip 優先 `processed_paths.adjusted` → preset processed → original
+- 待辦：iPhone Safari mobile QA、降噪可視化/preview 比較強化、更多細節控制校準
 
 對應提案：`openspec/changes/2026-05-07-v0.3.0-adjustment-panel/`
 

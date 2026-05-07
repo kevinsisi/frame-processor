@@ -33,9 +33,9 @@ services:
       STORAGE_ROOT: /data
       ALLOWED_ORIGINS: https://frame.sisihome.org,http://localhost:5173,http://localhost:3000
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
       SETTINGS_ADMIN_TOKEN: ${SETTINGS_ADMIN_TOKEN:-}
-      KEY_MANAGER_URL: ${KEY_MANAGER_URL:-http://key.sisihome.org:7823}
+      KEY_MANAGER_URL: ${KEY_MANAGER_URL:-}
       ULTRALYTICS_DIR: /data/models-weights/ultralytics
       NAFNET_DIR: /data/models-weights/nafnet
     ports:
@@ -58,9 +58,9 @@ services:
       REDIS_URL: redis://redis:6379/0
       STORAGE_ROOT: /data
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
       SETTINGS_ADMIN_TOKEN: ${SETTINGS_ADMIN_TOKEN:-}
-      KEY_MANAGER_URL: ${KEY_MANAGER_URL:-http://key.sisihome.org:7823}
+      KEY_MANAGER_URL: ${KEY_MANAGER_URL:-}
       ULTRALYTICS_DIR: /data/models-weights/ultralytics
       NAFNET_DIR: /data/models-weights/nafnet
       YOLO_CONFIG_DIR: /data/models-weights/ultralytics
@@ -79,6 +79,7 @@ services:
       dockerfile: deploy/web.Dockerfile
       args:
         VITE_API_BASE_URL: /api
+        VITE_SETTINGS_ADMIN_TOKEN: ${SETTINGS_ADMIN_TOKEN:-}
     ports:
       - "100.83.112.20:8533:80"
     depends_on:

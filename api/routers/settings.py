@@ -26,7 +26,7 @@ class KeyPoolOut(BaseModel):
 
 class SettingsOut(BaseModel):
     gemini_model: str
-    key_manager_url: str
+    key_manager_url: str | None
     settings_admin_configured: bool
     gemini_api_keys: KeyPoolOut
 
@@ -119,6 +119,11 @@ def sync_keys(
     db: DbDep,
     _admin: Annotated[None, Depends(require_settings_admin)],
 ) -> SyncFromManagerOut:
+    if not app_settings.key_manager_url:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="KEY_MANAGER_URL is not configured; paste Gemini keys directly instead",
+        )
     try:
         result = sync_from_key_manager(
             db,

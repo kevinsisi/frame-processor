@@ -9,6 +9,8 @@
 }
 
 .app-header__inner {
+  width: 100%;
+  min-width: 0;
   max-width: var(--page-max);
   margin: 0 auto;
   padding: 0 var(--space-7);
@@ -23,6 +25,7 @@
   align-items: baseline;
   gap: var(--space-3);
   color: var(--text-primary);
+  min-width: 0;
 }
 
 .brand-mark {
@@ -55,6 +58,7 @@
   display: flex;
   gap: var(--space-5);
   align-items: baseline;
+  min-width: 0;
 }
 
 .nav-link {
@@ -94,6 +98,7 @@
 }
 
 .app-header__rule {
+  width: 100%;
   max-width: var(--page-max);
   margin: var(--space-4) auto 0;
   padding: 0 var(--space-7);
@@ -134,9 +139,12 @@
   }
   .app-header__nav {
     width: 100%;
+    max-width: 100%;
     gap: var(--space-2);
-    justify-content: space-between;
+    justify-content: flex-start;
     overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
     padding-bottom: var(--space-1);
     scrollbar-width: none;
   }
@@ -146,6 +154,7 @@
   .nav-link {
     min-height: 44px;
     display: inline-flex;
+    flex: 0 0 auto;
     align-items: center;
     padding: 0 var(--space-1);
     white-space: nowrap;
@@ -161,6 +170,8 @@
   }
   .brand-word {
     font-size: 17px;
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
   .brand-mark {
     letter-spacing: 0.12em;

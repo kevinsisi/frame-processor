@@ -82,7 +82,7 @@ export type KeyPool = {
 
 export type Settings = {
   gemini_model: string;
-  key_manager_url: string;
+  key_manager_url: string | null;
   settings_admin_configured: boolean;
   gemini_api_keys: KeyPool;
 };
@@ -108,4 +108,58 @@ export type SyncFromKeyManagerResult = {
   imported: number;
   skipped: number;
   stored_count: number;
+};
+
+export type HslColor = "red" | "orange" | "yellow" | "green" | "blue" | "purple";
+
+export type HslAdjustment = {
+  hue: number;
+  saturation: number;
+  luminance: number;
+};
+
+export type AdjustmentParams = {
+  exposure: number;
+  contrast: number;
+  highlights: number;
+  shadows: number;
+  temperature: number;
+  tint: number;
+  saturation: number;
+  vibrance: number;
+  clarity: number;
+  sharpness: number;
+  rotation: number;
+  crop_zoom: number;
+  crop_x: number;
+  crop_y: number;
+  distortion: number;
+  hsl: Record<HslColor, HslAdjustment>;
+};
+
+export type AdjustmentApplyResult = {
+  photo_id: string;
+  processed_path: string;
+  params: AdjustmentParams;
+};
+
+export type AdjustmentJob = {
+  id: string;
+  project_id: string;
+  status: ProcessingJobStatus;
+  params: AdjustmentParams;
+  photo_ids: string[];
+  progress: number;
+  total: number;
+  error: string | null;
+  created_at: string;
+  completed_at: string | null;
+};
+
+export type AdjustmentPreset = {
+  id: string;
+  project_id: string | null;
+  name: string;
+  params: AdjustmentParams;
+  created_at: string;
 };

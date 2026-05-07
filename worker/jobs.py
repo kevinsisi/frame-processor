@@ -15,11 +15,12 @@ from sqlalchemy import select
 from sqlalchemy.orm.attributes import flag_modified
 
 from api.database import SessionLocal
+from models.adjustment_job import AdjustmentJob
 from models.enums import ExportStatus, ProcessingJobStatus
 from models.export import Export
 from models.photo import Photo
 from models.processing_job import ProcessingJob
-from services import photo_processor, zip_export
+from services import adjustment_renderer, photo_processor, zip_export
 
 
 def zip_export_job(export_id: str) -> str:
@@ -56,7 +57,7 @@ def zip_export_job(export_id: str) -> str:
             export.completed_at = datetime.now(tz=timezone.utc)
             db.commit()
             return export.zip_path
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             export.status = ExportStatus.FAILED
             export.error = str(exc)
             export.completed_at = datetime.now(tz=timezone.utc)
@@ -65,8 +66,11 @@ def zip_export_job(export_id: str) -> str:
 
 
 def _pick_export_path(stored_path: str, processed_paths: dict[str, str] | None) -> str:
-    """有處理結果就用處理結果，否則用原圖。多 preset 時取任一個（v0.2.0 一次只跑一組）。"""
+    """有手動調整優先用 adjusted，否則用任一處理結果，最後 fallback 原圖。"""
     if processed_paths:
+        adjusted = processed_paths.get("adjusted")
+        if adjusted:
+            return adjusted
         for value in processed_paths.values():
             if value:
                 return value
@@ -119,7 +123,47 @@ def process_photos_job(job_id: str) -> int:
             job.completed_at = datetime.now(tz=timezone.utc)
             db.commit()
             return job.progress
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
+            job.status = ProcessingJobStatus.FAILED
+            job.error = str(exc)
+            job.completed_at = datetime.now(tz=timezone.utc)
+            db.commit()
+            raise
+
+
+def apply_adjustments_job(job_id: str) -> int:
+    job_uuid = UUID(job_id)
+
+    with SessionLocal() as db:
+        job = db.get(AdjustmentJob, job_uuid)
+        if job is None:
+            raise ValueError(f"adjustment job {job_id} not found")
+
+        job.status = ProcessingJobStatus.RUNNING
+        job.progress = 0
+        job.error = None
+        db.commit()
+
+        photo_ids = list(job.photo_ids or [])
+        job.total = len(photo_ids)
+        db.commit()
+
+        try:
+            for photo_id in photo_ids:
+                photo = db.get(Photo, photo_id)
+                if photo is None:
+                    job.progress += 1
+                    db.commit()
+                    continue
+                adjustment_renderer.apply_to_photo(db, photo, dict(job.params or {}))
+                job.progress += 1
+                db.commit()
+
+            job.status = ProcessingJobStatus.DONE
+            job.completed_at = datetime.now(tz=timezone.utc)
+            db.commit()
+            return job.progress
+        except Exception as exc:
             job.status = ProcessingJobStatus.FAILED
             job.error = str(exc)
             job.completed_at = datetime.now(tz=timezone.utc)

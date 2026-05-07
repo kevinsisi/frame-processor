@@ -28,8 +28,10 @@ def apply_grade(image: Image.Image, preset: ColorGradePreset) -> Image.Image:
 
 def _showroom_white(image: Image.Image) -> Image.Image:
     balanced = _gray_world_white_balance(image)
-    brighter = ImageEnhance.Brightness(balanced).enhance(1.05)
-    desaturated = ImageEnhance.Color(brighter).enhance(0.85)
+    neutral = _channel_shift(balanced, r_delta=-4, g_delta=0, b_delta=7)
+    brighter = ImageEnhance.Brightness(neutral).enhance(1.03)
+    contrasted = ImageEnhance.Contrast(brighter).enhance(1.03)
+    desaturated = ImageEnhance.Color(contrasted).enhance(0.78)
     return desaturated
 
 

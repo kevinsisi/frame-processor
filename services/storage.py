@@ -100,3 +100,7 @@ def processed_path(
     project_id: uuid.UUID, photo_id: uuid.UUID, preset: ColorGradePreset
 ) -> Path:
     return _project_processed_dir(project_id) / f"{photo_id}.{preset.value}.jpg"
+
+
+def adjusted_path(project_id: uuid.UUID, photo_id: uuid.UUID) -> Path:
+    return _project_processed_dir(project_id) / f"{photo_id}.adjusted.jpg"

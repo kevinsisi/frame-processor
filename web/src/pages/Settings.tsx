@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
 
-import { api } from "@/api/client";
+import { api, settingsAdminTokenAvailable } from "@/api/client";
 import type { Settings } from "@/types";
 
 import "./Settings.css";
 
-const DEFAULT_KEY_MANAGER_URL = "http://key.sisihome.org:7823";
 const SETTINGS_TOKEN_STORAGE_KEY = "frame-processor:settings-token";
 
 const SOURCE_LABEL: Record<Settings["gemini_api_keys"]["source"], string> = {
@@ -26,9 +25,11 @@ export default function SettingsPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [textarea, setTextarea] = useState("");
   const [replace, setReplace] = useState(true);
-  const [managerUrl, setManagerUrl] = useState(DEFAULT_KEY_MANAGER_URL);
+  const [managerUrl, setManagerUrl] = useState("");
   const [settingsToken, setSettingsToken] = useState(() =>
-    localStorage.getItem(SETTINGS_TOKEN_STORAGE_KEY) ?? "",
+    settingsAdminTokenAvailable
+      ? ""
+      : (localStorage.getItem(SETTINGS_TOKEN_STORAGE_KEY) ?? ""),
   );
   const [busy, setBusy] = useState<BusyState>(null);
   const [flash, setFlash] = useState<FlashMessage | null>(null);
@@ -37,7 +38,7 @@ export default function SettingsPage() {
     try {
       const next = await api.getSettings();
       setData(next);
-      setManagerUrl(next.key_manager_url || DEFAULT_KEY_MANAGER_URL);
+      setManagerUrl(next.key_manager_url ?? "");
       setLoadError(null);
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : String(err));
@@ -51,7 +52,9 @@ export default function SettingsPage() {
   const handleSave = async () => {
     setBusy("save");
     setFlash(null);
-    localStorage.setItem(SETTINGS_TOKEN_STORAGE_KEY, settingsToken);
+    if (!settingsAdminTokenAvailable) {
+      localStorage.setItem(SETTINGS_TOKEN_STORAGE_KEY, settingsToken);
+    }
     try {
       const out = await api.updateGeminiKeys(
         { raw: textarea, replace },
@@ -76,7 +79,9 @@ export default function SettingsPage() {
   const handleSync = async () => {
     setBusy("sync");
     setFlash(null);
-    localStorage.setItem(SETTINGS_TOKEN_STORAGE_KEY, settingsToken);
+    if (!settingsAdminTokenAvailable) {
+      localStorage.setItem(SETTINGS_TOKEN_STORAGE_KEY, settingsToken);
+    }
     try {
       const out = await api.syncKeysFromManager(
         {
@@ -103,7 +108,9 @@ export default function SettingsPage() {
   const handleClear = async () => {
     setBusy("clear");
     setFlash(null);
-    localStorage.setItem(SETTINGS_TOKEN_STORAGE_KEY, settingsToken);
+    if (!settingsAdminTokenAvailable) {
+      localStorage.setItem(SETTINGS_TOKEN_STORAGE_KEY, settingsToken);
+    }
     try {
       await api.clearGeminiKeys(settingsToken);
       setFlash({ kind: "ok", text: "已清空系統內金鑰，將回到主機環境設定備援。" });
@@ -126,8 +133,8 @@ export default function SettingsPage() {
           Gemini Vision <em>金鑰管理</em>
         </h1>
         <p className="settings__lede">
-          水平校正會使用這組 Gemini key pool。可批次貼上、從 key-manager
-          trusted-only 匯入，或清空後回到 deploy host 的 <code>GEMINI_API_KEY</code>。
+          水平校正會使用這組 Gemini key pool。可批次貼上金鑰；清空後會回到 deploy host 的
+          <code>GEMINI_API_KEY</code>。key-manager 只是可選同步來源，不是必要依賴。
         </p>
       </section>
 
@@ -171,26 +178,28 @@ export default function SettingsPage() {
         </div>
       )}
 
-      <section className="settings__panel">
-        <div className="settings__panel-head">
-          <h2>管理權限</h2>
-          <p className="settings__hint">
-            修改金鑰需要 deploy host 的 <code>SETTINGS_ADMIN_TOKEN</code>。
-            Token 只存在此瀏覽器，不會回傳到狀態 API。
-          </p>
-        </div>
-        <label className="settings__field">
-          <span>Settings Admin Token</span>
-          <input
-            type="password"
-            className="settings__input mono"
-            value={settingsToken}
-            onChange={(event) => setSettingsToken(event.target.value)}
-            spellCheck={false}
-            autoComplete="off"
-          />
-        </label>
-      </section>
+      {!settingsAdminTokenAvailable && (
+        <section className="settings__panel">
+          <div className="settings__panel-head">
+            <h2>管理權限</h2>
+            <p className="settings__hint">
+              修改金鑰需要 deploy host 的 <code>SETTINGS_ADMIN_TOKEN</code>。
+              Token 只存在此瀏覽器，不會回傳到狀態 API。
+            </p>
+          </div>
+          <label className="settings__field">
+            <span>Settings Admin Token</span>
+            <input
+              type="password"
+              className="settings__input mono"
+              value={settingsToken}
+              onChange={(event) => setSettingsToken(event.target.value)}
+              spellCheck={false}
+              autoComplete="off"
+            />
+          </label>
+        </section>
+      )}
 
       <section className="settings__panel">
         <div className="settings__panel-head">
@@ -225,7 +234,7 @@ export default function SettingsPage() {
               disabled={
                 busy !== null ||
                 textarea.trim().length === 0 ||
-                settingsToken.trim().length === 0 ||
+                (!settingsAdminTokenAvailable && settingsToken.trim().length === 0) ||
                 data?.settings_admin_configured === false
               }
             >
@@ -238,7 +247,7 @@ export default function SettingsPage() {
               disabled={
                 busy !== null ||
                 data?.gemini_api_keys.source !== "db" ||
-                settingsToken.trim().length === 0 ||
+                (!settingsAdminTokenAvailable && settingsToken.trim().length === 0) ||
                 data?.settings_admin_configured === false
               }
             >
@@ -248,42 +257,47 @@ export default function SettingsPage() {
         </div>
       </section>
 
-      <section className="settings__panel">
-        <div className="settings__panel-head">
-          <h2>從金鑰管理服務同步</h2>
-          <p className="settings__hint">
-            從 key-manager 抓取 trusted-only 可用金鑰，與目前系統內金鑰合併並自動去重。
-            來源由後端 <code>KEY_MANAGER_URL</code> 控制，避免瀏覽器提供任意內網 URL。
-          </p>
-        </div>
-        <div className="settings__row settings__row--top">
-          <label className="settings__field">
-            <span>金鑰管理服務 URL</span>
-            <input
-              type="url"
-              className="settings__input mono"
-              value={managerUrl}
-              readOnly
-              spellCheck={false}
-            />
-          </label>
-          <div className="settings__actions">
-            <button
-              type="button"
-              className="cta cta--primary"
-              onClick={handleSync}
-              disabled={
-                busy !== null ||
-                managerUrl.trim().length === 0 ||
-                settingsToken.trim().length === 0 ||
-                data?.settings_admin_configured === false
-              }
-            >
-              {busy === "sync" ? "同步中..." : "同步"}
-            </button>
+      {managerUrl ? (
+        <section className="settings__panel">
+          <div className="settings__panel-head">
+            <h2>可選：從金鑰管理服務同步</h2>
+            <p className="settings__hint">
+              這只是可選捷徑；frame-processor 不依賴 key-manager。來源由後端
+              <code>KEY_MANAGER_URL</code> 控制，避免瀏覽器提供任意內網 URL。
+            </p>
           </div>
+          <div className="settings__row settings__row--top">
+            <label className="settings__field">
+              <span>金鑰管理服務 URL</span>
+              <input
+                type="url"
+                className="settings__input mono"
+                value={managerUrl}
+                readOnly
+                spellCheck={false}
+              />
+            </label>
+            <div className="settings__actions">
+              <button
+                type="button"
+                className="cta cta--primary"
+                onClick={handleSync}
+                disabled={
+                  busy !== null ||
+                  (!settingsAdminTokenAvailable && settingsToken.trim().length === 0) ||
+                  data?.settings_admin_configured === false
+                }
+              >
+                {busy === "sync" ? "同步中..." : "同步"}
+              </button>
+            </div>
+          </div>
+        </section>
+      ) : (
+        <div className="settings__notice settings__notice--info" role="status">
+          未設定 <code>KEY_MANAGER_URL</code>。這是正常狀態；請直接貼上 Gemini API key 匯入。
         </div>
-      </section>
+      )}
 
       {flash && (
         <div

@@ -32,6 +32,7 @@
   background: var(--ink-elevated);
   border: 1px solid var(--ink-line);
   margin-bottom: var(--space-4);
+  min-width: 0;
 }
 
 .bulk-bar__group {
@@ -39,6 +40,7 @@
   align-items: center;
   gap: var(--space-2);
   flex-wrap: wrap;
+  min-width: 0;
 }
 
 .bulk-bar__btn {
@@ -90,6 +92,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  min-width: 0;
 }
 
 .job-status__pill {
@@ -100,6 +103,7 @@
   padding: 2px 10px;
   border: 1px solid var(--ink-line);
   border-radius: 999px;
+  flex: 0 0 auto;
 }
 
 .job-status__pill--pending {
@@ -204,10 +208,16 @@
   }
   .bulk-bar__group {
     width: 100%;
-    justify-content: space-between;
+    justify-content: flex-start;
   }
   .bulk-bar__group .cta {
-    flex: 1;
+    flex: 1 1 140px;
+  }
+  .bulk-bar__btn {
+    flex: 1 1 120px;
+  }
+  .job-status__head {
+    align-items: flex-start;
   }
   .job-status {
     padding: var(--space-4);

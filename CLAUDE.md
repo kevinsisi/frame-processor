@@ -41,10 +41,21 @@ docs/        Architecture、ADR、設計筆記
 
 ### v0.2.0 處理 pipeline 必要條件
 
-- `GEMINI_API_KEY` env 是水平校正的 deploy fallback；v0.2.2 起也可在 `/settings` 批次匯入 Gemini keys，DB key pool 會優先於 env，無任何 key 則 level_correct step 會 fail。deploy host 仍應在 `.env` 放至少一把 fallback key（compose 自動讀，注入 api + worker container）。`/settings` 的 PUT/DELETE/sync mutation 需要 `SETTINGS_ADMIN_TOKEN`，key-manager 同步來源固定由後端 `KEY_MANAGER_URL` 控制，不接受前端任意 URL。
+- `GEMINI_API_KEY` env 是水平校正的 deploy fallback；v0.2.2 起也可在 `/settings` 批次匯入 Gemini keys，DB key pool 會優先於 env，無任何 key 則 level_correct step 會 fail。使用 `docker compose -f deploy/docker-compose.yml` 時，deploy host 應在 `deploy/.env` 放至少一把 fallback key（compose 自動讀，注入 api + worker container）。`/settings` 的 PUT/DELETE/sync mutation 需要 `SETTINGS_ADMIN_TOKEN`。key-manager 不是本系統依賴；只有明確設定後端 `KEY_MANAGER_URL` 時才啟用可選同步入口，不接受前端任意 URL。
 - 模型權重 lazy download 寫到 `storage-data` volume 的 `models-weights/{ultralytics,nafnet}/`；首次處理會下載 ~70MB（NAFNet）+ 6MB（YOLO），之後跨 container restart cached
 - worker image build 會拉 CPU-only torch wheel（避免 CUDA 多 GB），有 GPU 也只在 `torch.cuda.is_available()` 為 true 時自動用
 - pipeline 順序固定 `denoise → lens_distort → level → crop → grade`，理由見 `ARCHITECTURE.md` § Pipeline 順序
+
+### v0.3.0 手動調整面板現況
+
+- `/preview` 支援點選照片同步上方 Before/After；不要再固定第一張 processed sample。
+- 手動調整目前走同步 preview/apply API：`POST /photos/{id}/preview` 回小張 JPEG，`POST /photos/{id}/adjustments` 寫出 `processed_paths.adjusted`。
+- 可調整手動水平、裁切縮放/偏移、手動變形修正、曝光、對比、亮部、暗部、色溫、色偏、飽和、自然飽和、清晰度、銳利化與 HSL 六色區。
+- Manual adjustment 永遠從非 `adjusted` 的基準圖重新計算，不得把上一版 adjusted 當來源累加。
+- 手動水平、裁切、變形修正路徑不得呼叫 Gemini AI；AI level correction 只屬於原本 batch pipeline。
+- 使用者 preset 存在 `adjustment_presets`；單張調整參數存在 `photo_adjustments`。
+- 匯出 zip 順序必須是 `adjusted` → 任一 pipeline processed preset → original。
+- 「套用到已選照片」走 `adjustment_jobs` worker job 與輪詢進度。
 
 ### v0.x destructive schema reset playbook
 

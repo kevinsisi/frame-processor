@@ -17,7 +17,7 @@ router = APIRouter(prefix="/photos", tags=["photos"])
 def download_photo(
     photo_id: UUID,
     variant: Literal["original", "processed"] = Query(default="original"),
-    preset: ColorGradePreset | None = Query(default=None),
+    preset: ColorGradePreset | Literal["adjusted"] | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> FileResponse:
     photo = db.get(Photo, photo_id)
@@ -30,15 +30,16 @@ def download_photo(
                 status_code=400,
                 detail="preset query param required when variant=processed",
             )
-        relative = (photo.processed_paths or {}).get(preset.value)
+        preset_key = preset.value if isinstance(preset, ColorGradePreset) else preset
+        relative = (photo.processed_paths or {}).get(preset_key)
         if not relative:
             raise HTTPException(
                 status_code=404,
-                detail=f"no processed file for preset={preset.value}",
+                detail=f"no processed file for preset={preset_key}",
             )
         abs_path = settings.storage_root / relative
         media_type = "image/jpeg"
-        download_name = f"{photo.id}.{preset.value}.jpg"
+        download_name = f"{photo.id}.{preset_key}.jpg"
     else:
         abs_path = settings.storage_root / photo.stored_path
         media_type = photo.mime_type or "application/octet-stream"
