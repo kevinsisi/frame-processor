@@ -135,6 +135,64 @@
   color: var(--text-tertiary);
 }
 
+.job-status__queue {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+  border-top: 1px dashed var(--ink-line);
+  padding-top: 10px;
+}
+
+.job-status__queue-item {
+  display: grid;
+  grid-template-columns: 18px auto 1fr auto;
+  gap: 10px;
+  align-items: center;
+  font-size: var(--t-xs);
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.job-status__queue-item--done {
+  color: #6cd987;
+  opacity: 0.8;
+}
+
+.job-status__queue-item--running {
+  color: var(--gold);
+  background: rgba(201, 168, 107, 0.08);
+}
+
+.job-status__queue-item--queued {
+  color: var(--text-tertiary);
+}
+
+.job-status__queue-icon {
+  text-align: center;
+  font-weight: 700;
+}
+
+.job-status__queue-idx {
+  font-size: 10px;
+  letter-spacing: 0.05em;
+}
+
+.job-status__queue-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.job-status__queue-state {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+
 @media (max-width: 600px) {
   .bulk-bar {
     flex-direction: column;

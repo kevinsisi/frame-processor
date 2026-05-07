@@ -10,7 +10,7 @@ export function AppFooter() {
           Frame <span className="em">·</span> Processor
         </span>
         <span className="app-footer__meta">
-          <span className="mono">carsmeet.tw / 8891 · 照片批次後製</span>
+          <span className="mono">照片批次後製</span>
           <span className="mono app-footer__version">v{APP_VERSION}</span>
         </span>
       </div>

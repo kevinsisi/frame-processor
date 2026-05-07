@@ -209,6 +209,28 @@ export default function PreviewPage() {
             {job.progress} / {job.total} 完成
             {job.error ? ` · ${job.error}` : ""}
           </p>
+          <ol className="job-status__queue">
+            {job.photo_ids.map((pid, idx) => {
+              const photo = project.photos.find((p) => p.id === pid);
+              const name = photo?.original_filename ?? pid.slice(0, 8);
+              let state: "done" | "running" | "queued" = "queued";
+              if (job.status === "done") state = "done";
+              else if (idx < job.progress) state = "done";
+              else if (idx === job.progress && job.status === "running")
+                state = "running";
+              const icon = state === "done" ? "✓" : state === "running" ? "●" : "○";
+              return (
+                <li key={pid} className={`job-status__queue-item job-status__queue-item--${state}`}>
+                  <span className="job-status__queue-icon" aria-hidden>{icon}</span>
+                  <span className="job-status__queue-idx mono">
+                    {String(idx + 1).padStart(String(job.total).length, "0")}/{job.total}
+                  </span>
+                  <span className="job-status__queue-name" title={name}>{name}</span>
+                  <span className="job-status__queue-state mono">{state === "running" ? "處理中" : state === "done" ? "完成" : "等待中"}</span>
+                </li>
+              );
+            })}
+          </ol>
         </section>
       )}
 
