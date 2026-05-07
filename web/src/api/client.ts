@@ -6,6 +6,11 @@ import type {
   ProcessingJobCreate,
   Project,
   ProjectDetail,
+  GeminiKeysUpdate,
+  GeminiKeysUpdateResult,
+  Settings,
+  SyncFromKeyManager,
+  SyncFromKeyManagerResult,
 } from "@/types";
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
@@ -62,4 +67,34 @@ export const api = {
 
   getProcessingJob: (jobId: string) =>
     request<ProcessingJob>(`/processing-jobs/${jobId}`),
+
+  getSettings: () => request<Settings>("/settings"),
+
+  updateGeminiKeys: (payload: GeminiKeysUpdate, token: string) =>
+    request<GeminiKeysUpdateResult>("/settings/gemini-api-keys", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "X-Settings-Token": token },
+      body: JSON.stringify(payload),
+    }),
+
+  clearGeminiKeys: (token: string) =>
+    fetch(`${BASE}/settings/gemini-api-keys`, {
+      method: "DELETE",
+      headers: { "X-Settings-Token": token },
+    }).then(
+      (response) => {
+        if (!response.ok) {
+          return response.text().then((text) => {
+            throw new Error(`${response.status} ${response.statusText}: ${text}`);
+          });
+        }
+      },
+    ),
+
+  syncKeysFromManager: (payload: SyncFromKeyManager, token: string) =>
+    request<SyncFromKeyManagerResult>("/settings/sync-from-key-manager", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Settings-Token": token },
+      body: JSON.stringify(payload),
+    }),
 };

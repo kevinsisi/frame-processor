@@ -107,6 +107,12 @@ button {
   }
 }
 
+@media (max-width: 600px) {
+  .page {
+    padding: var(--space-5) var(--space-4) var(--space-8);
+  }
+}
+
 /* Editorial primitives — opt-in classes used across pages */
 
 .page {

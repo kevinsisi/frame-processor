@@ -5,6 +5,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { ToastProvider } from "@/components/Toast";
 import ExportPage from "@/pages/Export";
 import PreviewPage from "@/pages/Preview";
+import SettingsPage from "@/pages/Settings";
 import UploadPage from "@/pages/Upload";
 
 export default function App() {
@@ -18,6 +19,7 @@ export default function App() {
         <Route path="/preview/:projectId" element={<PreviewPage />} />
         <Route path="/export" element={<ExportPage />} />
         <Route path="/export/:projectId" element={<ExportPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
       </Routes>
       <AppFooter />
     </ToastProvider>

@@ -34,6 +34,8 @@ services:
       ALLOWED_ORIGINS: https://frame.sisihome.org,http://localhost:5173,http://localhost:3000
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
+      SETTINGS_ADMIN_TOKEN: ${SETTINGS_ADMIN_TOKEN:-}
+      KEY_MANAGER_URL: ${KEY_MANAGER_URL:-http://key.sisihome.org:7823}
       ULTRALYTICS_DIR: /data/models-weights/ultralytics
       NAFNET_DIR: /data/models-weights/nafnet
     ports:
@@ -57,6 +59,8 @@ services:
       STORAGE_ROOT: /data
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
+      SETTINGS_ADMIN_TOKEN: ${SETTINGS_ADMIN_TOKEN:-}
+      KEY_MANAGER_URL: ${KEY_MANAGER_URL:-http://key.sisihome.org:7823}
       ULTRALYTICS_DIR: /data/models-weights/ultralytics
       NAFNET_DIR: /data/models-weights/nafnet
       YOLO_CONFIG_DIR: /data/models-weights/ultralytics

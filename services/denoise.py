@@ -55,10 +55,38 @@ def denoise(image: Image.Image, strength: DenoiseStrength) -> Image.Image:
         return image
     alpha = STRENGTH_BLEND[strength]
     rgb = np.array(image.convert("RGB"), dtype=np.float32) / 255.0
-    denoised = _run_nafnet(rgb)
+    try:
+        denoised = _run_nafnet(rgb)
+    except DenoiseError:
+        denoised = _run_opencv_denoise(rgb, strength)
     blended = alpha * denoised + (1.0 - alpha) * rgb
     blended = np.clip(blended * 255.0, 0, 255).astype(np.uint8)
     return Image.fromarray(blended)
+
+
+def _run_opencv_denoise(rgb: np.ndarray, strength: DenoiseStrength) -> np.ndarray:
+    """Fallback when NAFNet weights are unavailable in the deploy environment."""
+
+    import cv2
+
+    h_value = {
+        DenoiseStrength.LIGHT: 3,
+        DenoiseStrength.MEDIUM: 6,
+        DenoiseStrength.HEAVY: 9,
+    }.get(strength, 0)
+    if h_value <= 0:
+        return rgb
+    image_u8 = np.clip(rgb * 255.0, 0, 255).astype(np.uint8)
+    bgr = cv2.cvtColor(image_u8, cv2.COLOR_RGB2BGR)
+    denoised = cv2.fastNlMeansDenoisingColored(
+        bgr,
+        None,
+        h=h_value,
+        hColor=max(h_value, 4),
+        templateWindowSize=7,
+        searchWindowSize=21,
+    )
+    return cv2.cvtColor(denoised, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
 
 
 def _run_nafnet(rgb: np.ndarray) -> np.ndarray:
@@ -111,7 +139,8 @@ def _ensure_model():
         weights_path = _download_weights()
         device_str = "cuda" if torch.cuda.is_available() else "cpu"
         device = torch.device(device_str)
-        net = NAFNet(
+        net_cls = __getattr__("NAFNet")
+        net = net_cls(
             width=32,
             enc_blk_nums=(2, 2, 4, 8),
             middle_blk_num=12,
@@ -139,7 +168,7 @@ def _download_weights() -> Path:
         with urllib.request.urlopen(NAFNET_WEIGHTS_URL, timeout=120) as resp, tmp.open("wb") as out:
             shutil.copyfileobj(resp, out)
         tmp.replace(target)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         if tmp.exists():
             tmp.unlink(missing_ok=True)
         raise DenoiseError(
@@ -252,12 +281,14 @@ def _build_nafnet_class():
             x_in = x
             x = self.intro(x)
             encs = []
-            for enc, down in zip(self.encoders, self.downs):
+            for enc, down in zip(self.encoders, self.downs, strict=True):
                 x = enc(x)
                 encs.append(x)
                 x = down(x)
             x = self.middle_blks(x)
-            for dec, up, enc_skip in zip(self.decoders, self.ups, encs[::-1]):
+            for dec, up, enc_skip in zip(
+                self.decoders, self.ups, encs[::-1], strict=True
+            ):
                 x = up(x)
                 x = x + enc_skip
                 x = dec(x)

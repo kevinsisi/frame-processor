@@ -48,14 +48,15 @@ def correct_level(image: Image.Image) -> tuple[Image.Image, float]:
 
 
 def _ask_gemini_for_angle(image: Image.Image) -> float:
-    if not settings.gemini_api_key:
+    api_key = _active_gemini_api_key()
+    if not api_key:
         raise LevelCorrectError(
             "GEMINI_API_KEY not configured; level_correct requires Gemini Vision"
         )
 
     import google.generativeai as genai  # type: ignore
 
-    genai.configure(api_key=settings.gemini_api_key)
+    genai.configure(api_key=api_key)
     model = genai.GenerativeModel(settings.gemini_model)
 
     payload = _downscale_for_vision(image)
@@ -80,10 +81,18 @@ def _ask_gemini_for_angle(image: Image.Image) -> float:
             return angle
         except LevelCorrectError:
             raise
-        except Exception as exc:  # noqa: BLE001 — retry transient SDK errors
+        except Exception as exc:
             last_exc = exc
             time.sleep(0.5 * (2 ** attempt))
     raise LevelCorrectError(f"Gemini call failed after 3 attempts: {last_exc}")
+
+
+def _active_gemini_api_key() -> str | None:
+    from api.database import SessionLocal
+    from services.settings_store import get_active_gemini_api_key
+
+    with SessionLocal() as db:
+        return get_active_gemini_api_key(db)
 
 
 def _downscale_for_vision(image: Image.Image, max_edge: int = 768) -> bytes:

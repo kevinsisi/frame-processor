@@ -25,6 +25,9 @@ export function AppHeader() {
           <NavLink to="/export" className="nav-link nav-link--quiet">
             匯出
           </NavLink>
+          <NavLink to="/settings" className="nav-link nav-link--quiet">
+            設定
+          </NavLink>
           <span
             className="app-header__version"
             title={`build version v${APP_VERSION}`}

@@ -53,14 +53,13 @@ export function BeforeAfter({ beforeUrl, afterUrl, alt }: BeforeAfterProps) {
         className="before-after__img before-after__img--before"
         draggable={false}
       />
-      <div className="before-after__after-wrap" style={{ width: `${percent}%` }}>
-        <img
-          src={afterUrl}
-          alt={`${alt} after`}
-          className="before-after__img before-after__img--after"
-          draggable={false}
-        />
-      </div>
+      <img
+        src={afterUrl}
+        alt={`${alt} after`}
+        className="before-after__img before-after__img--after"
+        draggable={false}
+        style={{ clipPath: `inset(0 ${100 - percent}% 0 0)` }}
+      />
       <div className="before-after__divider" style={{ left: `${percent}%` }}>
         <span className="before-after__handle" aria-hidden>
           ↔

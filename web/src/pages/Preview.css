@@ -81,6 +81,8 @@
   border-radius: 12px;
   background: var(--ink-elevated);
   margin-bottom: var(--space-4);
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .job-status__head {
@@ -133,6 +135,7 @@
   font-size: var(--t-xs);
   letter-spacing: 0.06em;
   color: var(--text-tertiary);
+  overflow-wrap: anywhere;
 }
 
 .job-status__queue {
@@ -156,6 +159,7 @@
   font-size: var(--t-xs);
   padding: 4px 8px;
   border-radius: 6px;
+  min-width: 0;
 }
 
 .job-status__queue-item--done {
@@ -204,5 +208,14 @@
   }
   .bulk-bar__group .cta {
     flex: 1;
+  }
+  .job-status {
+    padding: var(--space-4);
+  }
+  .job-status__queue-item {
+    grid-template-columns: 18px auto 1fr;
+  }
+  .job-status__queue-state {
+    display: none;
   }
 }

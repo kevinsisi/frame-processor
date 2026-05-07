@@ -2,7 +2,7 @@
 
 照片批次後製工具。上傳 N 張 → 選 preset + 處理選項 → 全部一鍵處理 → 下載 zip。
 
-目前狀態：**v0.2.1 — bundled processing pipeline shipped**（NAFNet AI 降噪 / 廣角畸變矯正 / Gemini Vision 水平校正 / YOLOv8 自動裁剪 / Pillow 色調 preset / before-after 對比 / per-photo queue progress）。已部署至 [frame.sisihome.org](https://frame.sisihome.org)。
+目前狀態：**v0.2.2 — bundled processing pipeline + settings key import shipped**（NAFNet AI 降噪 / 廣角畸變矯正 / Gemini Vision 水平校正 / YOLOv8 自動裁剪 / Pillow 色調 preset / before-after 對比 / per-photo queue progress / Gemini key 設定頁）。已部署至 [frame.sisihome.org](https://frame.sisihome.org)。
 
 ## Quick start
 
@@ -25,6 +25,8 @@ docker compose up -d --build
 ```bash
 GEMINI_API_KEY=xxx          # 水平校正必要（Gemini Vision 估角度）；缺則 level_correct 會 fail
 GEMINI_MODEL=gemini-2.0-flash   # 預設值
+SETTINGS_ADMIN_TOKEN=xxx    # /settings 修改金鑰必要；只用於 PUT/DELETE/sync mutation
+KEY_MANAGER_URL=http://key.sisihome.org:7823  # 後端固定同步來源，避免前端任意 URL
 ULTRALYTICS_DIR=/data/models-weights/ultralytics  # YOLOv8 權重 cache
 NAFNET_DIR=/data/models-weights/nafnet            # NAFNet 權重 cache
 ```

@@ -64,6 +64,7 @@
 子版本：
 - **v0.2.0** — bundled pipeline ship（commit `5e7fc80` → merge `791e851` → cleanup `208c9b9`）
 - **v0.2.1** — post-ship FE 修正：per-photo queue progress（job 列出每張 done/running/queued 狀態）、AppFooter 拿掉 carsmeet/8891 字眼
+- **v0.2.2** — 設定頁 + Gemini API key 匯入：DB-backed runtime key pool、env fallback、key-manager trusted-only 同步，供水平校正使用
 
 ---
 

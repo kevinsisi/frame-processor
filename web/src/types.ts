@@ -71,3 +71,40 @@ export type ProcessingJobCreate = {
   auto_crop_aspect?: AspectRatio | null;
   photo_ids?: string[];
 };
+
+export type KeyPoolSource = "db" | "env" | "none";
+
+export type KeyPool = {
+  count: number;
+  source: KeyPoolSource;
+  masked_suffixes: string[];
+};
+
+export type Settings = {
+  gemini_model: string;
+  key_manager_url: string;
+  gemini_api_keys: KeyPool;
+};
+
+export type GeminiKeysUpdate = {
+  raw: string;
+  replace: boolean;
+};
+
+export type GeminiKeysUpdateResult = {
+  stored_count: number;
+  accepted_count: number;
+  rejected_count: number;
+};
+
+export type SyncFromKeyManager = {
+  trusted_only: boolean;
+  replace: boolean;
+};
+
+export type SyncFromKeyManagerResult = {
+  fetched: number;
+  imported: number;
+  skipped: number;
+  stored_count: number;
+};

@@ -41,7 +41,7 @@ docs/        Architecture、ADR、設計筆記
 
 ### v0.2.0 處理 pipeline 必要條件
 
-- `GEMINI_API_KEY` env 必須設定（水平校正用 Gemini Vision；無 key 則 level_correct step 會 fail）；放 `D:\GitClone\_HomeProject\frame-processor\.env`（compose 自動讀），docker compose 把它注入 api + worker container
+- `GEMINI_API_KEY` env 是水平校正的 deploy fallback；v0.2.2 起也可在 `/settings` 批次匯入 Gemini keys，DB key pool 會優先於 env，無任何 key 則 level_correct step 會 fail。deploy host 仍應在 `.env` 放至少一把 fallback key（compose 自動讀，注入 api + worker container）。`/settings` 的 PUT/DELETE/sync mutation 需要 `SETTINGS_ADMIN_TOKEN`，key-manager 同步來源固定由後端 `KEY_MANAGER_URL` 控制，不接受前端任意 URL。
 - 模型權重 lazy download 寫到 `storage-data` volume 的 `models-weights/{ultralytics,nafnet}/`；首次處理會下載 ~70MB（NAFNet）+ 6MB（YOLO），之後跨 container restart cached
 - worker image build 會拉 CPU-only torch wheel（避免 CUDA 多 GB），有 GPU 也只在 `torch.cuda.is_available()` 為 true 時自動用
 - pipeline 順序固定 `denoise → lens_distort → level → crop → grade`，理由見 `ARCHITECTURE.md` § Pipeline 順序
