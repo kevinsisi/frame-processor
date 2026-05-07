@@ -57,7 +57,7 @@ def upgrade() -> None:
     op.create_index("ix_photos_project_id", "photos", ["project_id"])
 
     export_status = postgresql.ENUM(
-        "pending", "running", "done", "failed", name="export_status"
+        "pending", "running", "done", "failed", name="export_status", create_type=False
     )
     export_status.create(op.get_bind(), checkfirst=True)
 
@@ -72,14 +72,7 @@ def upgrade() -> None:
         ),
         sa.Column(
             "status",
-            sa.Enum(
-                "pending",
-                "running",
-                "done",
-                "failed",
-                name="export_status",
-                create_type=False,
-            ),
+            export_status,
             nullable=False,
             server_default="pending",
         ),
