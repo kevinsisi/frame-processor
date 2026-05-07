@@ -25,3 +25,6 @@ class Project(Base):
     exports: Mapped[list["Export"]] = relationship(  # noqa: F821
         back_populates="project", cascade="all, delete-orphan"
     )
+    processing_jobs: Mapped[list["ProcessingJob"]] = relationship(  # noqa: F821
+        back_populates="project", cascade="all, delete-orphan"
+    )

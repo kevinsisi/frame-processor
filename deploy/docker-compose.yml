@@ -32,6 +32,10 @@ services:
       REDIS_URL: redis://redis:6379/0
       STORAGE_ROOT: /data
       ALLOWED_ORIGINS: https://frame.sisihome.org,http://localhost:5173,http://localhost:3000
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
+      ULTRALYTICS_DIR: /data/models-weights/ultralytics
+      NAFNET_DIR: /data/models-weights/nafnet
     ports:
       - "127.0.0.1:8633:8000"
     depends_on:
@@ -51,6 +55,11 @@ services:
       DATABASE_URL: postgresql+psycopg://frame:frame@postgres:5432/frame_processor
       REDIS_URL: redis://redis:6379/0
       STORAGE_ROOT: /data
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
+      ULTRALYTICS_DIR: /data/models-weights/ultralytics
+      NAFNET_DIR: /data/models-weights/nafnet
+      YOLO_CONFIG_DIR: /data/models-weights/ultralytics
     depends_on:
       postgres:
         condition: service_healthy

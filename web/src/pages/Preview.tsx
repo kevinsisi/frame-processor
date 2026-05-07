@@ -1,37 +1,38 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { api } from "@/api/client";
+import { BeforeAfter } from "@/components/BeforeAfter";
 import { PhotoGrid } from "@/components/PhotoGrid";
+import { PipelinePanel } from "@/components/PipelinePanel";
 import { Spinner } from "@/components/Spinner";
-import type { StylePreset } from "@/components/StylePicker";
-import type { ProjectDetail } from "@/types";
+import { useToast } from "@/components/Toast";
+import type {
+  ColorGradePreset,
+  ProcessingJob,
+  ProcessingJobCreate,
+  ProjectDetail,
+} from "@/types";
 
 import "./Preview.css";
 
-const STYLE_LABEL: Record<StylePreset, string> = {
-  showroom_white: "展示間白",
-  outdoor_warm: "戶外暖調",
-  night_cold: "夜拍冷調",
-};
-
-function readSavedStyle(projectId: string): StylePreset | null {
-  try {
-    const v = window.localStorage.getItem(`frame-processor:style:${projectId}`);
-    if (v === "showroom_white" || v === "outdoor_warm" || v === "night_cold") {
-      return v;
-    }
-  } catch {
-    /* ignore */
-  }
-  return null;
-}
-
 export default function PreviewPage() {
   const { projectId } = useParams();
+  const { push: toast } = useToast();
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [job, setJob] = useState<ProcessingJob | null>(null);
+  const [busy, setBusy] = useState(false);
+  const pollRef = useRef<number | null>(null);
+
+  function reload() {
+    if (!projectId) return;
+    api
+      .getProject(projectId)
+      .then((p) => setProject(p))
+      .catch((err) => setError(String(err)));
+  }
 
   useEffect(() => {
     if (!projectId) {
@@ -49,10 +50,11 @@ export default function PreviewPage() {
       .catch((err) => setError(String(err)));
   }, [projectId]);
 
-  const savedStyle = useMemo(
-    () => (projectId ? readSavedStyle(projectId) : null),
-    [projectId],
-  );
+  useEffect(() => {
+    return () => {
+      if (pollRef.current !== null) window.clearInterval(pollRef.current);
+    };
+  }, []);
 
   function toggle(photoId: string) {
     setSelected((prev) => {
@@ -75,6 +77,45 @@ export default function PreviewPage() {
     setSelected(new Set());
   }
 
+  async function handleSubmit(payload: ProcessingJobCreate) {
+    if (!projectId || !project) return;
+    setBusy(true);
+    try {
+      const created = await api.createProcessingJob(projectId, {
+        ...payload,
+        photo_ids: Array.from(selected),
+      });
+      setJob(created);
+      toast(`已開始處理，共 ${created.total} 張`, "info");
+      if (pollRef.current !== null) window.clearInterval(pollRef.current);
+      pollRef.current = window.setInterval(async () => {
+        try {
+          const next = await api.getProcessingJob(created.id);
+          setJob(next);
+          if (next.status === "done" || next.status === "failed") {
+            if (pollRef.current !== null) {
+              window.clearInterval(pollRef.current);
+              pollRef.current = null;
+            }
+            setBusy(false);
+            if (next.status === "done") {
+              toast("處理完成", "success");
+              reload();
+            } else {
+              toast(`處理失敗：${next.error ?? "unknown error"}`, "error");
+            }
+          }
+        } catch (err) {
+          // poll error — leave interval running
+          console.warn("poll job failed", err);
+        }
+      }, 2000);
+    } catch (err) {
+      setBusy(false);
+      toast(`建立處理 job 失敗：${String(err)}`, "error");
+    }
+  }
+
   if (!projectId) {
     return (
       <main className="page page--narrow preview-empty">
@@ -83,9 +124,7 @@ export default function PreviewPage() {
           <h1 className="hero__title">
             還沒選<em>專案</em>。
           </h1>
-          <p className="hero__lede">
-            從上傳頁建立或選一個既有專案，這裡會顯示原圖與處理結果（v0.2 之後）。
-          </p>
+          <p className="hero__lede">從上傳頁建立或選一個既有專案。</p>
         </section>
         <Link to="/upload" className="cta cta--primary">
           ← 回到上傳頁
@@ -125,6 +164,16 @@ export default function PreviewPage() {
     );
   }
 
+  const samplePhoto =
+    project.photos.find((p) => Object.keys(p.processed_paths ?? {}).length > 0) ??
+    null;
+  const samplePreset =
+    samplePhoto && Object.keys(samplePhoto.processed_paths)[0]
+      ? (Object.keys(samplePhoto.processed_paths)[0] as ColorGradePreset)
+      : null;
+  const progressPct =
+    job && job.total > 0 ? Math.round((job.progress / job.total) * 100) : 0;
+
   return (
     <main className="page preview">
       <section className="hero preview__hero">
@@ -132,21 +181,50 @@ export default function PreviewPage() {
           預覽 · 專案 #{String(project.id).slice(0, 8)}
         </div>
         <h1 className="hero__title">{project.name}</h1>
-        <p className="hero__lede">
-          {project.photo_count} 張照片
-          {savedStyle ? (
-            <>
-              <span className="preview__hero-sep" aria-hidden>
-                ／
-              </span>
-              色調預設：<em>{STYLE_LABEL[savedStyle]}</em>
-            </>
-          ) : null}
-        </p>
-        <p className="preview__hero-note mono">
-          v0.1 walking skeleton — 目前顯示原圖。處理後的 before/after 對比會在 v0.2 上線。
-        </p>
+        <p className="hero__lede">{project.photo_count} 張照片</p>
       </section>
+
+      <PipelinePanel
+        selectedCount={selected.size}
+        totalCount={project.photos.length}
+        busy={busy}
+        onSubmit={handleSubmit}
+      />
+
+      {job && (
+        <section className="job-status">
+          <header className="job-status__head">
+            <span className="mono">job #{job.id.slice(0, 8)}</span>
+            <span className={`job-status__pill job-status__pill--${job.status}`}>
+              {job.status}
+            </span>
+          </header>
+          <div className="job-status__bar" aria-hidden>
+            <div
+              className="job-status__bar-fill"
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+          <p className="job-status__meta mono">
+            {job.progress} / {job.total} 完成
+            {job.error ? ` · ${job.error}` : ""}
+          </p>
+        </section>
+      )}
+
+      {samplePhoto && samplePreset && (
+        <section className="section">
+          <header className="section__head">
+            <h2 className="section__title">前後對比</h2>
+            <span className="section__meta mono">{samplePreset}</span>
+          </header>
+          <BeforeAfter
+            beforeUrl={api.photoFileUrl(samplePhoto.id)}
+            afterUrl={api.processedPhotoUrl(samplePhoto.id, samplePreset)}
+            alt={samplePhoto.original_filename}
+          />
+        </section>
+      )}
 
       <section className="section">
         <header className="section__head">
@@ -176,17 +254,7 @@ export default function PreviewPage() {
             </button>
           </div>
           <div className="bulk-bar__group">
-            <span
-              className="cta cta--quiet"
-              aria-disabled="true"
-              title="批次處理會在 v0.2 上線"
-            >
-              批次套用色調 · v0.2
-            </span>
-            <Link
-              to={`/export/${project.id}`}
-              className="cta cta--primary"
-            >
+            <Link to={`/export/${project.id}`} className="cta cta--primary">
               匯出 zip →
             </Link>
           </div>

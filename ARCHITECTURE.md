@@ -76,11 +76,14 @@ FE ──GET /exports/{id}/download──▶ API ── stream zip ──▶ FE
 │       │   ├── {photo_id}.jpg
 │       │   ├── {photo_id}.png
 │       │   └── ...
-│       ├── thumbnails/         # 預覽縮圖（v0.2+，long edge 600px）
-│       │   └── {photo_id}.webp
-│       └── processed/          # 處理後輸出（v0.2+）
+│       └── processed/          # 處理後輸出（v0.2.0+）
 │           ├── {photo_id}.{preset_name}.jpg
 │           └── ...
+├── models-weights/             # AI 模型權重（v0.2.0+，lazy download）
+│   ├── ultralytics/
+│   │   └── yolov8n.pt
+│   └── nafnet/
+│       └── NAFNet-SIDD-width32.pth
 └── exports/
     └── {export_id}.zip
 ```
@@ -123,7 +126,60 @@ FE ──GET /exports/{id}/download──▶ API ── stream zip ──▶ FE
 | created_at | timestamptz | |
 | completed_at | timestamptz nullable | |
 
-v0.2+ 會加 `ProcessingJob` 表記錄處理批次。
+### ProcessingJob (v0.2.0)
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| id | UUID PK | |
+| project_id | UUID FK→Project | |
+| status | enum(pending, running, done, failed) | `processing_job_status` |
+| preset | enum(showroom_white, outdoor_warm, night_cold) | `color_grade_preset` |
+| denoise_strength | enum(none, light, medium, heavy) | NAFNet alpha-blend 強度 |
+| lens_distort_correct | bool | 開廣角桶形矯正 |
+| level_correct | bool | 開 Gemini 水平校正 |
+| auto_crop_aspect | enum nullable | `aspect_ratio` 或 NULL = 跳過 crop |
+| photo_ids | UUID[] | 處理的 photo id list |
+| progress | int | 已完成張數 |
+| total | int | 總張數 |
+| error | text nullable | failed 時填寫 |
+| created_at | timestamptz | |
+| completed_at | timestamptz nullable | |
+
+`Photo.processed_paths` (JSONB)：`{ "<preset_value>": "<storage-relative path>", ... }`
+
+## Pipeline 順序
+
+固定：`denoise → lens_distort → level_correct → auto_crop → color_grade`
+
+1. denoise 最先 — geometric ops 會放大噪點
+2. lens_distort 次之 — 廣角修平後 level/crop 才對得到真水平 / 真主體
+3. level_correct 第三 — 用 Gemini Vision 估角度（無上限）+ `cv2.warpAffine`
+4. auto_crop 第四 — YOLOv8n 偵測車輛 bbox + rule-of-thirds
+5. color_grade 最後 — 純像素操作
+
+## 處理資料流（v0.2.0）
+
+```
+FE ──POST /projects/{id}/process──▶ API
+                                     ├─ INSERT ProcessingJob (status=pending)
+                                     ├─ rq.enqueue("worker.jobs.process_photos_job", job_id, timeout=1800)
+                                     └─ return {id, status: "pending"}
+
+worker picks up job:
+   ├─ load ProcessingJob + each Photo
+   ├─ for each photo: denoise → lens → level → crop → grade
+   │   └─ write <storage>/projects/<pid>/processed/<photo_id>.<preset>.jpg
+   ├─ update Photo.processed_paths[preset_value]
+   └─ UPDATE ProcessingJob.progress / status
+
+FE polls ──GET /processing-jobs/{id}──▶ API ── return {status, progress, total}
+FE ──GET /photos/{id}/file?variant=processed&preset=...──▶ API ── stream processed jpg
+```
+
+## 模型權重
+
+- YOLOv8n：lazy download，Ultralytics 自動寫到 `ULTRALYTICS_DIR=/data/models-weights/ultralytics/`
+- NAFNet-SIDD-width32：lazy download from HuggingFace mirror，寫到 `NAFNET_DIR=/data/models-weights/nafnet/NAFNet-SIDD-width32.pth`
+- Gemini Vision：呼叫 Google AI Studio API，需 `GEMINI_API_KEY` env
 
 ## 容器拓樸（dev）
 

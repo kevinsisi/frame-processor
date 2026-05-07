@@ -1,4 +1,12 @@
-import type { Export, Photo, Project, ProjectDetail } from "@/types";
+import type {
+  ColorGradePreset,
+  Export,
+  Photo,
+  ProcessingJob,
+  ProcessingJobCreate,
+  Project,
+  ProjectDetail,
+} from "@/types";
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
@@ -41,4 +49,17 @@ export const api = {
   exportDownloadUrl: (exportId: string) => `${BASE}/exports/${exportId}/download`,
 
   photoFileUrl: (photoId: string) => `${BASE}/photos/${photoId}/file`,
+
+  processedPhotoUrl: (photoId: string, preset: ColorGradePreset) =>
+    `${BASE}/photos/${photoId}/file?variant=processed&preset=${preset}`,
+
+  createProcessingJob: (projectId: string, payload: ProcessingJobCreate) =>
+    request<ProcessingJob>(`/projects/${projectId}/process`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+
+  getProcessingJob: (jobId: string) =>
+    request<ProcessingJob>(`/processing-jobs/${jobId}`),
 };

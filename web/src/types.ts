@@ -14,6 +14,7 @@ export type Photo = {
   height: number | null;
   mime_type: string | null;
   uploaded_at: string;
+  processed_paths: Record<string, string>;
 };
 
 export type ProjectDetail = Project & {
@@ -29,4 +30,44 @@ export type Export = {
   error: string | null;
   created_at: string;
   completed_at: string | null;
+};
+
+export type ColorGradePreset = "showroom_white" | "outdoor_warm" | "night_cold";
+
+export type AspectRatio =
+  | "original"
+  | "ratio_3_2"
+  | "ratio_4_3"
+  | "ratio_16_9"
+  | "ratio_1_1"
+  | "ratio_9_16";
+
+export type DenoiseStrength = "none" | "light" | "medium" | "heavy";
+
+export type ProcessingJobStatus = "pending" | "running" | "done" | "failed";
+
+export type ProcessingJob = {
+  id: string;
+  project_id: string;
+  status: ProcessingJobStatus;
+  preset: ColorGradePreset;
+  denoise_strength: DenoiseStrength;
+  lens_distort_correct: boolean;
+  level_correct: boolean;
+  auto_crop_aspect: AspectRatio | null;
+  photo_ids: string[];
+  progress: number;
+  total: number;
+  error: string | null;
+  created_at: string;
+  completed_at: string | null;
+};
+
+export type ProcessingJobCreate = {
+  preset: ColorGradePreset;
+  denoise_strength?: DenoiseStrength;
+  lens_distort_correct?: boolean;
+  level_correct?: boolean;
+  auto_crop_aspect?: AspectRatio | null;
+  photo_ids?: string[];
 };

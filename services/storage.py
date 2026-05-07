@@ -1,7 +1,4 @@
-"""檔案儲存：原圖落地、路徑產生、副檔名校驗。
-
-walking skeleton 階段只處理「存原圖」與「讀檔尺寸」。處理後檔案、thumbnail 在 v0.2+ 加入。
-"""
+"""檔案儲存：原圖落地、處理後路徑產生、副檔名校驗。"""
 
 from __future__ import annotations
 
@@ -13,6 +10,7 @@ from typing import TYPE_CHECKING
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from api.config import settings
+from models.enums import ColorGradePreset
 
 if TYPE_CHECKING:
     from fastapi import UploadFile
@@ -88,3 +86,17 @@ def _read_dimensions(path: Path) -> tuple[int | None, int | None]:
 
 def absolute_path(relative: str) -> Path:
     return settings.storage_root / relative
+
+
+def relative_to_storage(absolute: Path) -> str:
+    return str(absolute.relative_to(settings.storage_root))
+
+
+def _project_processed_dir(project_id: uuid.UUID) -> Path:
+    return settings.storage_root / "projects" / str(project_id) / "processed"
+
+
+def processed_path(
+    project_id: uuid.UUID, photo_id: uuid.UUID, preset: ColorGradePreset
+) -> Path:
+    return _project_processed_dir(project_id) / f"{photo_id}.{preset.value}.jpg"
