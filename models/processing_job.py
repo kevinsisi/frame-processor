@@ -33,13 +33,21 @@ class ProcessingJob(Base):
         index=True,
     )
     preset: Mapped[ColorGradePreset] = mapped_column(
-        SAEnum(ColorGradePreset, name="color_grade_preset"),
+        SAEnum(
+            ColorGradePreset,
+            name="color_grade_preset",
+            values_callable=lambda enum_cls: [m.value for m in enum_cls],
+        ),
         nullable=False,
     )
     level_correct: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     auto_crop_aspect: Mapped[str] = mapped_column(String(16), nullable=False, default="original")
     status: Mapped[ProcessingJobStatus] = mapped_column(
-        SAEnum(ProcessingJobStatus, name="processing_job_status"),
+        SAEnum(
+            ProcessingJobStatus,
+            name="processing_job_status",
+            values_callable=lambda enum_cls: [m.value for m in enum_cls],
+        ),
         nullable=False,
         default=ProcessingJobStatus.PENDING,
     )
