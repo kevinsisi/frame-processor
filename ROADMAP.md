@@ -6,7 +6,7 @@
 
 ---
 
-## v0.1.0 — Walking Skeleton ✅ (current)
+## v0.1.x — Walking Skeleton ✅ (shipped)
 
 **目標**：上傳 N 張 → 存 disk + DB → 列表 → 下載 zip。**沒有任何照片處理**，純粹驗收 stack 整條鏈通了。
 
@@ -22,7 +22,13 @@
 - [x] `GET /exports/{id}/download` 下載 zip
 - [x] `docker compose up` 五個服務全起來
 
-對應提案：`openspec/changes/2026-05-07-walking-skeleton/`
+子版本：
+
+- **v0.1.0** — 初版 scaffold（commit `c4a6677`）。
+- **v0.1.1** — Editorial / cinematic dark theme 前端改版（合併 `claude/romantic-cannon-38c856`）：tokens.css 設計系統、AppHeader / AppFooter / Dropzone / StylePicker / Spinner / Toast、三頁 (Upload / Preview / Export) 全部翻新。
+- **v0.1.2** — Production deploy 到 `https://frame.sisihome.org`（合併 `claude/stupefied-mendel-e3664e`）：docker-compose 對外只開 web container 8533、nginx `/api/*` reverse proxy 到 `api:8000`、`VITE_API_BASE_URL=/api`、API `ALLOWED_ORIGINS` 含 frame.sisihome.org、RPi Caddy `request_body.max_size 500MB`。alembic 0001 修小問題，web 加 `@types/node`。
+
+對應提案：`openspec/changes/archive/2026-05-07-walking-skeleton/`（已 archive）
 
 ---
 

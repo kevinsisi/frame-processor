@@ -1,6 +1,6 @@
 # Walking Skeleton
 
-**Status**: in-progress（v0.1.0 scaffold）
+**Status**: shipped — v0.1.0 scaffold 在 commit `c4a6677`、v0.1.1 UI 改版（romantic-cannon-38c856）、v0.1.2 production deploy 到 `https://frame.sisihome.org`（stupefied-mendel-e3664e）。已 archive。
 **Date**: 2026-05-07
 **Author**: Kevin
 

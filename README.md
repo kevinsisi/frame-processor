@@ -2,7 +2,7 @@
 
 照片批次後製工具。上傳 N 張 → 選風格 → 全部一鍵處理 → 下載 zip。
 
-目前狀態：v0.1.0 walking skeleton（上傳 / 列表 / zip 匯出，**尚未含 AI 處理**）。
+目前狀態：v0.1.2 walking skeleton（上傳 / 列表 / zip 匯出，**尚未含 AI 處理**）。已部署至 [frame.sisihome.org](https://frame.sisihome.org)，前端為 editorial / cinematic dark theme。
 
 ## Quick start
 
