@@ -19,13 +19,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export interface CreateProcessingPayload {
-  preset: ColorGradePreset;
-  photo_ids?: string[];
-  level_correct?: boolean;
-  auto_crop_aspect?: AutoCropAspect | string;
-}
-
 export const api = {
   listProjects: () => request<Project[]>("/projects"),
 

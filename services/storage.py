@@ -18,9 +18,6 @@ if TYPE_CHECKING:
 
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif", ".tiff"}
 
-THUMBNAIL_LONG_EDGE = 600
-PROCESSED_JPEG_QUALITY = 92
-
 
 class UnsupportedFormatError(ValueError):
     pass
@@ -38,20 +35,8 @@ class StoredPhoto:
     mime_type: str | None
 
 
-def _project_dir(project_id: uuid.UUID) -> Path:
-    return settings.storage_root / "projects" / str(project_id)
-
-
 def _project_originals_dir(project_id: uuid.UUID) -> Path:
-    return _project_dir(project_id) / "originals"
-
-
-def _project_processed_dir(project_id: uuid.UUID) -> Path:
-    return _project_dir(project_id) / "processed"
-
-
-def _project_thumbnails_dir(project_id: uuid.UUID) -> Path:
-    return _project_dir(project_id) / "thumbnails"
+    return settings.storage_root / "projects" / str(project_id) / "originals"
 
 
 def _ext_from_filename(name: str) -> str:
@@ -99,7 +84,7 @@ def _read_dimensions(path: Path) -> tuple[int | None, int | None]:
         return None, None
 
 
-def absolute_path(relative: str | Path) -> Path:
+def absolute_path(relative: str) -> Path:
     return settings.storage_root / relative
 
 

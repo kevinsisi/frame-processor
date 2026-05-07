@@ -1,8 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, func
-from sqlalchemy import Enum as SAEnum
+from sqlalchemy import DateTime, Enum as SAEnum, ForeignKey, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -23,11 +22,7 @@ class Export(Base):
         index=True,
     )
     status: Mapped[ExportStatus] = mapped_column(
-        SAEnum(
-            ExportStatus,
-            name="export_status",
-            values_callable=lambda enum_cls: [m.value for m in enum_cls],
-        ),
+        SAEnum(ExportStatus, name="export_status"),
         nullable=False,
         default=ExportStatus.PENDING,
     )

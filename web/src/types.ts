@@ -5,8 +5,6 @@ export type Project = {
   photo_count: number;
 };
 
-export type ColorGradePreset = "showroom_white" | "outdoor_warm" | "night_cold";
-
 export type Photo = {
   id: string;
   project_id: string;

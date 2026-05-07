@@ -56,7 +56,7 @@ def zip_export_job(export_id: str) -> str:
             export.completed_at = datetime.now(tz=timezone.utc)
             db.commit()
             return export.zip_path
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             export.status = ExportStatus.FAILED
             export.error = str(exc)
             export.completed_at = datetime.now(tz=timezone.utc)

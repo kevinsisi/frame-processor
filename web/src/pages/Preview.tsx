@@ -39,9 +39,6 @@ export default function PreviewPage() {
       setProject(null);
       return;
     }
-    setStyle(readSavedStyle(projectId));
-    setAspect(readSavedAspect(projectId));
-    setLevelCorrect(readSavedLevel(projectId));
     setProject(null);
     setError(null);
     api
@@ -49,7 +46,6 @@ export default function PreviewPage() {
       .then((p) => {
         setProject(p);
         setSelected(new Set(p.photos.map((ph) => ph.id)));
-        setActivePhotoId(p.photos[0]?.id ?? null);
       })
       .catch((err) => setError(String(err)));
   }, [projectId]);
@@ -60,13 +56,14 @@ export default function PreviewPage() {
     };
   }, []);
 
-  useEffect(() => () => stopPolling(), [stopPolling]);
-
   function toggle(photoId: string) {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(photoId)) next.delete(photoId);
-      else next.add(photoId);
+      if (next.has(photoId)) {
+        next.delete(photoId);
+      } else {
+        next.add(photoId);
+      }
       return next;
     });
   }
@@ -231,64 +228,6 @@ export default function PreviewPage() {
 
       <section className="section">
         <header className="section__head">
-          <h2 className="section__title">色調風格 · 處理參數</h2>
-          <span className="section__meta">v0.2 — Pillow + Hough + 能量裁剪</span>
-        </header>
-        <StylePicker
-          value={style}
-          onChange={setStyle}
-          levelCorrect={levelCorrect}
-          onLevelCorrectChange={setLevelCorrect}
-          aspect={aspect}
-          onAspectChange={setAspect}
-          disabled={busy || job?.status === "running" || job?.status === "pending"}
-          showOptions
-        />
-      </section>
-
-      {job ? (
-        <section className="section">
-          <header className="section__head">
-            <h2 className="section__title">處理進度</h2>
-            <span className="section__meta mono">
-              {STYLE_LABEL[job.preset]} · {job.auto_crop_aspect}
-              {job.level_correct ? " · 水平校正" : ""}
-            </span>
-          </header>
-          <ProcessingProgress job={job} />
-        </section>
-      ) : null}
-
-      {activePhoto ? (
-        <section className="section">
-          <header className="section__head">
-            <h2 className="section__title">對比預覽</h2>
-            <span className="section__meta mono">
-              {activePhoto.original_filename}
-            </span>
-          </header>
-          {activeProcessedUrl ? (
-            <BeforeAfter
-              alt={activePhoto.original_filename}
-              beforeUrl={api.photoFileUrl(activePhoto.id)}
-              afterUrl={activeProcessedUrl}
-              afterLabel={STYLE_LABEL[style]}
-            />
-          ) : (
-            <div className="preview__no-processed">
-              <p className="mono">
-                這張照片在「{STYLE_LABEL[style]}」還沒有處理結果。
-              </p>
-              <p className="preview__hint">
-                選好參數 → 點下方「開始處理」即可送出整批；完成後此處會顯示原圖↔處理後拖拉條。
-              </p>
-            </div>
-          )}
-        </section>
-      ) : null}
-
-      <section className="section">
-        <header className="section__head">
           <h2 className="section__title">照片清單</h2>
           <span className="section__meta">
             {selected.size} / {project.photos.length} 已選
@@ -321,52 +260,12 @@ export default function PreviewPage() {
           </div>
         </div>
 
-        <ul className="preview-grid">
-          {project.photos.map((photo) => {
-            const isActive = activePhotoId === photo.id;
-            const isSelected = selected.has(photo.id);
-            const hasProcessed = Boolean(photo.processed_paths?.[style]);
-            const thumbUrl = hasProcessed
-              ? api.processedPhotoUrl(photo.id, style)
-              : api.thumbnailUrl(photo.id);
-            return (
-              <li
-                key={photo.id}
-                className={`preview-tile${isActive ? " preview-tile--active" : ""}${
-                  isSelected ? " preview-tile--selected" : ""
-                }`}
-              >
-                <button
-                  type="button"
-                  className="preview-tile__thumb"
-                  onClick={() => setActivePhotoId(photo.id)}
-                  title={photo.original_filename}
-                >
-                  <img
-                    src={thumbUrl}
-                    alt={photo.original_filename}
-                    loading="lazy"
-                  />
-                  {hasProcessed ? (
-                    <span className="preview-tile__badge mono">已處理</span>
-                  ) : null}
-                </button>
-                <div className="preview-tile__row">
-                  <label className="preview-tile__select">
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => toggle(photo.id)}
-                    />
-                    <span className="mono">
-                      {photo.original_filename}
-                    </span>
-                  </label>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+        <PhotoGrid
+          photos={project.photos}
+          selectable
+          selectedIds={selected}
+          onToggleSelect={toggle}
+        />
       </section>
     </main>
   );

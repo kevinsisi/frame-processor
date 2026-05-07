@@ -9,7 +9,6 @@ from api.config import settings
 from api.database import get_db
 from models.enums import ColorGradePreset
 from models.photo import Photo
-from services import storage
 
 router = APIRouter(prefix="/photos", tags=["photos"])
 
