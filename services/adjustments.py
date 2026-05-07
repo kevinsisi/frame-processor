@@ -19,6 +19,7 @@ def normalize_params(params: dict[str, Any] | None) -> dict[str, Any]:
         "vibrance": _bounded_float(params.get("vibrance"), -100.0, 100.0),
         "clarity": _bounded_float(params.get("clarity"), -100.0, 100.0),
         "sharpness": _bounded_float(params.get("sharpness"), -100.0, 100.0),
+        "orientation": _normalized_orientation(params.get("orientation")),
         "rotation": _bounded_float(params.get("rotation"), -45.0, 45.0),
         "crop_zoom": _bounded_float(params.get("crop_zoom"), 1.0, 3.0),
         "crop_x": _bounded_float(params.get("crop_x"), -100.0, 100.0),
@@ -31,6 +32,7 @@ def normalize_params(params: dict[str, Any] | None) -> dict[str, Any]:
 def apply_adjustments(image: Image.Image, params: dict[str, Any]) -> Image.Image:
     p = normalize_params(params)
     img = image.convert("RGB")
+    img = _orientation(img, p["orientation"])
     img = _geometry(img, p)
     img = _temperature_tint(img, p["temperature"], p["tint"])
     if p["exposure"]:
@@ -45,6 +47,16 @@ def apply_adjustments(image: Image.Image, params: dict[str, Any]) -> Image.Image
     img = _clarity(img, p["clarity"])
     img = _sharpness(img, p["sharpness"])
     return img
+
+
+def _orientation(image: Image.Image, degrees: int) -> Image.Image:
+    if degrees == 90:
+        return image.transpose(Image.Transpose.ROTATE_270)
+    if degrees == 180:
+        return image.transpose(Image.Transpose.ROTATE_180)
+    if degrees == 270:
+        return image.transpose(Image.Transpose.ROTATE_90)
+    return image
 
 
 def _geometry(image: Image.Image, params: dict[str, Any]) -> Image.Image:
@@ -228,6 +240,14 @@ def _bounded_float(value: Any, low: float, high: float) -> float:
     except (TypeError, ValueError):
         parsed = 0.0
     return max(low, min(high, parsed))
+
+
+def _normalized_orientation(value: Any) -> int:
+    try:
+        parsed = int(value or 0)
+    except (TypeError, ValueError):
+        parsed = 0
+    return parsed % 360 if parsed % 90 == 0 else 0
 
 
 def _clamp(v: float) -> int:

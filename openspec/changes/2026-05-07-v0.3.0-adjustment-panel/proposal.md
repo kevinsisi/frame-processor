@@ -17,15 +17,16 @@ v0.2.0 ship 後晴晴實際使用發現：preset + auto-pipeline 出來的結果
 新增 `services/adjustments.py`：純 Pillow 實作以下 ops，套用順序固定：
 
 1. `white_balance_offset(image, temp, tint)` — 色溫（藍↔黃）+ 色調（綠↔洋紅）偏移
-2. `manual_geometry(image, rotation, crop_zoom, crop_x, crop_y, distortion)` — 手動水平、裁切與變形修正，不呼叫 Gemini AI
-3. `exposure(image, ev)` — ±5 EV 線性增益
-4. `contrast(image, amount)` — S-curve 對比
-5. `highlights_shadows(image, hl, sh, whites, blacks)` — 4 通道 tone curve（Lightroom 風格）
-6. `hsl(image, ranges)` — 紅/橙/黃/綠/藍/紫 6 個色相區間，每區間 H/S/L 各一個 slider（共 18 個 value）
-7. `saturation(image, amount)` — 全域飽和
-8. `vibrance(image, amount)` — 智慧飽和（保護已飽和區）
-9. `clarity(image, amount)` — 中頻對比 / 柔化
-10. `sharpness(image, amount)` — Lightroom 風格銳化
+2. `orientation(image, degrees)` — 每張照片獨立 90 度左/右旋轉，Before/After 原圖側與 preview 側都立即套用
+3. `manual_geometry(image, rotation, crop_zoom, crop_x, crop_y, distortion)` — 手動水平、裁切與變形修正，不呼叫 Gemini AI
+4. `exposure(image, ev)` — ±5 EV 線性增益
+5. `contrast(image, amount)` — S-curve 對比
+6. `highlights_shadows(image, hl, sh, whites, blacks)` — 4 通道 tone curve（Lightroom 風格）
+7. `hsl(image, ranges)` — 紅/橙/黃/綠/藍/紫 6 個色相區間，每區間 H/S/L 各一個 slider（共 18 個 value）
+8. `saturation(image, amount)` — 全域飽和
+9. `vibrance(image, amount)` — 智慧飽和（保護已飽和區）
+10. `clarity(image, amount)` — 中頻對比 / 柔化
+11. `sharpness(image, amount)` — Lightroom 風格銳化
 
 範圍：每個 slider `-100 ~ +100`（除了 EV 是 `-5 ~ +5`）。0 = no-op。
 

@@ -37,6 +37,7 @@ class PhotoOut(BaseModel):
     mime_type: str | None
     uploaded_at: datetime
     processed_paths: dict[str, str] = {}
+    adjustment_params: dict | None = None
 
 
 class ProjectDetail(ProjectOut):

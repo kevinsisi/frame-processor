@@ -15,6 +15,7 @@ export const DEFAULT_ADJUSTMENT_PARAMS: AdjustmentParams = {
   vibrance: 0,
   clarity: 0,
   sharpness: 0,
+  orientation: 0,
   rotation: 0,
   crop_zoom: 1,
   crop_x: 0,
@@ -41,6 +42,8 @@ type Props = {
   onSavePreset: (name: string) => void;
   onLoadPreset: (preset: AdjustmentPreset) => void;
   onDeletePreset: (preset: AdjustmentPreset) => void;
+  onRotateLeft: () => void;
+  onRotateRight: () => void;
 };
 
 export function AdjustmentPanel({
@@ -54,6 +57,8 @@ export function AdjustmentPanel({
   onSavePreset,
   onLoadPreset,
   onDeletePreset,
+  onRotateLeft,
+  onRotateRight,
 }: Props) {
   const setValue = (key: keyof Omit<AdjustmentParams, "hsl">, value: number) => {
     onChange({ ...params, [key]: value });
@@ -123,6 +128,16 @@ export function AdjustmentPanel({
             </option>
           ))}
         </select>
+      </div>
+
+      <div className="adjustment-panel__actions adjustment-panel__actions--rotate">
+        <button type="button" className="cta cta--quiet" onClick={onRotateLeft} disabled={busy}>
+          ↺ 向左旋轉
+        </button>
+        <span className="section__meta mono">{params.orientation}°</span>
+        <button type="button" className="cta cta--quiet" onClick={onRotateRight} disabled={busy}>
+          向右旋轉 ↻
+        </button>
       </div>
 
       <div className="adjustment-panel__grid">

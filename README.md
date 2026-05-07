@@ -76,7 +76,7 @@ npm run dev
 
 ## Manual Adjustments
 
-`/preview` 目前支援點選任一照片後在上方 Before/After 載入該照片，並以同步 preview API 顯示手動調整結果。可調整水平旋轉、裁切縮放/偏移、手動變形修正、曝光、對比、亮部、暗部、色溫、色偏、飽和、自然飽和、清晰度、銳利化與 HSL 六色區。按「套用目前照片」會寫入 `processed_paths.adjusted`；按「套用到已選照片」會建立 `adjustment_jobs` worker job 並顯示進度。匯出 zip 時優先使用 `adjusted`，再 fallback 到 pipeline preset output，最後才用原圖。
+`/preview` 目前支援點選任一照片後在上方 Before/After 載入該照片，並以同步 preview API 顯示手動調整結果。可對每張照片獨立點按向左/向右 90 度旋轉，並可調整水平旋轉、裁切縮放/偏移、手動變形修正、曝光、對比、亮部、暗部、色溫、色偏、飽和、自然飽和、清晰度、銳利化與 HSL 六色區。按「套用目前照片」會寫入 `processed_paths.adjusted`；按「套用到已選照片」會建立 `adjustment_jobs` worker job 並顯示進度。匯出 zip 時優先使用 `adjusted`，再 fallback 到 pipeline preset output，最後才用原圖。
 
 已處理的單張照片可從照片卡片下載 processed JPG。使用者 preset 存在 `adjustment_presets`，單張調整參數存在 `photo_adjustments`。Manual adjustment 永遠從非 `adjusted` 的基準圖（pipeline output 或原圖）重新計算，不會把上一次 adjusted 結果當來源重複累加。手動水平、裁切、變形修正不會呼叫 Gemini AI。
 

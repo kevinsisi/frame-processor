@@ -73,7 +73,7 @@
 **目標**：preset + auto pipeline 解決 80% 場景；剩下 20% 需要手動微調 sliders。
 
 範圍（第一版已部署，持續收斂）：
-- `services/adjustments.py`：手動水平 / 裁切縮放與偏移 / 手動變形修正 / 曝光 / 對比 / 亮部 / 暗部 / 色溫 / 色偏 / 飽和 / 自然飽和 / 清晰度 / 銳利化 / HSL × 6 色
+- `services/adjustments.py`：每張照片獨立 90 度 orientation 旋轉 / 手動水平 / 裁切縮放與偏移 / 手動變形修正 / 曝光 / 對比 / 亮部 / 暗部 / 色溫 / 色偏 / 飽和 / 自然飽和 / 清晰度 / 銳利化 / HSL × 6 色
 - `models/adjustment_preset.py` + `models/photo_adjustment.py` + alembic `0004_adjustment_panel`
 - API：`POST /photos/{id}/adjustments`、`POST /photos/{id}/preview` (live 同步)、`POST /projects/{id}/adjustments/apply` worker batch、preset CRUD
 - FE：`AdjustmentPanel` + 即時 preview slider + preset save/load/delete + 點照片同步上方 Before/After + 單張 processed download

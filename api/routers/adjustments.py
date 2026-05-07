@@ -33,6 +33,7 @@ class AdjustmentParams(BaseModel):
     vibrance: float = Field(default=0, ge=-100, le=100)
     clarity: float = Field(default=0, ge=-100, le=100)
     sharpness: float = Field(default=0, ge=-100, le=100)
+    orientation: int = Field(default=0, ge=0, le=270)
     rotation: float = Field(default=0, ge=-45, le=45)
     crop_zoom: float = Field(default=1, ge=1, le=3)
     crop_x: float = Field(default=0, ge=-100, le=100)

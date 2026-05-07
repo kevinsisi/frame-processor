@@ -37,3 +37,7 @@ class Photo(Base):
     adjustment: Mapped["PhotoAdjustment | None"] = relationship(  # noqa: F821
         back_populates="photo", cascade="all, delete-orphan"
     )
+
+    @property
+    def adjustment_params(self) -> dict | None:
+        return self.adjustment.params if self.adjustment else None

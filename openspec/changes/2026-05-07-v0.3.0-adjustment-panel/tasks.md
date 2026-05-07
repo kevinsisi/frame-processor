@@ -17,6 +17,7 @@
 - [x] Update export path priority to adjusted output, then processed preset, then original.
 - [x] Add vibrance, clarity, and sharpness controls.
 - [x] Add manual level, crop zoom/offset, and distortion controls.
+- [x] Add per-photo one-click left/right 90-degree rotation with immediate preview update.
 - [x] Move apply-to-selected into worker progress for large batches.
 - [x] Keep manual geometry/crop corrections on non-AI path.
 

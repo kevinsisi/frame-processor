@@ -34,6 +34,7 @@ export default function PreviewPage() {
     structuredClone(DEFAULT_ADJUSTMENT_PARAMS),
   );
   const [preview, setPreview] = useState<{ photoId: string; url: string } | null>(null);
+  const [basePreview, setBasePreview] = useState<{ photoId: string; url: string } | null>(null);
   const [presets, setPresets] = useState<AdjustmentPreset[]>([]);
   const [job, setJob] = useState<ProcessingJob | null>(null);
   const [adjustmentJob, setAdjustmentJob] = useState<AdjustmentJob | null>(null);
@@ -41,6 +42,13 @@ export default function PreviewPage() {
   const pollRef = useRef<number | null>(null);
   const adjustmentPollRef = useRef<number | null>(null);
   const previewRequestRef = useRef(0);
+  const basePreviewRequestRef = useRef(0);
+  const adjustmentParamsRef = useRef(adjustmentParams);
+
+  function updateAdjustmentParams(params: AdjustmentParams) {
+    adjustmentParamsRef.current = params;
+    setAdjustmentParams(params);
+  }
 
   function reload() {
     if (!projectId) return;
@@ -81,6 +89,20 @@ export default function PreviewPage() {
   }, [projectId]);
 
   useEffect(() => {
+    adjustmentParamsRef.current = adjustmentParams;
+  }, [adjustmentParams]);
+
+  useEffect(() => {
+    if (!project || !activePhotoId) return;
+    const active = project.photos.find((photo) => photo.id === activePhotoId);
+    updateAdjustmentParams(
+      active?.adjustment_params
+        ? { ...structuredClone(DEFAULT_ADJUSTMENT_PARAMS), ...active.adjustment_params }
+        : structuredClone(DEFAULT_ADJUSTMENT_PARAMS),
+    );
+  }, [activePhotoId, project]);
+
+  useEffect(() => {
     if (!activePhotoId) {
       setPreview((prev) => {
         if (prev) URL.revokeObjectURL(prev.url);
@@ -113,10 +135,49 @@ export default function PreviewPage() {
   }, [activePhotoId, adjustmentParams]);
 
   useEffect(() => {
+    if (!activePhotoId || adjustmentParams.orientation === 0) {
+      basePreviewRequestRef.current += 1;
+      setBasePreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev.url);
+        return null;
+      });
+      return;
+    }
+    const requestId = ++basePreviewRequestRef.current;
+    const params = {
+      ...structuredClone(DEFAULT_ADJUSTMENT_PARAMS),
+      orientation: adjustmentParams.orientation,
+    };
+    const handle = window.setTimeout(async () => {
+      try {
+        const blob = await api.previewAdjustment(activePhotoId, params);
+        const url = URL.createObjectURL(blob);
+        if (basePreviewRequestRef.current !== requestId) {
+          URL.revokeObjectURL(url);
+          return;
+        }
+        setBasePreview((prev) => {
+          if (prev) URL.revokeObjectURL(prev.url);
+          return { photoId: activePhotoId, url };
+        });
+      } catch (err) {
+        console.warn("base orientation preview failed", err);
+      }
+    }, 60);
+    return () => window.clearTimeout(handle);
+  }, [activePhotoId, adjustmentParams.orientation]);
+
+  useEffect(() => {
     return () => {
       if (preview) URL.revokeObjectURL(preview.url);
     };
   }, [preview]);
+
+  useEffect(() => {
+    return () => {
+      if (basePreview) URL.revokeObjectURL(basePreview.url);
+    };
+  }, [basePreview]);
 
   useEffect(() => {
     return () => {
@@ -235,6 +296,26 @@ export default function PreviewPage() {
     }
   }
 
+  async function rotateActivePhoto(direction: "left" | "right") {
+    if (!activePhotoId) return;
+    const current = adjustmentParamsRef.current;
+    const delta = direction === "right" ? 90 : 270;
+    const next = {
+      ...current,
+      orientation: (current.orientation + delta) % 360,
+    };
+    updateAdjustmentParams(next);
+    setBusy(true);
+    try {
+      await api.applyAdjustment(activePhotoId, next);
+      reload();
+    } catch (err) {
+      toast(`旋轉失敗：${String(err)}`, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function savePreset(name: string) {
     try {
       await api.createAdjustmentPreset(name, adjustmentParams, projectId);
@@ -315,6 +396,8 @@ export default function PreviewPage() {
     | undefined;
   const activePreviewUrl =
     preview && preview.photoId === samplePhoto?.id ? preview.url : null;
+  const activeBasePreviewUrl =
+    basePreview && basePreview.photoId === samplePhoto?.id ? basePreview.url : null;
   const baseDisplayUrl =
     samplePhoto && basePreset
       ? api.processedPhotoUrl(samplePhoto.id, basePreset)
@@ -397,8 +480,8 @@ export default function PreviewPage() {
             </span>
           </header>
           <BeforeAfter
-            key={`${samplePhoto.id}:${activePreviewUrl ?? samplePreset ?? "original"}`}
-            beforeUrl={baseDisplayUrl}
+            key={`${samplePhoto.id}:${activeBasePreviewUrl ?? "base"}:${activePreviewUrl ?? samplePreset ?? "original"}`}
+            beforeUrl={activeBasePreviewUrl ?? baseDisplayUrl}
             afterUrl={
               activePreviewUrl ??
               (samplePreset
@@ -436,13 +519,15 @@ export default function PreviewPage() {
           params={adjustmentParams}
           presets={presets}
           busy={busy}
-          onChange={setAdjustmentParams}
+          onChange={updateAdjustmentParams}
           onApplyCurrent={() => void applyAdjustment([activePhotoId])}
           onApplySelected={() => void applyAdjustment(Array.from(selected))}
-          onReset={() => setAdjustmentParams(structuredClone(DEFAULT_ADJUSTMENT_PARAMS))}
+          onReset={() => updateAdjustmentParams(structuredClone(DEFAULT_ADJUSTMENT_PARAMS))}
           onSavePreset={(name) => void savePreset(name)}
-          onLoadPreset={(preset) => setAdjustmentParams(preset.params)}
+          onLoadPreset={(preset) => updateAdjustmentParams(preset.params)}
           onDeletePreset={(preset) => void deletePreset(preset)}
+          onRotateLeft={() => void rotateActivePhoto("left")}
+          onRotateRight={() => void rotateActivePhoto("right")}
         />
       )}
 

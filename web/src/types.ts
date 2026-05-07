@@ -15,6 +15,7 @@ export type Photo = {
   mime_type: string | null;
   uploaded_at: string;
   processed_paths: Record<string, string>;
+  adjustment_params: AdjustmentParams | null;
 };
 
 export type ProjectDetail = Project & {
@@ -129,6 +130,7 @@ export type AdjustmentParams = {
   vibrance: number;
   clarity: number;
   sharpness: number;
+  orientation: number;
   rotation: number;
   crop_zoom: number;
   crop_x: number;
