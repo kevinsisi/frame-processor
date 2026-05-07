@@ -29,6 +29,10 @@ web/node_modules/
 web/dist/
 web/.vite/
 web/coverage/
+# tsc -b composite-project artifacts (regenerated locally on every build)
+web/*.tsbuildinfo
+web/vite.config.js
+web/vite.config.d.ts
 
 # IDE
 .vscode/
