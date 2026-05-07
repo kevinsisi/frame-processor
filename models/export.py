@@ -23,7 +23,11 @@ class Export(Base):
         index=True,
     )
     status: Mapped[ExportStatus] = mapped_column(
-        SAEnum(ExportStatus, name="export_status"),
+        SAEnum(
+            ExportStatus,
+            name="export_status",
+            values_callable=lambda enum_cls: [m.value for m in enum_cls],
+        ),
         nullable=False,
         default=ExportStatus.PENDING,
     )
