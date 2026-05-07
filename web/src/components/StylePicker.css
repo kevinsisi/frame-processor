@@ -1,0 +1,112 @@
+.style-picker {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+}
+
+.style-card {
+  position: relative;
+  text-align: left;
+  padding: var(--space-4);
+  background: var(--ink-elevated);
+  border: 1px solid var(--ink-line);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 168px;
+  cursor: pointer;
+  transition:
+    border-color 200ms var(--ease-out),
+    background 200ms var(--ease-out),
+    transform 200ms var(--ease-out);
+}
+
+.style-card:hover {
+  border-color: var(--gold);
+  background: var(--ink-overlay);
+  transform: translateY(-1px);
+}
+
+.style-card--active {
+  border-color: var(--gold);
+  background: var(--ink-overlay);
+}
+
+.style-card--active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--gold);
+}
+
+.style-card__caption {
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.style-card__label {
+  font-family: var(--font-display);
+  font-size: var(--t-xl);
+  font-weight: 350;
+  letter-spacing: -0.005em;
+  color: var(--text-primary);
+  font-variation-settings: "opsz" 144, "SOFT" 30;
+}
+
+.style-card__swatch {
+  display: flex;
+  gap: 0;
+  height: 18px;
+  border: 1px solid var(--ink-line);
+}
+
+.style-card__swatch span {
+  flex: 1;
+  display: block;
+}
+
+.style-card__desc {
+  font-size: var(--t-xs);
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.style-card__check {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--ink-line-strong);
+  color: transparent;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  transition:
+    border-color 200ms var(--ease-out),
+    background 200ms var(--ease-out),
+    color 200ms var(--ease-out);
+}
+
+.style-card--active .style-card__check {
+  border-color: var(--gold);
+  background: var(--gold);
+  color: var(--ink-base);
+}
+
+@media (max-width: 720px) {
+  .style-picker {
+    grid-template-columns: 1fr;
+  }
+  .style-card {
+    min-height: auto;
+  }
+}

@@ -2,14 +2,36 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { api } from "@/api/client";
-import { Card } from "@/components/Card";
-import type { Export, ProjectDetail } from "@/types";
+import { Spinner } from "@/components/Spinner";
+import { useToast } from "@/components/Toast";
+import type { Export, ExportStatus, ProjectDetail } from "@/types";
+
+import "./Export.css";
+
+const STATUS_LABEL: Record<ExportStatus, string> = {
+  pending: "排隊中",
+  running: "打包中",
+  done: "已完成",
+  failed: "失敗",
+};
+
+function formatTimestamp(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mi = String(d.getMinutes()).padStart(2, "0");
+  const ss = String(d.getSeconds()).padStart(2, "0");
+  return `${hh}:${mi}:${ss}`;
+}
 
 export default function ExportPage() {
   const { projectId } = useParams();
+  const toast = useToast();
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [exportRow, setExportRow] = useState<Export | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const pollRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -17,7 +39,10 @@ export default function ExportPage() {
       setProject(null);
       return;
     }
-    api.getProject(projectId).then(setProject).catch((err) => setError(String(err)));
+    api
+      .getProject(projectId)
+      .then(setProject)
+      .catch((err) => setError(String(err)));
   }, [projectId]);
 
   useEffect(() => {
@@ -28,18 +53,6 @@ export default function ExportPage() {
     };
   }, []);
 
-  async function startExport() {
-    if (!projectId) return;
-    setError(null);
-    try {
-      const created = await api.createExport(projectId);
-      setExportRow(created);
-      pollUntilDone(created.id);
-    } catch (err) {
-      setError(String(err));
-    }
-  }
-
   function pollUntilDone(exportId: string) {
     if (pollRef.current) window.clearInterval(pollRef.current);
     pollRef.current = window.setInterval(async () => {
@@ -48,59 +61,168 @@ export default function ExportPage() {
         setExportRow(fresh);
         if (fresh.status === "done" || fresh.status === "failed") {
           if (pollRef.current) window.clearInterval(pollRef.current);
+          if (fresh.status === "done") {
+            toast.push("zip 打包完成，可以下載了。", "success");
+          } else if (fresh.status === "failed") {
+            toast.push(`打包失敗：${fresh.error ?? "未知錯誤"}`, "error");
+          }
         }
       } catch (err) {
         setError(String(err));
+        if (pollRef.current) window.clearInterval(pollRef.current);
       }
     }, 1500);
   }
 
+  async function startExport() {
+    if (!projectId) return;
+    setError(null);
+    setBusy(true);
+    try {
+      const created = await api.createExport(projectId);
+      setExportRow(created);
+      toast.push("已送出打包任務，等 worker 完成。", "info");
+      pollUntilDone(created.id);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg);
+      toast.push(`觸發打包失敗：${msg}`, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!projectId) {
     return (
-      <Card title="匯出">
-        <div className="text-sm text-slate-500">
-          請從 <Link to="/upload" className="text-brand underline">上傳頁</Link> 選擇一個既有專案。
-        </div>
-      </Card>
+      <main className="page page--narrow export-empty">
+        <section className="hero">
+          <div className="hero__kicker">匯出</div>
+          <h1 className="hero__title">
+            還沒選<em>專案</em>。
+          </h1>
+          <p className="hero__lede">
+            匯出會把整個專案的照片打包成一個 zip，目前只包原圖，v0.6 之後會包處理結果。
+          </p>
+        </section>
+        <Link to="/upload" className="cta cta--primary">
+          ← 回到上傳頁
+        </Link>
+      </main>
     );
   }
 
+  const inProgress =
+    exportRow?.status === "pending" || exportRow?.status === "running";
+  const status = exportRow?.status ?? null;
+
   return (
-    <Card title="匯出 zip">
-      {error ? <div className="mb-3 text-sm text-red-600">{error}</div> : null}
-      {project ? (
-        <div className="mb-4 text-sm text-slate-700">
-          專案：<span className="font-medium">{project.name}</span>（{project.photo_count} 張）
+    <main className="page export">
+      <section className="hero">
+        <div className="hero__kicker">匯出 · 打包 zip</div>
+        <h1 className="hero__title">
+          {project ? project.name : "讀取中"}
+        </h1>
+        {project ? (
+          <p className="hero__lede">
+            {project.photo_count} 張照片 · 點下方按鈕讓 worker 把整個資料夾打包成 zip。
+          </p>
+        ) : null}
+      </section>
+
+      {error ? (
+        <div className="alert" role="alert">
+          {error}
         </div>
       ) : null}
-      <button
-        onClick={startExport}
-        disabled={exportRow?.status === "pending" || exportRow?.status === "running"}
-        className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-50"
-      >
-        {exportRow?.status === "pending" || exportRow?.status === "running"
-          ? `打包中…（${exportRow.status}）`
-          : "建立 zip"}
-      </button>
 
-      {exportRow ? (
-        <div className="mt-4 text-sm space-y-1">
-          <div>
-            狀態：<span className="font-medium">{exportRow.status}</span>
-          </div>
-          {exportRow.error ? (
-            <div className="text-red-600">錯誤：{exportRow.error}</div>
+      <section className="section export-card">
+        <header className="section__head">
+          <h2 className="section__title">打包狀態</h2>
+          {status ? (
+            <span className="section__meta">
+              <span
+                className={`dot ${
+                  status === "done"
+                    ? "dot--up"
+                    : status === "failed"
+                      ? "dot--down"
+                      : "dot--processing"
+                }`}
+              />
+              {STATUS_LABEL[status]}
+            </span>
+          ) : (
+            <span className="section__meta">尚未開始</span>
+          )}
+        </header>
+
+        <div className="export-card__body">
+          {!exportRow ? (
+            <p className="export-card__hint">
+              還沒打包過。建立 zip 之後 worker 會在背景處理；視照片數量約幾秒到幾十秒。
+            </p>
+          ) : (
+            <dl className="export-card__detail mono">
+              <div>
+                <dt>建立時間</dt>
+                <dd>{formatTimestamp(exportRow.created_at)}</dd>
+              </div>
+              <div>
+                <dt>完成時間</dt>
+                <dd>{formatTimestamp(exportRow.completed_at)}</dd>
+              </div>
+              <div>
+                <dt>狀態</dt>
+                <dd>{STATUS_LABEL[exportRow.status]}</dd>
+              </div>
+            </dl>
+          )}
+
+          {inProgress ? (
+            <div className="progress-track" aria-hidden>
+              <div className="progress-bar progress-bar--indeterminate" />
+            </div>
           ) : null}
-          {exportRow.status === "done" ? (
+
+          {exportRow?.error ? (
+            <div className="alert" role="alert">
+              {exportRow.error}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="export-card__cta">
+          <button
+            type="button"
+            className="cta cta--primary"
+            onClick={startExport}
+            disabled={inProgress || busy}
+          >
+            {busy ? (
+              <Spinner label="送出中" />
+            ) : inProgress ? (
+              `${STATUS_LABEL[status as ExportStatus]}…`
+            ) : exportRow?.status === "done" ? (
+              "重新打包"
+            ) : (
+              "建立 zip →"
+            )}
+          </button>
+
+          {exportRow?.status === "done" ? (
             <a
               href={api.exportDownloadUrl(exportRow.id)}
-              className="inline-block mt-2 rounded-md border border-brand px-4 py-2 text-sm font-medium text-brand hover:bg-brand hover:text-white"
+              className="cta cta--quiet export-card__download"
             >
-              下載 zip
+              下載 zip ↓
             </a>
           ) : null}
+
+          <Link to={`/preview/${projectId}`} className="cta cta--quiet">
+            ← 回到預覽
+          </Link>
         </div>
-      ) : null}
-    </Card>
+      </section>
+    </main>
   );
 }
