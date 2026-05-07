@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from models.enums import ExportStatus
+from models.enums import ColorGradePreset, ExportStatus, ProcessingJobStatus
 
 
 class ProjectCreate(BaseModel):
@@ -30,6 +30,7 @@ class PhotoOut(BaseModel):
     height: int | None
     mime_type: str | None
     uploaded_at: datetime
+    processed_paths: dict[str, str] = {}
 
 
 class ProjectDetail(ProjectOut):
@@ -46,6 +47,29 @@ class ExportOut(BaseModel):
     id: UUID
     project_id: UUID
     status: ExportStatus
+    error: str | None
+    created_at: datetime
+    completed_at: datetime | None
+
+
+class ProcessingJobCreate(BaseModel):
+    preset: ColorGradePreset
+    photo_ids: list[UUID] = []
+    level_correct: bool = True
+    auto_crop_aspect: str = "original"
+
+
+class ProcessingJobOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    project_id: UUID
+    preset: ColorGradePreset
+    level_correct: bool
+    auto_crop_aspect: str
+    status: ProcessingJobStatus
+    progress_done: int
+    progress_total: int
     error: str | None
     created_at: datetime
     completed_at: datetime | None

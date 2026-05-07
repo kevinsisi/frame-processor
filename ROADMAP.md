@@ -32,24 +32,25 @@
 
 ---
 
-## v0.2.0 — Pillow 色調預設（無 AI）
+## v0.2.0 — 第一條處理 Pipeline ✅ (shipped)
 
-**目標**：第一個真正的處理 pipeline。用純 Pillow 實作三組色調 preset，驗證 worker pipeline + 前後對比 UI。
+**目標**：第一條真正的批次後製 pipeline。把原本拆在 v0.2 / v0.4 / v0.5 的色調 / 自動裁剪 / 水平校正合併成一個 release，全部用 CPU heuristic 實作（無 AI），把 worker pipeline + before/after UI 跑通。
 
 範圍：
-- `services/color_grade.py` 實作三組 preset：
-  - `SHOWROOM_WHITE`（展示間白）— 白平衡矯正、輕度提亮、降低色彩飽和度
-  - `OUTDOOR_WARM`（戶外暖調）— 暖色偏移、輕微 vibrance、增加對比
-  - `NIGHT_COLD`（夜拍冷調）— 冷色偏移、降低噪點靠 blur（暫定）、提暗部
-- `models/enums.py:ColorGradePreset` enum 三項
-- `POST /projects/{id}/process`：建立 ProcessingJob，enqueue 至 RQ；body 含 `preset` 與 `photo_ids`（空陣列代表全選）
-- `GET /processing-jobs/{id}` 查狀態 + 進度 + per-photo 結果路徑
-- FE Preview 頁支援前後對比 slider（同一張照片左右拖拉）
-- DB 新增 `ProcessingJob` 表 + `Photo.processed_paths` JSON column（key=preset name, value=檔案路徑）
+- `services/color_grade.py` 三組 preset（純 Pillow + numpy）：
+  - `SHOWROOM_WHITE` — gray-world 白平衡 + 輕度提亮 + 降飽和
+  - `OUTDOOR_WARM` — 暖色偏移 + vibrance + 加對比
+  - `NIGHT_COLD` — 冷色偏移 + gamma 提暗部
+- `services/level_correct.py` — Canny + HoughLinesP 找近水平線；旋轉量超過 ±5° 視為誤判不轉
+- `services/auto_crop.py` — Sobel energy + integral image，按 `original / 3:2 / 4:3 / 16:9 / 1:1 / 9:16` 裁剪
+- `services/photo_processor.py` — Pipeline 串接 `level_correct → auto_crop → color_grade`
+- DB：`processing_jobs` 表（preset / level_correct / auto_crop_aspect / status / 進度）+ `photos.processed_paths` JSONB
+- API：`POST /projects/{id}/process`、`GET /processing-jobs/{id}`、`GET /photos/{id}/processed/{preset}`、`GET /photos/{id}/thumbnail`（lazy webp 600px）
+- Worker：`worker.jobs.processing_job`（單張失敗不殺整 job）
+- FE：Preview 頁整合處理流程（StylePicker + 水平校正 toggle + 裁剪比例下拉）+ ProcessingProgress + BeforeAfter slider（純 CSS clip-path）
+- Deploy：`opencv-python-headless` + `numpy`，Dockerfile 加 `libgl1` + `libglib2.0-0`
 
-非範圍（defer 到後續 phase）：
-- AI 降噪、自動裁剪、水平校正
-- 自訂預設（v0.7+）
+對應提案：`openspec/changes/2026-05-07-v0.2.0-processing-pipeline/`
 
 ---
 
@@ -66,22 +67,25 @@
 
 ---
 
-## v0.4.0 — 自動裁剪 AI（構圖）
+## v0.4.0 — 自動裁剪升級（YOLO 主體偵測）
+
+v0.2 已有 energy-based heuristic 自動裁剪做為 v0.x baseline；v0.4 升級為 YOLO 主體偵測 + 三分構圖。
 
 範圍：
-- `services/auto_crop.py`：以 YOLO 偵測車輛主體 + 三分構圖規則，輸出建議裁剪框
-- 支援目標比例：原始、3:2、4:3、16:9、IG 1:1、IG 9:16
-- ProcessingJob 新增 `target_aspect` 欄位
-- FE Preview 頁顯示建議裁剪框可微調
+- `services/auto_crop.py`：以 YOLOv8 偵測車輛主體框，配合三分構圖規則微調 v0.2 的 energy crop window
+- 主體保持 70% 完整度約束（不切到車輪、車燈）
+- FE Preview 頁顯示建議裁剪框可微調拖拉
 
 ---
 
-## v0.5.0 — 水平校正
+## v0.5.0 — 水平校正升級
+
+v0.2 已有 Hough line heuristic；v0.5 升級為更穩定的演算法（例如 multi-scale Hough、車身底盤線優先）。
 
 範圍：
-- `services/level_correct.py`：以 Hough line detection 找主水平線，旋轉至水平
-- 對車身底盤線、地平線、展示間地板邊有效；對晃動車內照片可能誤判，需有「跳過此張」開關
-- ProcessingJob 新增 `level_correct: bool`
+- `services/level_correct.py`：對特殊角度照片提供「跳過此張」單張開關
+- 對展示間地板格線、車身底盤線、地平線各自有專門 detector
+- 旋轉量信心度低於閾值時自動 skip 並回報原因
 
 ---
 

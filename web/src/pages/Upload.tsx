@@ -215,12 +215,11 @@ export default function UploadPage() {
         <section className="section">
           <header className="section__head">
             <h2 className="section__title">色調風格</h2>
-            <span className="section__meta">v0.2 啟用處理</span>
+            <span className="section__meta">處理參數可在預覽頁調整</span>
           </header>
           <StylePicker value={style} onChange={setStyle} />
           <p className="upload-form__hint">
-            v0.1 walking skeleton 還沒接 AI 處理，僅記錄你選的風格；v0.2 會送進 worker
-            執行白平衡、色調與對比的批次後製。
+            這裡先記下偏好的色調；上傳完到預覽頁再決定要不要套水平校正、選裁剪比例，再一鍵送整批進 worker 後製。
           </p>
         </section>
 

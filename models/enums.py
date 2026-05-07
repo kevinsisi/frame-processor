@@ -8,8 +8,17 @@ class ExportStatus(str, Enum):
     FAILED = "failed"
 
 
+class ProcessingJobStatus(str, Enum):
+    """v0.2.0 引入；與 ExportStatus 同值不同名以保留語意分離。"""
+
+    PENDING = "pending"
+    RUNNING = "running"
+    DONE = "done"
+    FAILED = "failed"
+
+
 class ColorGradePreset(str, Enum):
-    """v0.2.0 將實作此 enum 對應的色調 preset；v0.1 walking skeleton 不使用。"""
+    """色調 preset；v0.2.0 起在 ``services.color_grade.apply_grade`` 實作。"""
 
     SHOWROOM_WHITE = "showroom_white"
     OUTDOOR_WARM = "outdoor_warm"

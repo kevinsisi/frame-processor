@@ -1,2 +1,2 @@
-// v0.1.2 — consolidated walking skeleton + frame.sisihome.org deploy + editorial dark theme UI.
-export const APP_VERSION = "0.1.2";
+// v0.2.0 — first real processing pipeline (color grade + level correct + auto crop + before/after).
+export const APP_VERSION = "0.2.0";
