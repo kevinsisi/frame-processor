@@ -1,119 +1,166 @@
-"""自動裁剪（v0.2.0 — energy-based heuristic，無 AI）。
+"""自動構圖裁剪：YOLOv8n 偵測車輛 + rule-of-thirds 構圖。
 
-依目標比例在 Sobel 邊緣能量圖上找最高能量 sub-window，回傳裁剪後 PIL Image
-與 ``CropBox``。``target_aspect == "original"`` 視為 no-op。
+策略：
+1. 用 ``ultralytics.YOLO("yolov8n.pt")`` 偵測 COCO car (2) / truck (7) / bus (5) / motorcycle (3)
+2. 取信心度最高的 bbox 作為主體
+3. 若 ``target_aspect`` 是 ORIGINAL 或沒抓到車：原圖回傳
+4. 否則計算「最大可行裁剪框」：以主體中心為基準，按 target aspect 從原圖內畫最大矩形，
+   並把主體中心對齊到 rule-of-thirds 第三線交點（左下 1/3, 1/3 或右下 2/3, 1/3 視主體位置）
+5. 主體必須 100% 落在裁剪框內；不夠空間就退回置中
 
-實作：integral image（cumsum）使 sliding window sum O(W·H)。
+公開介面：``auto_crop(image, target_aspect) -> PIL.Image``
 
-支援目標比例：``original / 3:2 / 4:3 / 16:9 / 1:1 / 9:16``
-v0.4 會用 YOLO 主體偵測 + 三分構圖規則取代這份 heuristic。
+模型權重 lazy download：首次呼叫時 ultralytics 自動下載 ``yolov8n.pt`` 到
+``ULTRALYTICS_DIR``（容器內 ``/data/models-weights/ultralytics``）。
 """
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
-from typing import Final
+from pathlib import Path
+from typing import TYPE_CHECKING
 
-import cv2
 import numpy as np
 from PIL import Image
 
-ORIGINAL_ASPECT: Final = "original"
+from models.enums import ASPECT_RATIO_VALUES, AspectRatio
 
-_ASPECT_RATIOS: Final[dict[str, float]] = {
-    "3:2": 3.0 / 2.0,
-    "4:3": 4.0 / 3.0,
-    "16:9": 16.0 / 9.0,
-    "1:1": 1.0,
-    "9:16": 9.0 / 16.0,
-}
+if TYPE_CHECKING:
+    from ultralytics import YOLO  # noqa: F401
+
+VEHICLE_CLASSES = {2, 3, 5, 7}  # COCO: car, motorcycle, bus, truck
+
+_yolo_model = None
 
 
-@dataclass(slots=True)
-class CropBox:
-    left: int
-    top: int
-    right: int
-    bottom: int
+def _get_model():
+    global _yolo_model
+    if _yolo_model is not None:
+        return _yolo_model
+    from ultralytics import YOLO
+
+    weights_dir = Path(
+        os.environ.get("ULTRALYTICS_DIR", str(Path.home() / ".ultralytics"))
+    )
+    weights_dir.mkdir(parents=True, exist_ok=True)
+    weights_path = weights_dir / "yolov8n.pt"
+    _yolo_model = YOLO(str(weights_path) if weights_path.exists() else "yolov8n.pt")
+    return _yolo_model
+
+
+@dataclass(frozen=True)
+class _BBox:
+    x1: int
+    y1: int
+    x2: int
+    y2: int
 
     @property
-    def width(self) -> int:
-        return self.right - self.left
+    def cx(self) -> int:
+        return (self.x1 + self.x2) // 2
 
     @property
-    def height(self) -> int:
-        return self.bottom - self.top
+    def cy(self) -> int:
+        return (self.y1 + self.y2) // 2
 
 
-def supported_aspects() -> list[str]:
-    return [ORIGINAL_ASPECT, *_ASPECT_RATIOS.keys()]
-
-
-def auto_crop(image: Image.Image, target_aspect: str = ORIGINAL_ASPECT) -> tuple[Image.Image, CropBox]:
-    """裁剪到 ``target_aspect``。``original`` 直接回傳原圖（不裁）。"""
+def auto_crop(image: Image.Image, target_aspect: AspectRatio) -> Image.Image:
+    if target_aspect is AspectRatio.ORIGINAL:
+        return image
+    target = ASPECT_RATIO_VALUES[target_aspect]
+    if target is None:
+        return image
 
     rgb = image.convert("RGB")
+    bbox = _detect_main_vehicle(rgb)
     w, h = rgb.size
+    crop_w, crop_h = _largest_box_in(w, h, target)
+    if bbox is None:
+        return _center_crop(rgb, crop_w, crop_h)
 
-    if target_aspect == ORIGINAL_ASPECT:
-        return rgb, CropBox(0, 0, w, h)
+    cx, cy = _rule_of_thirds_anchor(w, h, crop_w, crop_h, bbox)
+    x0 = _clamp(cx - crop_w // 2, 0, w - crop_w)
+    y0 = _clamp(cy - crop_h // 2, 0, h - crop_h)
 
-    if target_aspect not in _ASPECT_RATIOS:
-        raise ValueError(f"unsupported target_aspect: {target_aspect!r}")
-
-    target_ratio = _ASPECT_RATIOS[target_aspect]
-    target_w, target_h = _fit_window(w, h, target_ratio)
-    if target_w >= w and target_h >= h:
-        return rgb, CropBox(0, 0, w, h)
-
-    energy = _compute_energy(np.asarray(rgb))
-    box = _find_max_energy_window(energy, target_w, target_h)
-    cropped = rgb.crop((box.left, box.top, box.right, box.bottom))
-    return cropped, box
+    x0, y0 = _ensure_subject_inside(x0, y0, crop_w, crop_h, bbox, w, h)
+    return rgb.crop((x0, y0, x0 + crop_w, y0 + crop_h))
 
 
-def _fit_window(img_w: int, img_h: int, target_ratio: float) -> tuple[int, int]:
-    """在 (img_w, img_h) 內找最大內接矩形使其長寬比 = target_ratio。"""
-    img_ratio = img_w / img_h
-    if img_ratio >= target_ratio:
-        # 圖片比 target 寬：高度 = img_h，寬 = img_h * ratio
-        out_h = img_h
-        out_w = round(out_h * target_ratio)
+def _detect_main_vehicle(image: Image.Image) -> _BBox | None:
+    model = _get_model()
+    arr = np.array(image)
+    results = model.predict(arr, verbose=False, conf=0.25)
+    if not results:
+        return None
+    boxes = results[0].boxes
+    if boxes is None or len(boxes) == 0:
+        return None
+
+    best: _BBox | None = None
+    best_conf = -1.0
+    for i in range(len(boxes)):
+        cls = int(boxes.cls[i].item())
+        if cls not in VEHICLE_CLASSES:
+            continue
+        conf = float(boxes.conf[i].item())
+        if conf <= best_conf:
+            continue
+        x1, y1, x2, y2 = boxes.xyxy[i].tolist()
+        best = _BBox(int(x1), int(y1), int(x2), int(y2))
+        best_conf = conf
+    return best
+
+
+def _largest_box_in(w: int, h: int, target: tuple[int, int]) -> tuple[int, int]:
+    """在 (w, h) 內畫出 target aspect 的最大矩形。"""
+    tw, th = target
+    if w * th >= h * tw:
+        crop_h = h
+        crop_w = int(round(h * tw / th))
     else:
-        out_w = img_w
-        out_h = round(out_w / target_ratio)
-    return out_w, out_h
+        crop_w = w
+        crop_h = int(round(w * th / tw))
+    return min(crop_w, w), min(crop_h, h)
 
 
-def _compute_energy(rgb_arr: np.ndarray) -> np.ndarray:
-    """Sobel 邊緣強度作為「能量」。"""
-    gray = cv2.cvtColor(rgb_arr, cv2.COLOR_RGB2GRAY)
-    sx = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=3)
-    sy = cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=3)
-    return np.sqrt(sx * sx + sy * sy)
+def _center_crop(image: Image.Image, crop_w: int, crop_h: int) -> Image.Image:
+    w, h = image.size
+    x0 = (w - crop_w) // 2
+    y0 = (h - crop_h) // 2
+    return image.crop((x0, y0, x0 + crop_w, y0 + crop_h))
 
 
-def _find_max_energy_window(energy: np.ndarray, win_w: int, win_h: int) -> CropBox:
-    """在 ``energy`` 上找尺寸 ``(win_h, win_w)`` 的最大總能量視窗。"""
-    h, w = energy.shape
-    win_w = min(win_w, w)
-    win_h = min(win_h, h)
+def _rule_of_thirds_anchor(
+    img_w: int, img_h: int, crop_w: int, crop_h: int, bbox: _BBox
+) -> tuple[int, int]:
+    """選擇 rule-of-thirds 交點：水平靠近主體在圖中的左/右側，垂直放下三分之一處。"""
+    horizontal = "left" if bbox.cx < img_w / 2 else "right"
+    if horizontal == "left":
+        anchor_x_in_crop = crop_w // 3
+    else:
+        anchor_x_in_crop = crop_w * 2 // 3
+    anchor_y_in_crop = crop_h * 2 // 3
+    return bbox.cx - anchor_x_in_crop + crop_w // 2, bbox.cy - anchor_y_in_crop + crop_h // 2
 
-    # integral image：iimg[y, x] = sum(energy[0:y, 0:x])
-    iimg = np.zeros((h + 1, w + 1), dtype=np.float64)
-    iimg[1:, 1:] = np.cumsum(np.cumsum(energy, axis=0), axis=1)
 
-    # window sums via inclusion-exclusion
-    bottom = iimg[win_h:, :]   # shape (h - win_h + 1, w + 1)
-    top = iimg[:-win_h, :]
-    horiz = bottom - top       # shape (h - win_h + 1, w + 1)
-    right = horiz[:, win_w:]   # shape (h - win_h + 1, w - win_w + 1)
-    left = horiz[:, :-win_w]
-    sums = right - left
+def _ensure_subject_inside(
+    x0: int, y0: int, crop_w: int, crop_h: int, bbox: _BBox, img_w: int, img_h: int
+) -> tuple[int, int]:
+    if bbox.x1 < x0:
+        x0 = max(bbox.x1, 0)
+    if bbox.x2 > x0 + crop_w:
+        x0 = min(bbox.x2 - crop_w, img_w - crop_w)
+    if bbox.y1 < y0:
+        y0 = max(bbox.y1, 0)
+    if bbox.y2 > y0 + crop_h:
+        y0 = min(bbox.y2 - crop_h, img_h - crop_h)
+    return _clamp(x0, 0, img_w - crop_w), _clamp(y0, 0, img_h - crop_h)
 
-    flat_idx = int(np.argmax(sums))
-    rows = sums.shape[1]
-    y = flat_idx // rows
-    x = flat_idx % rows
 
-    return CropBox(left=int(x), top=int(y), right=int(x + win_w), bottom=int(y + win_h))
+def _clamp(v: int, lo: int, hi: int) -> int:
+    if v < lo:
+        return lo
+    if v > hi:
+        return hi
+    return v

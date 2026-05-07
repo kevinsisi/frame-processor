@@ -1,88 +1,82 @@
 .before-after {
   position: relative;
   user-select: none;
-  background: var(--ink-elevated);
-  border: 1px solid var(--ink-line);
-  overflow: hidden;
   touch-action: none;
+  overflow: hidden;
+  background: #000;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  border-radius: 12px;
   cursor: ew-resize;
+  width: 100%;
+  aspect-ratio: 3 / 2;
 }
 
 .before-after__img {
-  display: block;
+  position: absolute;
+  inset: 0;
   width: 100%;
-  height: auto;
+  height: 100%;
+  object-fit: contain;
   pointer-events: none;
 }
 
-.before-after__img--after {
+.before-after__after-wrap {
+  position: absolute;
+  inset: 0 auto 0 0;
+  overflow: hidden;
+}
+
+.before-after__after-wrap .before-after__img--after {
+  width: var(--container-w, 100%);
   position: absolute;
   inset: 0;
 }
 
-.before-after__tag {
+.before-after__divider {
   position: absolute;
-  top: var(--space-3);
-  font-size: var(--t-xs);
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  padding: 4px var(--space-2);
-  background: rgba(14, 13, 12, 0.8);
-  color: var(--text-primary);
-  border: 1px solid var(--ink-line-strong);
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--accent, #c9a86b);
+  transform: translateX(-1px);
   pointer-events: none;
-}
-
-.before-after__tag--left {
-  left: var(--space-3);
-}
-
-.before-after__tag--right {
-  right: var(--space-3);
-  border-color: var(--gold);
-  color: var(--gold);
 }
 
 .before-after__handle {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  transform: translateX(-50%);
-  outline: none;
-}
-
-.before-after__handle-bar {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 2px;
-  background: var(--gold);
-  box-shadow: 0 0 12px rgba(232, 200, 130, 0.6);
-}
-
-.before-after__handle-grip {
-  position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%);
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: var(--gold);
-  color: var(--ink-base);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-mono);
-  font-size: 14px;
+  background: var(--accent, #c9a86b);
+  color: #1a1a1a;
+  display: grid;
+  place-items: center;
   font-weight: 700;
+  transform: translate(-50%, -50%);
   pointer-events: none;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
 }
 
-.before-after__handle:focus-visible .before-after__handle-grip {
-  outline: 2px solid var(--text-primary);
-  outline-offset: 2px;
+.before-after__tag {
+  position: absolute;
+  top: 12px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.55);
+  color: var(--ink-1, #f5f4ee);
+  pointer-events: none;
+}
+
+.before-after__tag--before {
+  left: 12px;
+}
+
+.before-after__tag--after {
+  right: 12px;
 }

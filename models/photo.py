@@ -29,7 +29,6 @@ class Photo(Base):
     uploaded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-    # v0.2.0：preset name → relative storage path（key = ColorGradePreset.value）
     processed_paths: Mapped[dict[str, str]] = mapped_column(
         JSONB, nullable=False, server_default="{}", default=dict
     )

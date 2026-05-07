@@ -39,6 +39,13 @@ docs/        Architecture、ADR、設計筆記
 - RPi (`rpi-matrix`) Caddy 反向代理：`frame.sisihome.org` → `100.83.112.20:8533`，`request_body.max_size 500MB`，設定在 `/home/kevin/DockerCompose/caddy/Caddyfile` 的 `*.sisihome.org` block 裡
 - Caddy 改設定後一律 `docker restart caddy`（不是 reload）
 
+### v0.2.0 處理 pipeline 必要條件
+
+- `GEMINI_API_KEY` env 必須設定（水平校正用 Gemini Vision；無 key 則 level_correct step 會 fail）；放 `~/DockerCompose/frame-processor/.env`，docker compose 自動讀進 api + worker
+- 模型權重 lazy download 寫到 `storage-data` volume 的 `models-weights/{ultralytics,nafnet}/`；首次處理會下載 ~70MB（NAFNet）+ 6MB（YOLO），之後 cached
+- worker image build 會拉 CPU-only torch wheel（避免 CUDA 多 GB），有 GPU 也只在 `torch.cuda.is_available()` 為 true 時自動用
+- pipeline 順序固定 `denoise → lens_distort → level → crop → grade`，理由見 `ARCHITECTURE.md` § Pipeline 順序
+
 ## Global Working Rules
 
 - Read the current code, files, and runtime context before deciding on a change.

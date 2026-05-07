@@ -1,65 +1,80 @@
-"""照片處理 pipeline 主入口（v0.2.0）。
+"""照片處理 pipeline 主入口。
 
-Pipeline 順序：``level_correct → auto_crop → color_grade``。
-每個階段獨立可關閉；最後輸出 jpg 到 ``<storage>/projects/<pid>/processed/<photo_id>.<preset>.jpg``。
+順序固定：``denoise → lens_distort_correct → level_correct → auto_crop → color_grade``。
+為什麼這個順序：
+1. **denoise 最先**：geometric ops（warp、resize）會放大噪點 pattern，先洗掉再做幾何
+2. **lens_distort 次之**：把廣角桶形修平，後面的 level / crop 才能對得到真水平/真主體
+3. **level_correct 第三**：水平校正需要無 fisheye 的圖才能找到真正的地平線
+4. **auto_crop 第四**：YOLO 在已校正的圖上偵測車輛 bbox 才準
+5. **color_grade 最後**：純像素操作，與幾何無關，最後做不影響先前所有步驟
+
+每階段都會檢查對應參數是否啟用，未啟用直接 pass-through 不做事。
 """
 
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from pathlib import Path
 
 from PIL import Image, ImageOps
 
-from models.enums import ColorGradePreset
-from services import auto_crop, color_grade, level_correct, storage
+from models.enums import (
+    AspectRatio,
+    ColorGradePreset,
+    DenoiseStrength,
+)
+from services import auto_crop, color_grade, denoise, lens_distort, level_correct, storage
 
 
-@dataclass(slots=True)
-class ProcessedResult:
-    relative_path: Path
-    absolute_path: Path
-    size_bytes: int
-    rotation_degrees: float
-    crop_box: tuple[int, int, int, int]
+@dataclass(frozen=True)
+class ProcessedPhoto:
+    photo_id: uuid.UUID
+    preset: ColorGradePreset
+    relative_path: str
+    angle_applied: float
+    width: int
+    height: int
 
 
 def process_photo(
     *,
     project_id: uuid.UUID,
     photo_id: uuid.UUID,
-    source_relative: str | Path,
+    source_relative_path: str,
     preset: ColorGradePreset,
-    apply_level_correct: bool = True,
-    target_aspect: str = auto_crop.ORIGINAL_ASPECT,
-) -> ProcessedResult:
-    """跑完整 pipeline 並落地 jpg。原圖永不覆寫。"""
+    denoise_strength: DenoiseStrength = DenoiseStrength.NONE,
+    lens_distort_correct: bool = False,
+    level_correct_on: bool = False,
+    auto_crop_aspect: AspectRatio | None = None,
+) -> ProcessedPhoto:
+    src = storage.absolute_path(source_relative_path)
+    with Image.open(src) as raw:
+        img = ImageOps.exif_transpose(raw).convert("RGB")
 
-    src_abs = storage.absolute_path(source_relative)
-    with Image.open(src_abs) as src:
-        # EXIF orientation 必先處理，否則 iPhone / DJI 直拍照片會躺著
-        img = ImageOps.exif_transpose(src).convert("RGB")
+    if denoise_strength is not DenoiseStrength.NONE:
+        img = denoise.denoise(img, denoise_strength)
 
-    rotation = 0.0
-    if apply_level_correct:
-        img, rotation = level_correct.correct_level(img)
+    if lens_distort_correct:
+        img = lens_distort.correct_distortion(img)
 
-    img, crop_box = auto_crop.auto_crop(img, target_aspect=target_aspect)
+    angle_applied = 0.0
+    if level_correct_on:
+        img, angle_applied = level_correct.correct_level(img)
+
+    if auto_crop_aspect is not None and auto_crop_aspect is not AspectRatio.ORIGINAL:
+        img = auto_crop.auto_crop(img, auto_crop_aspect)
+
     img = color_grade.apply_grade(img, preset)
 
-    abs_path = storage.processed_absolute_path(
-        project_id=project_id, photo_id=photo_id, preset=preset
-    )
-    size = storage.save_processed_jpeg(img, abs_path)
-    rel_path = storage.processed_relative_path(
-        project_id=project_id, photo_id=photo_id, preset=preset
-    )
-
-    return ProcessedResult(
-        relative_path=rel_path,
-        absolute_path=abs_path,
-        size_bytes=size,
-        rotation_degrees=rotation,
-        crop_box=(crop_box.left, crop_box.top, crop_box.right, crop_box.bottom),
+    target_abs = storage.processed_path(project_id, photo_id, preset)
+    target_abs.parent.mkdir(parents=True, exist_ok=True)
+    img.save(target_abs, format="JPEG", quality=92, optimize=True)
+    relative = storage.relative_to_storage(target_abs)
+    return ProcessedPhoto(
+        photo_id=photo_id,
+        preset=preset,
+        relative_path=relative,
+        angle_applied=angle_applied,
+        width=img.width,
+        height=img.height,
     )

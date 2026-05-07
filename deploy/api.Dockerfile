@@ -6,7 +6,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Pillow native deps (jpeg / png / webp / tiff) + OpenCV headless runtime (libgl / libglib)
+# Pillow + OpenCV + torch native deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libjpeg62-turbo \
         zlib1g \
@@ -16,10 +16,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libpng16-16 \
         libgl1 \
         libglib2.0-0 \
+        libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-RUN pip install -r requirements.txt
+# Install CPU-only torch wheel first to avoid pulling the multi-GB CUDA build
+RUN pip install --extra-index-url https://download.pytorch.org/whl/cpu torch>=2.2 \
+    && pip install -r requirements.txt
 
 COPY api ./api
 COPY models ./models

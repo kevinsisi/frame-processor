@@ -1,9 +1,9 @@
 import type {
-  AutoCropAspect,
   ColorGradePreset,
   Export,
   Photo,
   ProcessingJob,
+  ProcessingJobCreate,
   Project,
   ProjectDetail,
 } from "@/types";
@@ -57,23 +57,16 @@ export const api = {
 
   photoFileUrl: (photoId: string) => `${BASE}/photos/${photoId}/file`,
 
-  thumbnailUrl: (photoId: string) => `${BASE}/photos/${photoId}/thumbnail`,
-
   processedPhotoUrl: (photoId: string, preset: ColorGradePreset) =>
-    `${BASE}/photos/${photoId}/processed/${preset}`,
+    `${BASE}/photos/${photoId}/file?variant=processed&preset=${preset}`,
 
-  createProcessing: (projectId: string, payload: CreateProcessingPayload) =>
+  createProcessingJob: (projectId: string, payload: ProcessingJobCreate) =>
     request<ProcessingJob>(`/projects/${projectId}/process`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        preset: payload.preset,
-        photo_ids: payload.photo_ids ?? [],
-        level_correct: payload.level_correct ?? true,
-        auto_crop_aspect: payload.auto_crop_aspect ?? "original",
-      }),
+      body: JSON.stringify(payload),
     }),
 
-  getProcessing: (jobId: string) =>
+  getProcessingJob: (jobId: string) =>
     request<ProcessingJob>(`/processing-jobs/${jobId}`),
 };

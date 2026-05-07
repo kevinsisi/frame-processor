@@ -3,7 +3,13 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from models.enums import ColorGradePreset, ExportStatus, ProcessingJobStatus
+from models.enums import (
+    AspectRatio,
+    ColorGradePreset,
+    DenoiseStrength,
+    ExportStatus,
+    ProcessingJobStatus,
+)
 
 
 class ProjectCreate(BaseModel):
@@ -54,9 +60,14 @@ class ExportOut(BaseModel):
 
 class ProcessingJobCreate(BaseModel):
     preset: ColorGradePreset
-    photo_ids: list[UUID] = []
-    level_correct: bool = True
-    auto_crop_aspect: str = "original"
+    denoise_strength: DenoiseStrength = DenoiseStrength.NONE
+    lens_distort_correct: bool = False
+    level_correct: bool = False
+    auto_crop_aspect: AspectRatio | None = None
+    photo_ids: list[UUID] = Field(
+        default_factory=list,
+        description="空 list 代表處理該 project 所有 photo",
+    )
 
 
 class ProcessingJobOut(BaseModel):
@@ -64,12 +75,15 @@ class ProcessingJobOut(BaseModel):
 
     id: UUID
     project_id: UUID
-    preset: ColorGradePreset
-    level_correct: bool
-    auto_crop_aspect: str
     status: ProcessingJobStatus
-    progress_done: int
-    progress_total: int
+    preset: ColorGradePreset
+    denoise_strength: DenoiseStrength
+    lens_distort_correct: bool
+    level_correct: bool
+    auto_crop_aspect: AspectRatio | None
+    photo_ids: list[UUID]
+    progress: int
+    total: int
     error: str | None
     created_at: datetime
     completed_at: datetime | None

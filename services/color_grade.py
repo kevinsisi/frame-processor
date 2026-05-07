@@ -1,81 +1,96 @@
-"""色調預設（v0.2.0 實作）。
+"""色調預設（純 Pillow，無 AI）。
 
 三組 preset：
+- ``SHOWROOM_WHITE`` 展示間白：gray-world 白平衡 + 提亮 + 降飽和
+- ``OUTDOOR_WARM`` 戶外暖調：暖色偏移 + 對比 + 飽和
+- ``NIGHT_COLD`` 夜拍冷調：冷色偏移 + 提暗部 + 對比
 
-- ``SHOWROOM_WHITE`` — 展示間白：gray-world 自動白平衡 + 輕度提亮 + 降低飽和
-- ``OUTDOOR_WARM`` — 戶外暖調：暖色偏移（R↑、B↓）+ 輕微 vibrance + 加對比
-- ``NIGHT_COLD`` — 夜拍冷調：冷色偏移（B↑、R↓）+ gamma 提暗部
-
-實作走 numpy float 空間，避免 Pillow ImageEnhance 對通道分離調整的限制。
-單張 6000×4000 RGB JPEG 在 CPU 上約 1.5–3 秒。
+公開介面：``apply_grade(image: PIL.Image, preset: ColorGradePreset) -> PIL.Image``
 """
 
 from __future__ import annotations
 
-import numpy as np
-from PIL import Image
+from PIL import Image, ImageEnhance, ImageOps
 
 from models.enums import ColorGradePreset
 
 
 def apply_grade(image: Image.Image, preset: ColorGradePreset) -> Image.Image:
-    """把 ``preset`` 套到 RGB 圖上回傳新的 PIL Image。原圖不被修改。"""
-
-    rgb = image.convert("RGB")
-    arr = np.asarray(rgb, dtype=np.float32) / 255.0
-
+    image = image.convert("RGB")
     if preset is ColorGradePreset.SHOWROOM_WHITE:
-        arr = _showroom_white(arr)
-    elif preset is ColorGradePreset.OUTDOOR_WARM:
-        arr = _outdoor_warm(arr)
-    elif preset is ColorGradePreset.NIGHT_COLD:
-        arr = _night_cold(arr)
-    else:
-        raise ValueError(f"unknown preset: {preset!r}")
-
-    arr = np.clip(arr, 0.0, 1.0)
-    out = (arr * 255.0 + 0.5).astype(np.uint8)
-    return Image.fromarray(out, mode="RGB")
+        return _showroom_white(image)
+    if preset is ColorGradePreset.OUTDOOR_WARM:
+        return _outdoor_warm(image)
+    if preset is ColorGradePreset.NIGHT_COLD:
+        return _night_cold(image)
+    raise ValueError(f"unsupported preset: {preset}")
 
 
-def _gray_world_wb(arr: np.ndarray) -> np.ndarray:
-    """gray-world：假設整張 RGB 平均值應為灰，把每通道 scale 到該平均值。"""
-    means = arr.reshape(-1, 3).mean(axis=0)
-    target = float(means.mean())
-    # 避免極端值：若某通道平均近 0（純黑底圖）就跳過
-    safe = np.where(means < 1e-3, target, means)
-    scale = target / safe
-    return arr * scale
+def _showroom_white(image: Image.Image) -> Image.Image:
+    balanced = _gray_world_white_balance(image)
+    brighter = ImageEnhance.Brightness(balanced).enhance(1.05)
+    desaturated = ImageEnhance.Color(brighter).enhance(0.85)
+    return desaturated
 
 
-def _apply_contrast(arr: np.ndarray, amount: float) -> np.ndarray:
-    """以 0.5 為中心調對比；amount=1.0 不變、>1 加強、<1 變弱。"""
-    return (arr - 0.5) * amount + 0.5
+def _outdoor_warm(image: Image.Image) -> Image.Image:
+    warmed = _channel_shift(image, r_delta=8, g_delta=0, b_delta=-6)
+    contrasted = ImageEnhance.Contrast(warmed).enhance(1.10)
+    saturated = ImageEnhance.Color(contrasted).enhance(1.10)
+    return saturated
 
 
-def _showroom_white(arr: np.ndarray) -> np.ndarray:
-    arr = _gray_world_wb(arr)
-    arr = arr * 1.05  # 提亮
-    gray = arr.mean(axis=2, keepdims=True)
-    arr = gray + (arr - gray) * 0.85  # 降飽和到 85%
-    return arr
+def _night_cold(image: Image.Image) -> Image.Image:
+    cooled = _channel_shift(image, r_delta=-6, g_delta=0, b_delta=10)
+    lifted = _gamma_lift_shadows(cooled, gamma=0.9)
+    contrasted = ImageEnhance.Contrast(lifted).enhance(1.05)
+    return contrasted
 
 
-def _outdoor_warm(arr: np.ndarray) -> np.ndarray:
-    arr = arr.copy()
-    arr[..., 0] *= 1.08  # R 升
-    arr[..., 2] *= 0.95  # B 降
-    gray = arr.mean(axis=2, keepdims=True)
-    arr = gray + (arr - gray) * 1.10  # vibrance +10%
-    arr = _apply_contrast(arr, 1.10)
-    return arr
+def _gray_world_white_balance(image: Image.Image) -> Image.Image:
+    """Gray-world 假設：場景 R/G/B 平均值應該相等。對偏色光源做平衡。"""
+    r, g, b = image.split()
+    r_mean = _band_mean(r)
+    g_mean = _band_mean(g)
+    b_mean = _band_mean(b)
+    target = (r_mean + g_mean + b_mean) / 3.0
+    if target <= 0:
+        return image
+    r = r.point(lambda v, k=target / max(r_mean, 1.0): _clamp(v * k))
+    g = g.point(lambda v, k=target / max(g_mean, 1.0): _clamp(v * k))
+    b = b.point(lambda v, k=target / max(b_mean, 1.0): _clamp(v * k))
+    return Image.merge("RGB", (r, g, b))
 
 
-def _night_cold(arr: np.ndarray) -> np.ndarray:
-    arr = arr.copy()
-    arr[..., 0] *= 0.95  # R 降
-    arr[..., 2] *= 1.10  # B 升
-    # 提暗部：對 < 0.5 區段套 gamma 0.85（會變亮），亮部不動
-    shadow_mask = arr < 0.5
-    arr = np.where(shadow_mask, np.power(np.clip(arr, 0.0, 1.0), 0.85), arr)
-    return arr
+def _channel_shift(
+    image: Image.Image, *, r_delta: int, g_delta: int, b_delta: int
+) -> Image.Image:
+    r, g, b = image.split()
+    r = r.point(lambda v, d=r_delta: _clamp(v + d))
+    g = g.point(lambda v, d=g_delta: _clamp(v + d))
+    b = b.point(lambda v, d=b_delta: _clamp(v + d))
+    return Image.merge("RGB", (r, g, b))
+
+
+def _gamma_lift_shadows(image: Image.Image, *, gamma: float) -> Image.Image:
+    """gamma < 1 提亮暗部，gamma > 1 壓暗部。對 RGB 三通道一致套用。"""
+    inv_gamma = 1.0 / gamma
+    lut = [_clamp(((i / 255.0) ** inv_gamma) * 255.0) for i in range(256)]
+    return ImageOps.autocontrast(image.point(lut * 3), cutoff=0)
+
+
+def _band_mean(band: Image.Image) -> float:
+    histogram = band.histogram()
+    total = sum(histogram)
+    if total == 0:
+        return 0.0
+    weighted = sum(i * count for i, count in enumerate(histogram))
+    return weighted / total
+
+
+def _clamp(v: float) -> int:
+    if v < 0:
+        return 0
+    if v > 255:
+        return 255
+    return int(v)

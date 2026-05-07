@@ -1,82 +1,136 @@
-"""水平校正（v0.2.0 實作 — Hough line heuristic）。
+"""水平校正：用 Gemini Vision 分析照片回報需要旋轉的角度。
 
 策略：
+1. 把照片縮成 long-edge 768px 的 JPEG（節省 token）送給 Gemini
+2. Prompt：要求回傳「順時針旋轉幾度才會把地平線轉到水平」，限制 -90 ~ 90，回傳純數字
+3. 解析數字 → ``cv2.warpAffine`` 旋轉（無上限，30° 就轉 30°）
+4. 旋轉後用反推內接矩形裁掉黑邊
+5. Gemini API key 缺失或回應無法解析時 raise，讓 worker 標 fail（不靜默 fallback）
 
-1. 灰階 → Canny edge → HoughLinesP 找線段
-2. 過濾出近水平線段（角度 |θ| ≤ 30°）
-3. 取中位數角度作為校正量
-4. 超過閾值（預設 ±5°）視為誤判，回傳 0 不旋轉
-5. 角度太小（< 0.2°）也不旋轉，省 IO 與品質損失
-
-回傳 ``(rotated_image, applied_degrees)``：``applied_degrees == 0.0`` 代表沒做動作。
+公開介面：``correct_level(image: PIL.Image) -> tuple[PIL.Image, float]``
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import io
+import re
+import time
 
 import cv2
 import numpy as np
 from PIL import Image
 
-if TYPE_CHECKING:
+from api.config import settings
+
+_PROMPT = (
+    "Look at this photo. Estimate how many degrees the photo needs to be rotated "
+    "(positive = counter-clockwise) so that the natural horizon line — the ground "
+    "line, the floor edge, or the long horizontal lines of vehicles or buildings — "
+    "becomes perfectly horizontal. Return ONLY a single number between -90 and 90 "
+    "with no units, no explanation, no extra text. If the photo is already level, "
+    "return 0."
+)
+
+_NUMBER_RE = re.compile(r"-?\d+(?:\.\d+)?")
+
+
+class LevelCorrectError(RuntimeError):
     pass
 
 
-_MIN_DEGREES = 0.2
-_DEFAULT_MAX_DEGREES = 5.0
-_HORIZONTAL_BAND_DEGREES = 30.0
+def correct_level(image: Image.Image) -> tuple[Image.Image, float]:
+    angle_deg = _ask_gemini_for_angle(image)
+    if abs(angle_deg) < 0.2:
+        return image, 0.0
+    rgb = np.array(image.convert("RGB"))
+    rotated = _rotate_and_crop_black_borders(rgb, angle_deg)
+    return Image.fromarray(rotated), angle_deg
 
 
-def correct_level(
-    image: Image.Image,
-    *,
-    threshold_deg: float = _DEFAULT_MAX_DEGREES,
-) -> tuple[Image.Image, float]:
-    """偵測主水平線並旋轉。
+def _ask_gemini_for_angle(image: Image.Image) -> float:
+    if not settings.gemini_api_key:
+        raise LevelCorrectError(
+            "GEMINI_API_KEY not configured; level_correct requires Gemini Vision"
+        )
 
-    旋轉量超過 ``threshold_deg`` 視為誤判，原圖回傳。
-    """
+    import google.generativeai as genai  # type: ignore
 
+    genai.configure(api_key=settings.gemini_api_key)
+    model = genai.GenerativeModel(settings.gemini_model)
+
+    payload = _downscale_for_vision(image)
+    last_exc: Exception | None = None
+    for attempt in range(3):
+        try:
+            response = model.generate_content(
+                [
+                    {"mime_type": "image/jpeg", "data": payload},
+                    _PROMPT,
+                ]
+            )
+            text = (response.text or "").strip()
+            match = _NUMBER_RE.search(text)
+            if not match:
+                raise LevelCorrectError(
+                    f"Gemini returned non-numeric angle: {text!r}"
+                )
+            angle = float(match.group(0))
+            if angle < -90 or angle > 90:
+                raise LevelCorrectError(f"Gemini angle out of range: {angle}")
+            return angle
+        except LevelCorrectError:
+            raise
+        except Exception as exc:  # noqa: BLE001 — retry transient SDK errors
+            last_exc = exc
+            time.sleep(0.5 * (2 ** attempt))
+    raise LevelCorrectError(f"Gemini call failed after 3 attempts: {last_exc}")
+
+
+def _downscale_for_vision(image: Image.Image, max_edge: int = 768) -> bytes:
     rgb = image.convert("RGB")
-    arr = np.asarray(rgb)
-    gray = cv2.cvtColor(arr, cv2.COLOR_RGB2GRAY)
+    w, h = rgb.size
+    scale = max_edge / max(w, h)
+    if scale < 1.0:
+        rgb = rgb.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
+    buf = io.BytesIO()
+    rgb.save(buf, format="JPEG", quality=85)
+    return buf.getvalue()
 
-    # Canny 預設參數對自然光照片表現穩定
-    edges = cv2.Canny(gray, 50, 150, apertureSize=3)
 
-    h, w = gray.shape
-    short_edge = min(h, w)
-    hough_threshold = max(50, int(short_edge * 0.25))
-    min_line_length = max(40, int(short_edge * 0.30))
-    max_line_gap = 20
-
-    lines = cv2.HoughLinesP(
-        edges,
-        rho=1,
-        theta=np.pi / 180.0,
-        threshold=hough_threshold,
-        minLineLength=min_line_length,
-        maxLineGap=max_line_gap,
+def _rotate_and_crop_black_borders(rgb: np.ndarray, angle_deg: float) -> np.ndarray:
+    h, w = rgb.shape[:2]
+    center = (w / 2.0, h / 2.0)
+    matrix = cv2.getRotationMatrix2D(center, angle_deg, 1.0)
+    rotated = cv2.warpAffine(
+        rgb, matrix, (w, h), flags=cv2.INTER_LANCZOS4, borderMode=cv2.BORDER_REPLICATE
     )
-    if lines is None or len(lines) == 0:
-        return rgb, 0.0
+    inset_w, inset_h = _inscribed_rect(w, h, angle_deg)
+    if inset_w <= 0 or inset_h <= 0:
+        return rotated
+    x0 = (w - inset_w) // 2
+    y0 = (h - inset_h) // 2
+    return rotated[y0 : y0 + inset_h, x0 : x0 + inset_w]
 
-    angles: list[float] = []
-    for line in lines:
-        x1, y1, x2, y2 = line[0]
-        angle = float(np.degrees(np.arctan2(y2 - y1, x2 - x1)))
-        if abs(angle) <= _HORIZONTAL_BAND_DEGREES:
-            angles.append(angle)
 
-    if not angles:
-        return rgb, 0.0
-
-    median_angle = float(np.median(angles))
-    if abs(median_angle) > threshold_deg:
-        return rgb, 0.0
-    if abs(median_angle) < _MIN_DEGREES:
-        return rgb, 0.0
-
-    rotated = rgb.rotate(median_angle, resample=Image.BICUBIC, expand=False, fillcolor=(0, 0, 0))
-    return rotated, median_angle
+def _inscribed_rect(w: int, h: int, angle_deg: float) -> tuple[int, int]:
+    """旋轉後保留同 aspect ratio 的最大內接矩形。"""
+    angle = abs(np.radians(angle_deg))
+    if angle <= 1e-6:
+        return w, h
+    cos_a = np.cos(angle)
+    sin_a = np.sin(angle)
+    if w <= h:
+        long_side, short_side = h, w
+    else:
+        long_side, short_side = w, h
+    if short_side <= 2.0 * sin_a * cos_a * long_side or abs(sin_a - cos_a) < 1e-9:
+        x = 0.5 * short_side
+        if w >= h:
+            wr, hr = x / sin_a, x / cos_a
+        else:
+            wr, hr = x / cos_a, x / sin_a
+    else:
+        cos_2a = cos_a * cos_a - sin_a * sin_a
+        wr = (w * cos_a - h * sin_a) / cos_2a
+        hr = (h * cos_a - w * sin_a) / cos_2a
+    return max(int(wr), 1), max(int(hr), 1)

@@ -1,102 +1,73 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import "./BeforeAfter.css";
 
 export interface BeforeAfterProps {
   beforeUrl: string;
   afterUrl: string;
-  beforeLabel?: string;
-  afterLabel?: string;
   alt: string;
 }
 
-/**
- * 編輯感對比拖拉條：左側 before、右側 after，中間黃金分隔線可拖。
- * 純 CSS clip-path（after 圖片做 inset），不引第三方套件。
- */
-export function BeforeAfter({
-  beforeUrl,
-  afterUrl,
-  beforeLabel = "原圖",
-  afterLabel = "處理後",
-  alt,
-}: BeforeAfterProps) {
-  const [position, setPosition] = useState(50); // 0~100
-  const [dragging, setDragging] = useState(false);
+export function BeforeAfter({ beforeUrl, afterUrl, alt }: BeforeAfterProps) {
+  const [percent, setPercent] = useState(50);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const draggingRef = useRef(false);
 
-  const setFromClientX = useCallback((clientX: number) => {
-    const node = containerRef.current;
-    if (!node) return;
-    const rect = node.getBoundingClientRect();
+  const updateFromClientX = useCallback((clientX: number) => {
+    const el = containerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    if (rect.width <= 0) return;
     const ratio = ((clientX - rect.left) / rect.width) * 100;
-    setPosition(Math.max(0, Math.min(100, ratio)));
+    setPercent(Math.max(0, Math.min(100, ratio)));
   }, []);
 
-  useEffect(() => {
-    if (!dragging) return;
-    const onMove = (event: PointerEvent) => setFromClientX(event.clientX);
-    const onUp = () => setDragging(false);
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-    return () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-    };
-  }, [dragging, setFromClientX]);
+  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    draggingRef.current = true;
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+    updateFromClientX(e.clientX);
+  }
 
-  function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
-    if (event.key === "ArrowLeft") {
-      event.preventDefault();
-      setPosition((p) => Math.max(0, p - 4));
-    } else if (event.key === "ArrowRight") {
-      event.preventDefault();
-      setPosition((p) => Math.min(100, p + 4));
-    } else if (event.key === "Home") {
-      setPosition(0);
-    } else if (event.key === "End") {
-      setPosition(100);
-    }
+  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!draggingRef.current) return;
+    updateFromClientX(e.clientX);
+  }
+
+  function onPointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    draggingRef.current = false;
+    (e.target as Element).releasePointerCapture?.(e.pointerId);
   }
 
   return (
     <div
-      className="before-after"
       ref={containerRef}
-      onPointerDown={(e) => {
-        setDragging(true);
-        setFromClientX(e.clientX);
-      }}
+      className="before-after"
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
     >
-      <img className="before-after__img" src={beforeUrl} alt={`${alt} · ${beforeLabel}`} />
       <img
-        className="before-after__img before-after__img--after"
-        src={afterUrl}
-        alt={`${alt} · ${afterLabel}`}
-        style={{ clipPath: `inset(0 0 0 ${position}%)` }}
+        src={beforeUrl}
+        alt={`${alt} before`}
+        className="before-after__img before-after__img--before"
+        draggable={false}
       />
-      <span className="before-after__tag before-after__tag--left mono" aria-hidden>
-        {beforeLabel}
-      </span>
-      <span className="before-after__tag before-after__tag--right mono" aria-hidden>
-        {afterLabel}
-      </span>
-      <div
-        role="slider"
-        tabIndex={0}
-        aria-label="對比拖拉"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={Math.round(position)}
-        onKeyDown={handleKeyDown}
-        className="before-after__handle"
-        style={{ left: `${position}%` }}
-      >
-        <span className="before-after__handle-bar" aria-hidden />
-        <span className="before-after__handle-grip" aria-hidden>
-          ⇿
+      <div className="before-after__after-wrap" style={{ width: `${percent}%` }}>
+        <img
+          src={afterUrl}
+          alt={`${alt} after`}
+          className="before-after__img before-after__img--after"
+          draggable={false}
+        />
+      </div>
+      <div className="before-after__divider" style={{ left: `${percent}%` }}>
+        <span className="before-after__handle" aria-hidden>
+          ↔
         </span>
       </div>
+      <span className="before-after__tag before-after__tag--before">原圖</span>
+      <span className="before-after__tag before-after__tag--after">處理後</span>
     </div>
   );
 }

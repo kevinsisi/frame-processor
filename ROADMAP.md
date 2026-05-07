@@ -32,71 +32,53 @@
 
 ---
 
-## v0.2.0 — 第一條處理 Pipeline ✅ (shipped)
+## v0.2.0 — Bundled Processing Pipeline ✅ (shipped)
 
-**目標**：第一條真正的批次後製 pipeline。把原本拆在 v0.2 / v0.4 / v0.5 的色調 / 自動裁剪 / 水平校正合併成一個 release，全部用 CPU heuristic 實作（無 AI），把 worker pipeline + before/after UI 跑通。
+**目標**：第一個真正能用的處理工具。把原 ROADMAP v0.2 + v0.3 + v0.4 + v0.5 一次到位，外加廣角畸變矯正。
 
 範圍：
-- `services/color_grade.py` 三組 preset（純 Pillow + numpy）：
-  - `SHOWROOM_WHITE` — gray-world 白平衡 + 輕度提亮 + 降飽和
-  - `OUTDOOR_WARM` — 暖色偏移 + vibrance + 加對比
-  - `NIGHT_COLD` — 冷色偏移 + gamma 提暗部
-- `services/level_correct.py` — Canny + HoughLinesP 找近水平線；旋轉量超過 ±5° 視為誤判不轉
-- `services/auto_crop.py` — Sobel energy + integral image，按 `original / 3:2 / 4:3 / 16:9 / 1:1 / 9:16` 裁剪
-- `services/photo_processor.py` — Pipeline 串接 `level_correct → auto_crop → color_grade`
-- DB：`processing_jobs` 表（preset / level_correct / auto_crop_aspect / status / 進度）+ `photos.processed_paths` JSONB
-- API：`POST /projects/{id}/process`、`GET /processing-jobs/{id}`、`GET /photos/{id}/processed/{preset}`、`GET /photos/{id}/thumbnail`（lazy webp 600px）
-- Worker：`worker.jobs.processing_job`（單張失敗不殺整 job）
-- FE：Preview 頁整合處理流程（StylePicker + 水平校正 toggle + 裁剪比例下拉）+ ProcessingProgress + BeforeAfter slider（純 CSS clip-path）
-- Deploy：`opencv-python-headless` + `numpy`，Dockerfile 加 `libgl1` + `libglib2.0-0`
+- `services/color_grade.py` 三組 Pillow preset（`SHOWROOM_WHITE` / `OUTDOOR_WARM` / `NIGHT_COLD`）
+- `services/denoise.py` NAFNet-SIDD-width32 inline 架構 + lazy weight download；`DenoiseStrength` 輕/中/重 透過 alpha-blend 控制
+- `services/lens_distort.py` OpenCV `cv2.undistort` 桶形畸變矯正（中度廣角預設係數）
+- `services/level_correct.py` **Gemini Vision** 估角度（不是 Hough line）+ `cv2.warpAffine` 旋轉，無上限
+- `services/auto_crop.py` Ultralytics YOLOv8n 偵測車輛 + rule-of-thirds 構圖；6 個目標比例（原始 / 3:2 / 4:3 / 16:9 / 1:1 / 9:16）
+- `services/photo_processor.py` orchestrator，固定順序：denoise → lens → level → crop → grade
+- `models/enums.py` `ColorGradePreset` / `AspectRatio` / `DenoiseStrength` / `ProcessingJobStatus`
+- `models/processing_job.py` 新表；`Photo.processed_paths` JSONB column
+- `POST /projects/{id}/process` body `{preset, denoise_strength, lens_distort_correct, level_correct, auto_crop_aspect, photo_ids?}`
+- `GET /processing-jobs/{id}` 查 status + progress
+- `GET /photos/{id}/file?variant=processed&preset=...`
+- worker `process_photos_job` + `zip_export_job` 改成優先打包處理後檔案
+- alembic 0002 建 enums + processing_jobs + photos.processed_paths
+- Docker：CPU-only torch wheel + libgl + Gemini key env + 模型權重 volume mount
+- FE：`PipelinePanel` (preset / denoise 強度 / lens 開關 / level 開關 / aspect) + 進度條 polling + `BeforeAfter` 拖拉對比
+
+非範圍（defer）：
+- 自訂 preset / 自訂裁剪框微調 — v0.7+
+- 處理進度即時 push (SSE/WebSocket) — 仍 polling
+- 多 preset 平行輸出
+- GPU worker 拆分（單 image 用 `torch.cuda.is_available()` 自動偵測）
 
 對應提案：`openspec/changes/2026-05-07-v0.2.0-processing-pipeline/`
 
 ---
 
-## v0.3.0 — NAFNet AI 降噪
+## v0.3 / v0.4 / v0.5 — merged into v0.2.0 ✅
 
-整合 NAFNet 預訓練模型對單張照片做降噪。串接到處理 pipeline，可在套用 color preset 前先執行。
+原 ROADMAP 把 NAFNet 降噪（v0.3）、自動裁剪（v0.4）、水平校正（v0.5）拆三個 release。實際走完 v0.1 後重評估，分四次發佈對使用者沒意義（半成品 demo），全部合併到 v0.2.0。
 
-範圍：
-- `services/denoise.py` 載入 NAFNet 權重，提供 `denoise(image: PIL.Image) -> PIL.Image`
-- 模型權重存放：`models-weights/nafnet/...`（Docker volume mount，不入 git）
-- 加 GPU runtime 偵測：有 CUDA 用 GPU，否則 CPU 並提醒處理時間長
-- ProcessingJob 新增 `denoise: bool` 旗標
-- ROADMAP 與 ADR 補充：為何選 NAFNet 而不是 Real-ESRGAN / SCUNet
+`ARCHITECTURE.md` § Pipeline 順序記錄理由。
 
 ---
 
-## v0.4.0 — 自動裁剪升級（YOLO 主體偵測）
+## v0.6.0 — Preset Bundle UI
 
-v0.2 已有 energy-based heuristic 自動裁剪做為 v0.x baseline；v0.4 升級為 YOLO 主體偵測 + 三分構圖。
-
-範圍：
-- `services/auto_crop.py`：以 YOLOv8 偵測車輛主體框，配合三分構圖規則微調 v0.2 的 energy crop window
-- 主體保持 70% 完整度約束（不切到車輪、車燈）
-- FE Preview 頁顯示建議裁剪框可微調拖拉
-
----
-
-## v0.5.0 — 水平校正升級
-
-v0.2 已有 Hough line heuristic；v0.5 升級為更穩定的演算法（例如 multi-scale Hough、車身底盤線優先）。
+v0.2.0 已經把 pipeline 串完，v0.6 處理「使用體驗」層：
 
 範圍：
-- `services/level_correct.py`：對特殊角度照片提供「跳過此張」單張開關
-- 對展示間地板格線、車身底盤線、地平線各自有專門 detector
-- 旋轉量信心度低於閾值時自動 skip 並回報原因
-
----
-
-## v0.6.0 — 完整 pipeline + Preset 組合
-
-把 v0.2–v0.5 串成一條 pipeline：denoise → level_correct → auto_crop → color_grade。
-
-範圍：
-- 一鍵套用 preset bundle（例如「展示間白完整版」= 降噪 ON + 水平校正 ON + 裁剪 4:3 + 色調白）
+- 一鍵套用 preset bundle（例如「展示間白完整版」= 降噪中 + 廣角矯正 + 水平校正 + 裁剪 4:3 + 色調白）
 - FE 提供 3 個預設 bundle + 自訂進階模式
-- 處理進度顯示每階段細項
+- 處理進度顯示每階段細項（denoise xxx / lens xxx / level xxx ...）
 
 ---
 

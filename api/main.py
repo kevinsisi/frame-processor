@@ -2,11 +2,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.config import settings
-from api.routers import exports, photos, processing, projects
+from api.routers import exports, photos, processing_jobs, projects
 
-APP_VERSION = "0.2.0"
-
-app = FastAPI(title="frame-processor API", version=APP_VERSION)
+app = FastAPI(title="frame-processor API", version="0.2.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -19,9 +17,9 @@ app.add_middleware(
 app.include_router(projects.router)
 app.include_router(photos.router)
 app.include_router(exports.router)
-app.include_router(processing.router)
+app.include_router(processing_jobs.router)
 
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "service": "frame-processor", "version": APP_VERSION}
+    return {"status": "ok", "service": "frame-processor", "version": "0.2.0"}

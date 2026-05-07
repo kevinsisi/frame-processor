@@ -1,4 +1,4 @@
-"""檔案儲存：原圖落地、處理後路徑、thumbnail lazy generation。"""
+"""檔案儲存：原圖落地、處理後路徑產生、副檔名校驗。"""
 
 from __future__ import annotations
 
@@ -103,56 +103,15 @@ def absolute_path(relative: str | Path) -> Path:
     return settings.storage_root / relative
 
 
-def processed_relative_path(
-    *,
-    project_id: uuid.UUID,
-    photo_id: uuid.UUID,
-    preset: ColorGradePreset,
+def relative_to_storage(absolute: Path) -> str:
+    return str(absolute.relative_to(settings.storage_root))
+
+
+def _project_processed_dir(project_id: uuid.UUID) -> Path:
+    return settings.storage_root / "projects" / str(project_id) / "processed"
+
+
+def processed_path(
+    project_id: uuid.UUID, photo_id: uuid.UUID, preset: ColorGradePreset
 ) -> Path:
-    return Path("projects") / str(project_id) / "processed" / f"{photo_id}.{preset.value}.jpg"
-
-
-def processed_absolute_path(
-    *,
-    project_id: uuid.UUID,
-    photo_id: uuid.UUID,
-    preset: ColorGradePreset,
-) -> Path:
-    rel = processed_relative_path(project_id=project_id, photo_id=photo_id, preset=preset)
-    abs_path = settings.storage_root / rel
-    abs_path.parent.mkdir(parents=True, exist_ok=True)
-    return abs_path
-
-
-def thumbnail_relative_path(*, project_id: uuid.UUID, photo_id: uuid.UUID) -> Path:
-    return Path("projects") / str(project_id) / "thumbnails" / f"{photo_id}.webp"
-
-
-def thumbnail_absolute_path(*, project_id: uuid.UUID, photo_id: uuid.UUID) -> Path:
-    rel = thumbnail_relative_path(project_id=project_id, photo_id=photo_id)
-    abs_path = settings.storage_root / rel
-    abs_path.parent.mkdir(parents=True, exist_ok=True)
-    return abs_path
-
-
-def ensure_thumbnail(*, project_id: uuid.UUID, photo_id: uuid.UUID, source_relative: str | Path) -> Path:
-    """產 long-edge 600px webp thumbnail；已存在就直接回傳路徑（lazy cache）。"""
-
-    abs_path = thumbnail_absolute_path(project_id=project_id, photo_id=photo_id)
-    if abs_path.exists() and abs_path.stat().st_size > 0:
-        return abs_path
-
-    src_abs = absolute_path(source_relative)
-    with Image.open(src_abs) as img:
-        img = ImageOps.exif_transpose(img)
-        img.thumbnail((THUMBNAIL_LONG_EDGE, THUMBNAIL_LONG_EDGE), Image.LANCZOS)
-        img.convert("RGB").save(abs_path, format="WEBP", quality=82, method=4)
-    return abs_path
-
-
-def save_processed_jpeg(image: Image.Image, abs_path: Path) -> int:
-    """寫處理後 JPEG（quality=92）。回傳檔案大小。"""
-
-    abs_path.parent.mkdir(parents=True, exist_ok=True)
-    image.convert("RGB").save(abs_path, format="JPEG", quality=PROCESSED_JPEG_QUALITY, optimize=True)
-    return abs_path.stat().st_size
+    return _project_processed_dir(project_id) / f"{photo_id}.{preset.value}.jpg"

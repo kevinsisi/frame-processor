@@ -1,23 +1,17 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import (
-    Boolean,
-    DateTime,
-    ForeignKey,
-    Integer,
-    String,
-    Text,
-    func,
-)
-from sqlalchemy import (
-    Enum as SAEnum,
-)
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import DateTime, Enum as SAEnum, ForeignKey, Integer, Text, func
+from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.database import Base
-from models.enums import ColorGradePreset, ProcessingJobStatus
+from models.enums import (
+    AspectRatio,
+    ColorGradePreset,
+    DenoiseStrength,
+    ProcessingJobStatus,
+)
 
 
 class ProcessingJob(Base):
@@ -32,27 +26,31 @@ class ProcessingJob(Base):
         nullable=False,
         index=True,
     )
-    preset: Mapped[ColorGradePreset] = mapped_column(
-        SAEnum(
-            ColorGradePreset,
-            name="color_grade_preset",
-            values_callable=lambda enum_cls: [m.value for m in enum_cls],
-        ),
-        nullable=False,
-    )
-    level_correct: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    auto_crop_aspect: Mapped[str] = mapped_column(String(16), nullable=False, default="original")
     status: Mapped[ProcessingJobStatus] = mapped_column(
-        SAEnum(
-            ProcessingJobStatus,
-            name="processing_job_status",
-            values_callable=lambda enum_cls: [m.value for m in enum_cls],
-        ),
+        SAEnum(ProcessingJobStatus, name="processing_job_status"),
         nullable=False,
         default=ProcessingJobStatus.PENDING,
     )
-    progress_done: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    progress_total: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    preset: Mapped[ColorGradePreset] = mapped_column(
+        SAEnum(ColorGradePreset, name="color_grade_preset"),
+        nullable=False,
+    )
+    denoise_strength: Mapped[DenoiseStrength] = mapped_column(
+        SAEnum(DenoiseStrength, name="denoise_strength"),
+        nullable=False,
+        default=DenoiseStrength.NONE,
+    )
+    lens_distort_correct: Mapped[bool] = mapped_column(nullable=False, default=False)
+    level_correct: Mapped[bool] = mapped_column(nullable=False, default=False)
+    auto_crop_aspect: Mapped[AspectRatio | None] = mapped_column(
+        SAEnum(AspectRatio, name="aspect_ratio"),
+        nullable=True,
+    )
+    photo_ids: Mapped[list[uuid.UUID]] = mapped_column(
+        ARRAY(UUID(as_uuid=True)), nullable=False, default=list
+    )
+    progress: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    total: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
