@@ -50,23 +50,23 @@ export function BeforeAfter({ beforeUrl, afterUrl, alt }: BeforeAfterProps) {
       onPointerCancel={onPointerUp}
     >
       <img
+        src={afterUrl}
+        alt={`${alt} after`}
+        className="before-after__img before-after__img--after"
+        draggable={false}
+      />
+      <img
         src={beforeUrl}
         alt={`${alt} before`}
         className="before-after__img before-after__img--before"
         draggable={false}
+        style={{ clipPath: `inset(0 ${100 - percent}% 0 0)` }}
         onLoad={(event) => {
           const img = event.currentTarget;
           if (img.naturalWidth > 0 && img.naturalHeight > 0) {
             setAspectRatio(img.naturalWidth / img.naturalHeight);
           }
         }}
-      />
-      <img
-        src={afterUrl}
-        alt={`${alt} after`}
-        className="before-after__img before-after__img--after"
-        draggable={false}
-        style={{ clipPath: `inset(0 ${100 - percent}% 0 0)` }}
       />
       <div className="before-after__divider" style={{ left: `${percent}%` }}>
         <span className="before-after__handle" aria-hidden>
