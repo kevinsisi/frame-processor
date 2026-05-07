@@ -23,6 +23,15 @@ import type {
 
 import "./Preview.css";
 
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error ?? new Error("failed to read preview"));
+    reader.readAsDataURL(blob);
+  });
+}
+
 export default function PreviewPage() {
   const { projectId } = useParams();
   const { push: toast } = useToast();
@@ -38,7 +47,9 @@ export default function PreviewPage() {
   const [presets, setPresets] = useState<AdjustmentPreset[]>([]);
   const [job, setJob] = useState<ProcessingJob | null>(null);
   const [adjustmentJob, setAdjustmentJob] = useState<AdjustmentJob | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [pipelineBusy, setPipelineBusy] = useState(false);
+  const [adjustmentBusy, setAdjustmentBusy] = useState(false);
+  const [rotationBusy, setRotationBusy] = useState(false);
   const pollRef = useRef<number | null>(null);
   const adjustmentPollRef = useRef<number | null>(null);
   const previewRequestRef = useRef(0);
@@ -104,29 +115,19 @@ export default function PreviewPage() {
 
   useEffect(() => {
     if (!activePhotoId) {
-      setPreview((prev) => {
-        if (prev) URL.revokeObjectURL(prev.url);
-        return null;
-      });
+      setPreview(null);
       return;
     }
     const requestId = ++previewRequestRef.current;
-    setPreview((prev) => {
-      if (prev) URL.revokeObjectURL(prev.url);
-      return null;
-    });
+    setPreview(null);
     const handle = window.setTimeout(async () => {
       try {
         const blob = await api.previewAdjustment(activePhotoId, adjustmentParams);
-        const url = URL.createObjectURL(blob);
+        const url = await blobToDataUrl(blob);
         if (previewRequestRef.current !== requestId) {
-          URL.revokeObjectURL(url);
           return;
         }
-        setPreview((prev) => {
-          if (prev) URL.revokeObjectURL(prev.url);
-          return { photoId: activePhotoId, url };
-        });
+        setPreview({ photoId: activePhotoId, url });
       } catch (err) {
         console.warn("adjustment preview failed", err);
       }
@@ -137,10 +138,7 @@ export default function PreviewPage() {
   useEffect(() => {
     if (!activePhotoId || adjustmentParams.orientation === 0) {
       basePreviewRequestRef.current += 1;
-      setBasePreview((prev) => {
-        if (prev) URL.revokeObjectURL(prev.url);
-        return null;
-      });
+      setBasePreview(null);
       return;
     }
     const requestId = ++basePreviewRequestRef.current;
@@ -151,33 +149,17 @@ export default function PreviewPage() {
     const handle = window.setTimeout(async () => {
       try {
         const blob = await api.previewAdjustment(activePhotoId, params);
-        const url = URL.createObjectURL(blob);
+        const url = await blobToDataUrl(blob);
         if (basePreviewRequestRef.current !== requestId) {
-          URL.revokeObjectURL(url);
           return;
         }
-        setBasePreview((prev) => {
-          if (prev) URL.revokeObjectURL(prev.url);
-          return { photoId: activePhotoId, url };
-        });
+        setBasePreview({ photoId: activePhotoId, url });
       } catch (err) {
         console.warn("base orientation preview failed", err);
       }
     }, 60);
     return () => window.clearTimeout(handle);
   }, [activePhotoId, adjustmentParams.orientation]);
-
-  useEffect(() => {
-    return () => {
-      if (preview) URL.revokeObjectURL(preview.url);
-    };
-  }, [preview]);
-
-  useEffect(() => {
-    return () => {
-      if (basePreview) URL.revokeObjectURL(basePreview.url);
-    };
-  }, [basePreview]);
 
   useEffect(() => {
     return () => {
@@ -211,7 +193,7 @@ export default function PreviewPage() {
 
   async function handleSubmit(payload: ProcessingJobCreate) {
     if (!projectId || !project) return;
-    setBusy(true);
+    setPipelineBusy(true);
     try {
       const created = await api.createProcessingJob(projectId, {
         ...payload,
@@ -229,7 +211,7 @@ export default function PreviewPage() {
               window.clearInterval(pollRef.current);
               pollRef.current = null;
             }
-            setBusy(false);
+            setPipelineBusy(false);
             if (next.status === "done") {
               toast("處理完成", "success");
               reload();
@@ -243,24 +225,24 @@ export default function PreviewPage() {
         }
       }, 2000);
     } catch (err) {
-      setBusy(false);
+      setPipelineBusy(false);
       toast(`建立處理 job 失敗：${String(err)}`, "error");
     }
   }
 
   async function applyAdjustment(photoIds: string[]) {
     if (photoIds.length === 0) return;
-    setBusy(true);
+    setAdjustmentBusy(true);
     try {
       if (photoIds.length === 1) {
         await api.applyAdjustment(photoIds[0], adjustmentParams);
         toast("已套用微調", "success");
         reload();
-        setBusy(false);
+        setAdjustmentBusy(false);
         return;
       }
       if (!projectId) {
-        setBusy(false);
+        setAdjustmentBusy(false);
         return;
       }
       const created = await api.createAdjustmentJob(projectId, adjustmentParams, photoIds);
@@ -278,7 +260,7 @@ export default function PreviewPage() {
               window.clearInterval(adjustmentPollRef.current);
               adjustmentPollRef.current = null;
             }
-            setBusy(false);
+            setAdjustmentBusy(false);
             if (next.status === "done") {
               toast("批次微調完成", "success");
               reload();
@@ -292,7 +274,7 @@ export default function PreviewPage() {
       }, 1500);
     } catch (err) {
       toast(`套用微調失敗：${String(err)}`, "error");
-      setBusy(false);
+      setAdjustmentBusy(false);
     }
   }
 
@@ -305,14 +287,14 @@ export default function PreviewPage() {
       orientation: (current.orientation + delta) % 360,
     };
     updateAdjustmentParams(next);
-    setBusy(true);
+    setRotationBusy(true);
     try {
       await api.applyAdjustment(activePhotoId, next);
       reload();
     } catch (err) {
       toast(`旋轉失敗：${String(err)}`, "error");
     } finally {
-      setBusy(false);
+      setRotationBusy(false);
     }
   }
 
@@ -424,7 +406,7 @@ export default function PreviewPage() {
       <PipelinePanel
         selectedCount={selected.size}
         totalCount={project.photos.length}
-        busy={busy}
+        busy={pipelineBusy}
         onSubmit={handleSubmit}
       />
 
@@ -480,7 +462,7 @@ export default function PreviewPage() {
             </span>
           </header>
           <BeforeAfter
-            key={`${samplePhoto.id}:${activeBasePreviewUrl ?? "base"}:${activePreviewUrl ?? samplePreset ?? "original"}`}
+            key={`${samplePhoto.id}:${adjustmentParams.orientation}:${samplePreset ?? "original"}`}
             beforeUrl={activeBasePreviewUrl ?? baseDisplayUrl}
             afterUrl={
               activePreviewUrl ??
@@ -518,7 +500,7 @@ export default function PreviewPage() {
         <AdjustmentPanel
           params={adjustmentParams}
           presets={presets}
-          busy={busy}
+          busy={adjustmentBusy || rotationBusy}
           onChange={updateAdjustmentParams}
           onApplyCurrent={() => void applyAdjustment([activePhotoId])}
           onApplySelected={() => void applyAdjustment(Array.from(selected))}

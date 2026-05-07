@@ -4,6 +4,14 @@ import "./AdjustmentPanel.css";
 
 const HSL_COLORS: HslColor[] = ["red", "orange", "yellow", "green", "blue", "purple"];
 
+function orientationLabel(value: number): string {
+  const normalized = ((Math.round(value) % 360) + 360) % 360;
+  if (normalized === 90) return "右轉 90°";
+  if (normalized === 180) return "旋轉 180°";
+  if (normalized === 270) return "左轉 90°";
+  return "未旋轉";
+}
+
 export const DEFAULT_ADJUSTMENT_PARAMS: AdjustmentParams = {
   exposure: 0,
   contrast: 0,
@@ -134,7 +142,7 @@ export function AdjustmentPanel({
         <button type="button" className="cta cta--quiet" onClick={onRotateLeft} disabled={busy}>
           ↺ 向左旋轉
         </button>
-        <span className="section__meta mono">{params.orientation}°</span>
+        <span className="section__meta mono">{orientationLabel(params.orientation)}</span>
         <button type="button" className="cta cta--quiet" onClick={onRotateRight} disabled={busy}>
           向右旋轉 ↻
         </button>

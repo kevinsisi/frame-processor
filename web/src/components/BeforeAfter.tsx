@@ -43,6 +43,7 @@ export function BeforeAfter({ beforeUrl, afterUrl, alt }: BeforeAfterProps) {
     <div
       ref={containerRef}
       className="before-after"
+      aria-label={`${alt} 前後對比`}
       style={aspectRatio ? { aspectRatio } : undefined}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -52,7 +53,7 @@ export function BeforeAfter({ beforeUrl, afterUrl, alt }: BeforeAfterProps) {
       <div className="before-after__layer before-after__layer--after">
         <img
           src={afterUrl}
-          alt={`${alt} after`}
+          alt=""
           className="before-after__img"
           draggable={false}
         />
@@ -63,7 +64,7 @@ export function BeforeAfter({ beforeUrl, afterUrl, alt }: BeforeAfterProps) {
       >
         <img
           src={beforeUrl}
-          alt={`${alt} before`}
+          alt=""
           className="before-after__img"
           draggable={false}
           onLoad={(event) => {
