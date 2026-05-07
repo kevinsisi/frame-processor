@@ -27,6 +27,18 @@ docs/        Architecture、ADR、設計筆記
 
 從 repo 根目錄執行：`uvicorn api.main:app`、`python -m worker.main`、`cd web && npm run dev`。
 
+## Deployment
+
+正式環境：`https://frame.sisihome.org`
+
+- 桌機（Tailscale `100.83.112.20`）跑 Docker Compose stack：`docker compose -f deploy/docker-compose.yml up -d`
+- 唯一對外 port 是 web container 的 `100.83.112.20:8533`（nginx）— api/postgres/redis 不外露；api debug 用 `127.0.0.1:8633`
+- web container 的 nginx 把 `/api/*` reverse proxy 到 `api:8000/*`（剝掉 `/api`），所以前端走同源
+- 前端 build 時 `VITE_API_BASE_URL=/api`（在 `deploy/docker-compose.yml`）
+- API 的 `ALLOWED_ORIGINS` 必須包含 `https://frame.sisihome.org`
+- RPi (`rpi-matrix`) Caddy 反向代理：`frame.sisihome.org` → `100.83.112.20:8533`，`request_body.max_size 500MB`，設定在 `/home/kevin/DockerCompose/caddy/Caddyfile` 的 `*.sisihome.org` block 裡
+- Caddy 改設定後一律 `docker restart caddy`（不是 reload）
+
 ## Global Working Rules
 
 - Read the current code, files, and runtime context before deciding on a change.
