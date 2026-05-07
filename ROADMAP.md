@@ -59,15 +59,33 @@
 - 多 preset 平行輸出
 - GPU worker 拆分（單 image 用 `torch.cuda.is_available()` 自動偵測）
 
-對應提案：`openspec/changes/2026-05-07-v0.2.0-processing-pipeline/`
+對應提案：`openspec/changes/archive/2026-05-07-v0.2.0-processing-pipeline/`（已 archive）
+
+子版本：
+- **v0.2.0** — bundled pipeline ship（commit `5e7fc80` → merge `791e851` → cleanup `208c9b9`）
+- **v0.2.1** — post-ship FE 修正：per-photo queue progress（job 列出每張 done/running/queued 狀態）、AppFooter 拿掉 carsmeet/8891 字眼
 
 ---
 
-## v0.3 / v0.4 / v0.5 — merged into v0.2.0 ✅
+## v0.3.0 — Lightroom-style Adjustment Panel
 
-原 ROADMAP 把 NAFNet 降噪（v0.3）、自動裁剪（v0.4）、水平校正（v0.5）拆三個 release。實際走完 v0.1 後重評估，分四次發佈對使用者沒意義（半成品 demo），全部合併到 v0.2.0。
+**目標**：preset + auto pipeline 解決 80% 場景；剩下 20% 需要手動微調 sliders。
 
-`ARCHITECTURE.md` § Pipeline 順序記錄理由。
+範圍（提案中，4 個 open question 待簽核）：
+- `services/adjustments.py` 14+ ops：曝光 / 對比 / 亮部 / 暗部 / 白色 / 黑色 / 色溫 / 色調 / 飽和度 / 鮮豔度 / 清晰度 / HSL × 6 色 / 銳化 / 色偏修正
+- `models/adjustment_preset.py` + `models/photo_adjustment.py` + alembic 0003
+- API：`POST /photos/{id}/adjustments`、`POST /photos/{id}/preview` (live 同步)、`POST /projects/{id}/apply-adjustments`、preset CRUD
+- FE：`AdjustmentPanel` + `HslWheel` + `PresetManager` + 即時 preview slider
+
+對應提案：`openspec/changes/2026-05-07-v0.3.0-adjustment-panel/`
+
+---
+
+## v0.3 / v0.4 / v0.5（原計畫的 NAFNet / YOLO crop / Hough level）— merged into v0.2.0 ✅
+
+原 ROADMAP 把 NAFNet 降噪（v0.3）、自動裁剪（v0.4）、水平校正（v0.5）拆三個 release。實際走完 v0.1 後重評估，分四次發佈對使用者沒意義（半成品 demo），全部合併到 v0.2.0。新 v0.3.0 變成 adjustment panel（上面）。
+
+`ARCHITECTURE.md` § Pipeline 順序與 `docs/adr/0002-bundled-v0.2.0-processing.md` 記錄理由。
 
 ---
 

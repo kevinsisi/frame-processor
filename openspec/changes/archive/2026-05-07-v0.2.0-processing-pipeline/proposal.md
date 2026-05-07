@@ -1,6 +1,6 @@
 # v0.2.0 — Processing Pipeline (denoise + lens + level + crop + grade)
 
-**Status**: in-progress — bundles ROADMAP v0.2 + v0.3 + v0.4 + v0.5 into one release.
+**Status**: shipped — bundles ROADMAP v0.2 + v0.3 + v0.4 + v0.5 into one release; deployed to https://frame.sisihome.org as v0.2.0 on 2026-05-07. Post-ship iteration in v0.2.1 (per-photo queue progress UI + footer cleanup). Archived 2026-05-07.
 **Date**: 2026-05-07
 **Author**: Kevin
 

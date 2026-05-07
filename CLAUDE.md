@@ -41,10 +41,22 @@ docs/        Architecture、ADR、設計筆記
 
 ### v0.2.0 處理 pipeline 必要條件
 
-- `GEMINI_API_KEY` env 必須設定（水平校正用 Gemini Vision；無 key 則 level_correct step 會 fail）；放 `~/DockerCompose/frame-processor/.env`，docker compose 自動讀進 api + worker
-- 模型權重 lazy download 寫到 `storage-data` volume 的 `models-weights/{ultralytics,nafnet}/`；首次處理會下載 ~70MB（NAFNet）+ 6MB（YOLO），之後 cached
+- `GEMINI_API_KEY` env 必須設定（水平校正用 Gemini Vision；無 key 則 level_correct step 會 fail）；放 `D:\GitClone\_HomeProject\frame-processor\.env`（compose 自動讀），docker compose 把它注入 api + worker container
+- 模型權重 lazy download 寫到 `storage-data` volume 的 `models-weights/{ultralytics,nafnet}/`；首次處理會下載 ~70MB（NAFNet）+ 6MB（YOLO），之後跨 container restart cached
 - worker image build 會拉 CPU-only torch wheel（避免 CUDA 多 GB），有 GPU 也只在 `torch.cuda.is_available()` 為 true 時自動用
 - pipeline 順序固定 `denoise → lens_distort → level → crop → grade`，理由見 `ARCHITECTURE.md` § Pipeline 順序
+
+### v0.x destructive schema reset playbook
+
+v0.x 期間若 alembic revision id 對不上（例：branch supersede 舊版 0002 後新版 0002 名字不同，DB 版本指向已被刪除的 revision），按以下步驟處理：
+
+1. 進 postgres：`docker exec frame-processor-postgres-1 psql -U frame -d frame_processor`
+2. 用 `\d <table>` 確認哪些 v0.2 物件已存在
+3. `DROP TABLE IF EXISTS processing_jobs CASCADE;` + `ALTER TABLE photos DROP COLUMN IF EXISTS processed_paths;` + `DROP TYPE IF EXISTS color_grade_preset, processing_job_status, aspect_ratio, denoise_strength CASCADE;`
+4. `UPDATE alembic_version SET version_num = '0001_initial';`
+5. `docker compose -f deploy/docker-compose.yml restart api` — entrypoint 的 `alembic upgrade head` 會自動把新 0002 跑起來
+
+**Project / Photo 表保留**（projects / photos / exports 屬於 0001 schema，不動）。NEVER 在 v1.0 之後做這個 — 那時要正規 migration 升級。
 
 ## Global Working Rules
 

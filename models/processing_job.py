@@ -27,23 +27,39 @@ class ProcessingJob(Base):
         index=True,
     )
     status: Mapped[ProcessingJobStatus] = mapped_column(
-        SAEnum(ProcessingJobStatus, name="processing_job_status"),
+        SAEnum(
+            ProcessingJobStatus,
+            name="processing_job_status",
+            values_callable=lambda enum_cls: [m.value for m in enum_cls],
+        ),
         nullable=False,
         default=ProcessingJobStatus.PENDING,
     )
     preset: Mapped[ColorGradePreset] = mapped_column(
-        SAEnum(ColorGradePreset, name="color_grade_preset"),
+        SAEnum(
+            ColorGradePreset,
+            name="color_grade_preset",
+            values_callable=lambda enum_cls: [m.value for m in enum_cls],
+        ),
         nullable=False,
     )
     denoise_strength: Mapped[DenoiseStrength] = mapped_column(
-        SAEnum(DenoiseStrength, name="denoise_strength"),
+        SAEnum(
+            DenoiseStrength,
+            name="denoise_strength",
+            values_callable=lambda enum_cls: [m.value for m in enum_cls],
+        ),
         nullable=False,
         default=DenoiseStrength.NONE,
     )
     lens_distort_correct: Mapped[bool] = mapped_column(nullable=False, default=False)
     level_correct: Mapped[bool] = mapped_column(nullable=False, default=False)
     auto_crop_aspect: Mapped[AspectRatio | None] = mapped_column(
-        SAEnum(AspectRatio, name="aspect_ratio"),
+        SAEnum(
+            AspectRatio,
+            name="aspect_ratio",
+            values_callable=lambda enum_cls: [m.value for m in enum_cls],
+        ),
         nullable=True,
     )
     photo_ids: Mapped[list[uuid.UUID]] = mapped_column(
