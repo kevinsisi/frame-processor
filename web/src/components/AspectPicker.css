@@ -1,7 +1,15 @@
 .aspect-picker {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
+  max-width: 100%;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.aspect-picker::-webkit-scrollbar {
+  display: none;
 }
 
 .aspect-pill {
@@ -16,6 +24,14 @@
   color: var(--ink-1, #f5f4ee);
   cursor: pointer;
   transition: border-color 120ms ease, background 120ms ease;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 600px) {
+  .aspect-pill {
+    min-width: 84px;
+    padding: var(--space-2) var(--space-3);
+  }
 }
 
 .aspect-pill:hover {

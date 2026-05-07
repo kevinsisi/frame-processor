@@ -2,6 +2,7 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: var(--space-3);
+  max-width: 100%;
 }
 
 .style-card {
@@ -14,6 +15,7 @@
   flex-direction: column;
   gap: var(--space-2);
   min-height: 168px;
+  min-width: 0;
   cursor: pointer;
   transition:
     border-color 200ms var(--ease-out),
@@ -48,6 +50,7 @@
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--gold);
+  overflow-wrap: anywhere;
 }
 
 .style-card__label {
@@ -57,6 +60,7 @@
   letter-spacing: -0.005em;
   color: var(--text-primary);
   font-variation-settings: "opsz" 144, "SOFT" 30;
+  overflow-wrap: anywhere;
 }
 
 .style-card__swatch {
@@ -104,9 +108,26 @@
 
 @media (max-width: 720px) {
   .style-picker {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
   }
   .style-card {
     min-height: auto;
+    padding: var(--space-3);
+  }
+  .style-card__label {
+    font-size: var(--t-lg);
+  }
+  .style-card__caption {
+    letter-spacing: 0.14em;
+  }
+  .style-card__desc {
+    display: none;
+  }
+}
+
+@media (max-width: 380px) {
+  .style-picker {
+    grid-template-columns: 1fr;
   }
 }

@@ -83,6 +83,7 @@ export type KeyPool = {
 export type Settings = {
   gemini_model: string;
   key_manager_url: string;
+  settings_admin_configured: boolean;
   gemini_api_keys: KeyPool;
 };
 

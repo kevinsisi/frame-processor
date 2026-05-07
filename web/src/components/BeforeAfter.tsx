@@ -10,6 +10,7 @@ export interface BeforeAfterProps {
 
 export function BeforeAfter({ beforeUrl, afterUrl, alt }: BeforeAfterProps) {
   const [percent, setPercent] = useState(50);
+  const [aspectRatio, setAspectRatio] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const draggingRef = useRef(false);
 
@@ -42,6 +43,7 @@ export function BeforeAfter({ beforeUrl, afterUrl, alt }: BeforeAfterProps) {
     <div
       ref={containerRef}
       className="before-after"
+      style={aspectRatio ? { aspectRatio } : undefined}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -52,6 +54,12 @@ export function BeforeAfter({ beforeUrl, afterUrl, alt }: BeforeAfterProps) {
         alt={`${alt} before`}
         className="before-after__img before-after__img--before"
         draggable={false}
+        onLoad={(event) => {
+          const img = event.currentTarget;
+          if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+            setAspectRatio(img.naturalWidth / img.naturalHeight);
+          }
+        }}
       />
       <img
         src={afterUrl}

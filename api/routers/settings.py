@@ -27,6 +27,7 @@ class KeyPoolOut(BaseModel):
 class SettingsOut(BaseModel):
     gemini_model: str
     key_manager_url: str
+    settings_admin_configured: bool
     gemini_api_keys: KeyPoolOut
 
 
@@ -74,6 +75,7 @@ def get_settings(db: DbDep) -> SettingsOut:
     return SettingsOut(
         gemini_model=app_settings.gemini_model,
         key_manager_url=app_settings.key_manager_url,
+        settings_admin_configured=bool(app_settings.settings_admin_token),
         gemini_api_keys=KeyPoolOut(
             count=summary.count,
             source=summary.source,

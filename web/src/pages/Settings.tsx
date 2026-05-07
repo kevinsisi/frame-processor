@@ -145,6 +145,8 @@ export default function SettingsPage() {
           <dl className="settings__kv">
             <dt>模型</dt>
             <dd className="mono">{data.gemini_model}</dd>
+            <dt>管理 Token</dt>
+            <dd>{data.settings_admin_configured ? "已設定" : "未設定"}</dd>
             <dt>金鑰數量</dt>
             <dd className="mono">{data.gemini_api_keys.count}</dd>
             <dt>金鑰來源</dt>
@@ -161,6 +163,12 @@ export default function SettingsPage() {
             </dd>
           </dl>
         </section>
+      )}
+
+      {data && !data.settings_admin_configured && (
+        <div className="settings__notice settings__notice--error" role="alert">
+          後端尚未設定 <code>SETTINGS_ADMIN_TOKEN</code>，目前只能查看狀態，不能匯入、清空或同步金鑰。
+        </div>
       )}
 
       <section className="settings__panel">
@@ -217,7 +225,8 @@ export default function SettingsPage() {
               disabled={
                 busy !== null ||
                 textarea.trim().length === 0 ||
-                settingsToken.trim().length === 0
+                settingsToken.trim().length === 0 ||
+                data?.settings_admin_configured === false
               }
             >
               {busy === "save" ? "儲存中..." : "儲存"}
@@ -229,7 +238,8 @@ export default function SettingsPage() {
               disabled={
                 busy !== null ||
                 data?.gemini_api_keys.source !== "db" ||
-                settingsToken.trim().length === 0
+                settingsToken.trim().length === 0 ||
+                data?.settings_admin_configured === false
               }
             >
               {busy === "clear" ? "清空中..." : "清空系統內金鑰"}
@@ -265,7 +275,8 @@ export default function SettingsPage() {
               disabled={
                 busy !== null ||
                 managerUrl.trim().length === 0 ||
-                settingsToken.trim().length === 0
+                settingsToken.trim().length === 0 ||
+                data?.settings_admin_configured === false
               }
             >
               {busy === "sync" ? "同步中..." : "同步"}
