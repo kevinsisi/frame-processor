@@ -1,6 +1,6 @@
 [project]
 name = "frame-processor"
-version = "0.1.0"
+version = "0.2.0"
 description = "車輛照片批次後製工具（FastAPI + React + RQ worker）"
 requires-python = ">=3.11"
 dependencies = [
@@ -15,6 +15,8 @@ dependencies = [
     "redis>=5.0",
     "rq>=1.16",
     "Pillow>=10.4",
+    "numpy>=1.26",
+    "opencv-python-headless>=4.10",
     "python-dotenv>=1.0",
 ]
 
@@ -37,10 +39,27 @@ include = ["api*", "models*", "services*", "worker*"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+# vendored template content from skill-creator — not part of product code
+extend-exclude = ["skills/skill-creator/scripts"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "RUF"]
-ignore = ["E501"]
+# Project-wide intentional patterns:
+# - E501: long lines OK (CN docstrings)
+# - RUF002 / RUF003: 全形標點符號（中文 docstring / comment）刻意保留
+# - B008: FastAPI 慣用 `Depends(...)` 在預設值
+# - UP042: SQLAlchemy enum 需要 `str, Enum` 雙繼承方便 PG ENUM 對應
+# - UP007 / UP017 / UP035: 留給日後一次性 modernize commit，不在 v0.2.0 內處理
+ignore = [
+    "E501",
+    "RUF002",
+    "RUF003",
+    "B008",
+    "UP042",
+    "UP007",
+    "UP017",
+    "UP035",
+]
 
 [tool.mypy]
 python_version = "3.11"

@@ -66,6 +66,49 @@ FE polls ──GET /exports/{id}──▶ API ── return {status, ...} ──
 FE ──GET /exports/{id}/download──▶ API ── stream zip ──▶ FE
 ```
 
+## 資料流（v0.2 處理 pipeline）
+
+### Thumbnail（lazy）
+
+```
+FE ──GET /photos/{id}/thumbnail──▶ API
+                                    ├─ if cached webp exists → stream
+                                    └─ else generate long-edge 600px webp
+                                        → projects/<pid>/thumbnails/<photo_id>.webp
+```
+
+### 批次處理
+
+```
+FE ──POST /projects/{id}/process { preset, photo_ids?, level_correct, auto_crop_aspect }──▶ API
+                                                                                              ├─ INSERT ProcessingJob (status=pending, total=N)
+                                                                                              ├─ rq.enqueue("worker.jobs.processing_job", job_id, photo_id_strs)
+                                                                                              └─ return ProcessingJob (202)
+
+worker picks up job:
+   ├─ UPDATE ProcessingJob.status = "running"
+   ├─ for photo in target photos:
+   │     ├─ pipeline: level_correct → auto_crop → color_grade
+   │     ├─ save jpg to <storage>/projects/<pid>/processed/<photo_id>.<preset>.jpg
+   │     ├─ UPDATE Photo.processed_paths[preset] = relative_path
+   │     └─ UPDATE ProcessingJob.progress_done += 1
+   └─ UPDATE ProcessingJob.status = "done" (or "failed" if all errored)
+
+FE polls ──GET /processing-jobs/{id}──▶ API ── return {status, progress_done, progress_total, ...}
+FE ──GET /photos/{id}/processed/{preset}──▶ API ── stream processed jpg ──▶ FE
+```
+
+### Pipeline 細節
+
+```
+原圖（PIL）
+   ↓ ImageOps.exif_transpose（修正 iPhone / DJI 直拍 orientation）
+   ↓ level_correct（Canny + HoughLinesP，|θ| ≤ 30° 中位數；超過 ±5° 不旋轉）
+   ↓ auto_crop（Sobel energy + integral image sliding window；original 比例為 no-op）
+   ↓ color_grade（依 preset 套白平衡 / 暖 / 冷 numpy float 運算）
+   ↓ JPEG quality=92 寫入 processed/
+```
+
 ## 儲存配置（Storage Layout）
 
 ```
@@ -123,7 +166,22 @@ FE ──GET /exports/{id}/download──▶ API ── stream zip ──▶ FE
 | created_at | timestamptz | |
 | completed_at | timestamptz nullable | |
 
-v0.2+ 會加 `ProcessingJob` 表記錄處理批次。
+### ProcessingJob（v0.2+）
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| id | UUID PK | |
+| project_id | UUID FK→Project | |
+| preset | enum(showroom_white, outdoor_warm, night_cold) | `color_grade_preset` |
+| level_correct | bool | 是否套水平校正 |
+| auto_crop_aspect | varchar(16) | `original / 3:2 / 4:3 / 16:9 / 1:1 / 9:16` |
+| status | enum(pending, running, done, failed) | `processing_job_status` |
+| progress_done | int | 已處理張數 |
+| progress_total | int | 預期總張數 |
+| error | text nullable | 累計每張失敗訊息 |
+| created_at | timestamptz | |
+| completed_at | timestamptz nullable | |
+
+`Photo.processed_paths`（v0.2+）：JSONB，`{ preset_name: relative_path }` 對應到 `<storage>/projects/<pid>/processed/<photo_id>.<preset>.jpg`。重跑同 preset 會覆蓋。
 
 ## 容器拓樸（dev）
 
