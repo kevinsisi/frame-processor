@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Backend lint + import smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install deps
+        run: |
+          pip install -r requirements.txt
+          pip install ruff mypy
+      - name: Ruff lint
+        run: ruff check .
+      - name: Import smoke test
+        run: |
+          python -c "from api.main import app; print('api ok')"
+          python -c "import worker.jobs, worker.main; print('worker ok')"
+          python -c "from models import Project, Photo, Export; print('models ok')"
+      - name: Alembic offline migration check
+        run: alembic upgrade head --sql > /dev/null
+        env:
+          DATABASE_URL: postgresql+psycopg://frame:frame@localhost:5432/frame_processor
+
+  frontend:
+    name: Frontend typecheck + build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install
+        run: npm install
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build
+        run: npm run build

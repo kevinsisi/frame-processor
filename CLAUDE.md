@@ -1,8 +1,31 @@
-# Project Rules
+# Project Rules — frame-processor
 
-This repository is a GitHub template. When a new project is generated from it, these rules activate immediately so any AI coding assistant follows the same workflow conventions from the first commit.
+照片批次後製工具。使用者：晴晴。用途：carsmeet.tw 與 8891 車輛照片批次後製。
 
-Edit this file freely to add stack-, domain-, or team-specific rules for your project. Keep the Skill Activation section so the bundled `skills/` and `.github/skills/` stay wired in.
+核心流程：上傳 N 張 → 選風格 → 全部一鍵處理 → 下載 zip。
+
+## Stack
+
+- Backend: FastAPI + SQLAlchemy 2.0 + Alembic + PostgreSQL 16 + Redis 7 + RQ
+- Frontend: React 18 + Vite 5 + TypeScript 5 + TailwindCSS 3
+- Worker: RQ worker (Python) — 處理 zip 匯出與後續 AI 後製 job
+- Deployment: Docker Compose（api / web / worker / postgres / redis）
+
+## Layout
+
+```
+api/         FastAPI app（routers + schemas + database session）
+models/      SQLAlchemy ORM + Pydantic 共用 enums
+services/    照片處理核心（OpenCV / Pillow / NAFNet / 自動裁剪 / 水平校正 / 色調預設）
+worker/      RQ worker entry + jobs
+web/         React + Vite + Tailwind 前端
+alembic/     DB migrations
+deploy/      Dockerfiles + docker-compose
+openspec/    Spec-driven change proposals
+docs/        Architecture、ADR、設計筆記
+```
+
+從 repo 根目錄執行：`uvicorn api.main:app`、`python -m worker.main`、`cd web && npm run dev`。
 
 ## Global Working Rules
 
@@ -26,10 +49,19 @@ Edit this file freely to add stack-, domain-, or team-specific rules for your pr
 - Prefer commit-first, push-later batching for larger work groups when repeated pushes would only retrigger CI/CD without adding review value.
 - If a requirement should govern future implementation, write it into the formal rule sources instead of leaving it only in chat context.
 - Avoid magic numbers in implementation; prefer existing enums, or introduce named constants when no enum exists.
+- For nullable numeric columns whose valid range includes `0` / `0.0` / `False`, never use the `value or default` idiom — `0` is falsy in Python and the idiom silently rewrites valid input. Always use `value if value is not None else default`.
 - Before commit, confirm AI-generated methods, classes, and files are actually used; remove unused junk instead of committing it.
 - Build checks before commit must use the repo's concrete command(s), not vague "validation" language.
 - For any non-trivial feature request or requirement, first confirm requirements with the user and define OpenSpec before implementation.
 - For major changes, use a brainstorming step before proposal or implementation.
+
+## Domain-Specific Rules
+
+- **照片是大檔（5–25MB）**：不要在 API 回應裡 base64 inline 整張原圖；用 `/photos/{id}/file` endpoint 串流。預覽圖（thumbnail）可以 inline。
+- **原圖永不覆寫**：處理結果寫到不同路徑（`<storage>/projects/<id>/processed/<photo_id>.<preset>.jpg`），原圖永遠在 `<storage>/projects/<id>/originals/<photo_id>.<ext>`。
+- **EXIF orientation**：iPhone / DJI 直拍照片帶 `Orientation=6/8`，讀取時必須套用旋轉，否則 thumbnail 會躺著。所有 `services/storage.py` 的 PIL 讀取都應該 `ImageOps.exif_transpose()`。
+- **色調預設名稱用 enum**：禁止字串散落在 routers / services / FE，全部走 `models/enums.py:ColorGradePreset`。
+- **batch 處理永遠走 worker**：FastAPI handler 不做 CPU 重的事；上傳 / 列表 / 觸發 job / 查狀態 / 下載 zip 是 API 的責任。處理本身一律 enqueue 到 RQ。
 
 ## Skill Activation Rules
 
@@ -41,11 +73,9 @@ Treat the following skill files as active workflow rules for this workspace, eve
 - Treat `skills/root-cause-debugging/SKILL.md` as mandatory for bug investigation and regressions
 - Treat `skills/integration-robustness/SKILL.md` as mandatory for AI calls, external APIs, retries, and batched integrations
 - Treat `skills/verification-and-evidence/SKILL.md` as mandatory when reporting runtime, CI, CD, or deployment status
-- Treat `skills/agent-design/SKILL.md` as mandatory for multi-agent or tool-enabled agent architecture work
 - Treat `skills/completion-checklist/SKILL.md` as mandatory for any code change before reporting completion
 - Treat `skills/deployment/SKILL.md` as mandatory for deployment, Docker, reverse-proxy, CI/CD, and release work
 - Treat `skills/frontend-design/SKILL.md` as mandatory for frontend creation or redesign work
-- Treat `skills/key-pool-standard/SKILL.md` as mandatory for any AI key-pool, quota, or multi-key retry implementation
 - Treat `skills/skill-creator/SKILL.md` as the active workflow when creating, improving, or evaluating a skill
 - Treat `.github/skills/openspec-explore/SKILL.md` as the active workflow when the user wants exploration without implementation
 - Treat `.github/skills/openspec-propose/SKILL.md` as the active workflow when creating a new OpenSpec change
@@ -54,17 +84,22 @@ Treat the following skill files as active workflow rules for this workspace, eve
 
 Mirror locations (`.claude/skills/`, `.gemini/skills/`, `.opencode/skills/`, `.github/skills/`) hold the same OpenSpec workflow skills so Claude Code, Gemini CLI, opencode, and GitHub Copilot all see them. The canonical source for general workflow skills lives in `skills/`.
 
+`skills/agent-design/` and `skills/key-pool-standard/` 已從 template 移除（本專案 v0.x 不會有 AI agent / multi-key pool；若未來引入再加回）。
+
 ## Persistent Standards
 
-- Every code change must update memory (if applicable), update OpenSpec (if applicable), commit, and push; larger work batches may commit in checkpoints and push once the batch is ready. Rule home: `skills/completion-checklist/SKILL.md`.
-- Complex tasks must carry workflow checkpoints in the task list, and major task boundaries must trigger a fresh rule check. Rule home: `skills/execution-style/SKILL.md` and `skills/completion-checklist/SKILL.md`.
-- Any requirement that should govern future implementation must be written into the formal rule sources (this file or a skill), not left only in chat context. Rule home: `skills/execution-style/SKILL.md`.
-- Any non-trivial feature request should first go through an exploration/confirmation step and be captured in OpenSpec before implementation.
+- Every code change must update memory (if applicable), update OpenSpec (if applicable), commit, and push.
+- Complex tasks must carry workflow checkpoints in the task list.
+- 對於非 trivial 的 feature request，先 brainstorming → OpenSpec 提案 → 實作。
 
-## When To Remove Or Replace Skills
+## Project Architecture Pointers
 
-- Remove `skills/frontend-design/` if the project has no frontend.
-- Remove `skills/key-pool-standard/` if the project does not use AI API keys.
-- Remove `skills/agent-design/` if the project is not building AI agents.
-- Keep `skills/execution-style/`, `skills/completion-checklist/`, `skills/plan-before-build/`, `skills/root-cause-debugging/`, `skills/verification-and-evidence/`, and `skills/integration-robustness/` for any project.
-- If you delete a skill, also delete its line in the Skill Activation Rules above.
+- `ROADMAP.md` — phase 路線圖（v0.1 walking skeleton 已完成；v0.2+ 為 AI 處理 phase）。新對話先讀這個對齊大方向。
+- `ARCHITECTURE.md` — 系統架構、資料流、容器拓樸、儲存路徑慣例。
+- `openspec/changes/` — 進行中的提案；archived 在 `openspec/changes/archive/` 下。
+- 程式碼本身：
+  - `api/main.py` — FastAPI app + CORS + router 掛載
+  - `api/routers/projects.py`、`api/routers/photos.py`、`api/routers/exports.py`
+  - `models/database.py`、`models/project.py`、`models/photo.py`、`models/export.py`、`models/enums.py`
+  - `services/storage.py`（檔案存取）、`services/zip_export.py`（zip 打包）、`services/photo_processor.py` 等 stub
+  - `worker/main.py`（RQ entry）、`worker/jobs.py`（zip 與後續 AI job）

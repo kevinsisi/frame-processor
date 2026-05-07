@@ -1,0 +1,16 @@
+name: Deploy (dev) — scaffold
+
+# v1.0 之前不接真實部署。此 workflow 只是 scaffold，未來填入：
+# - Docker buildx + push 到 registry
+# - SSH / Tailscale 進 dev server pull + restart compose
+# - Smoke test deployed endpoint
+
+on:
+  workflow_dispatch:
+
+jobs:
+  scaffold:
+    runs-on: ubuntu-latest
+    steps:
+      - name: placeholder
+        run: echo "TODO v1.0：部署到 frame.sisihome.org（domain 待定）"
