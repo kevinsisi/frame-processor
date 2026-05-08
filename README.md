@@ -2,7 +2,7 @@
 
 照片批次後製工具。上傳 N 張 → 選 preset + 處理選項 → 全部一鍵處理 → 下載 zip。
 
-目前狀態：**v0.3.12 shipped — bundled pipeline + settings key import + manual adjustment panel + desktop CI/CD**（NAFNet AI 降噪 / 廣角畸變矯正 / Gemini Vision 水平校正 / YOLOv8 自動裁剪 / Pillow 色調 preset / before-after 對比 / per-photo queue progress / Gemini key 設定頁 / 手動曝光、對比、亮暗部、色溫、色偏、飽和、自然飽和、清晰度、銳利化、HSL 微調與 preset 儲存載入）。已部署至 [frame.sisihome.org](https://frame.sisihome.org)。
+目前狀態：**v0.3.13 shipped — bundled pipeline + settings key import + manual adjustment panel + desktop CI/CD**（NAFNet AI 降噪 / 廣角畸變矯正 / Gemini Vision 水平校正 / YOLOv8 自動裁剪 / Pillow 色調 preset / before-after 對比 / per-photo queue progress / Gemini key 設定頁 / 手動曝光、對比、亮暗部、色溫、色偏、飽和、自然飽和、清晰度、銳利化、HSL 微調與 preset 儲存載入）。已部署至 [frame.sisihome.org](https://frame.sisihome.org)。
 
 ## Quick start
 
@@ -41,7 +41,7 @@ NAFNET_DIR=/data/models-weights/nafnet            # NAFNet 權重 cache
 GitHub Actions 使用 HomeProject two-workflow pattern：
 
 - `.github/workflows/docker-publish.yml`：push `main` 或手動 dispatch 時 build/push `kevin950805/frame-processor-api:<commit-sha>`、`kevin950805/frame-processor-web:<commit-sha>`，並更新 `latest` alias；worker 直接重用 api image。
-- `.github/workflows/deploy-dev.yml`：Docker publish 成功後透過 Windows OpenSSH Server 部署到 Windows desktop `100.83.112.20`，複製 `deploy/docker-compose.yml` 到 `D:/GitClone/_HomeProject/frame-processor/deploy/docker-compose.yml`，寫入 host-side `deploy/.env` 的 commit SHA image tag，再執行 `docker compose pull && docker compose up -d`。
+- `.github/workflows/deploy-dev.yml`：Docker publish 成功後透過 Windows OpenSSH Server 部署到 Windows desktop `100.83.112.20`，複製 `deploy/docker-compose.yml` 到 `D:/GitClone/_HomeProject/frame-processor/deploy/docker-compose.yml`，寫入 host-side `deploy/.env` 的 commit SHA image tag，再上傳並執行 PowerShell deploy/guard scripts 來跑 `docker compose pull && docker compose up -d`。
 
 部署前 workflow 會拒絕缺少 `G:/frame-processor/postgres-data`、`G:/frame-processor/storage-data`、`G:/frame-processor/redis-data` 的主機，也會用 `docker compose config` 確認 postgres/storage/redis 都是 G 槽 bind mounts。部署後會用 `docker inspect` 再確認 runtime images 使用該 commit tag 且 mounts 沒有回到 Docker Desktop C 槽 named volumes，最後檢查 `http://100.83.112.20:8533/api/health` 回傳預期 app version。
 

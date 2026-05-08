@@ -52,6 +52,12 @@ CD copies `deploy/docker-compose.yml` to `D:/GitClone/_HomeProject/frame-process
 
 Alternative considered: copy compose to the repo root. That would diverge from the existing `deploy/docker-compose.yml` quick-start and `.env` location.
 
+### Remote PowerShell execution
+
+CD uploads generated PowerShell scripts for env merge, pre-deploy validation, Docker Compose deployment, and post-deploy runtime verification, then invokes each script through `powershell -Command "& 'script.ps1' ..."`. This avoids multiline SSH command parsing differences between Bash, Windows OpenSSH, and PowerShell.
+
+Alternative considered: keep large multiline PowerShell blocks directly in the SSH command. That can appear successful while only part of the command executes, leaving Docker containers on stale images.
+
 ### Environment strategy
 
 The deploy workflow writes a host-side `.env` in the deploy directory from GitHub Actions secrets and constants:
@@ -86,6 +92,7 @@ Alternative considered: string search the compose file only. That catches obviou
 - Missing required GitHub secrets block deployment -> fail fast with explicit required secret validation before writing `.env`; optional runtime fallbacks such as `GEMINI_API_KEY` must not block deployment.
 - Docker Compose JSON output may vary by version -> keep validation focused on stable `services.*.volumes` fields and fail closed if parsing fails.
 - Windows/Docker Desktop may report bind mount sources as Linux VM paths -> normalize known Docker Desktop host mount prefixes before comparing.
+- Multiline remote shell parsing can skip intended Docker commands -> upload PowerShell scripts and execute script files instead of relying on inline multiline SSH strings.
 - The first api image build is heavy because it installs torch/ultralytics -> use GitHub Actions build cache and publish only amd64 for the desktop target.
 - Web image cannot receive runtime env after build -> do not bake `SETTINGS_ADMIN_TOKEN`; keep the Settings page manual-token path for admin mutations.
 

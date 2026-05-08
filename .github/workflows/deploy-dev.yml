@@ -14,7 +14,7 @@ env:
   IMAGE_TAG: ${{ github.event.workflow_run.head_sha || github.sha }}
   GEMINI_MODEL: gemini-2.5-flash
   HEALTH_URL: http://100.83.112.20:8533/api/health
-  EXPECTED_APP_VERSION: "0.3.12"
+  EXPECTED_APP_VERSION: "0.3.13"
   EXPECTED_POSTGRES_DIR: G:/frame-processor/postgres-data
   EXPECTED_STORAGE_DIR: G:/frame-processor/storage-data
   EXPECTED_REDIS_DIR: G:/frame-processor/redis-data
@@ -165,125 +165,159 @@ jobs:
         env:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
         run: |
-          ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_SERVER_IP}" "powershell -NoProfile -ExecutionPolicy Bypass -Command \"
-            \$ErrorActionPreference = 'Stop'
+          umask 077
+          trap 'rm -f validate-frame-deploy.ps1' EXIT
+          cat > validate-frame-deploy.ps1 <<'PS1'
+          param(
+              [Parameter(Mandatory = $true)] [string]$DeployPath,
+              [Parameter(Mandatory = $true)] [string]$ExpectedPostgresDir,
+              [Parameter(Mandatory = $true)] [string]$ExpectedStorageDir,
+              [Parameter(Mandatory = $true)] [string]$ExpectedRedisDir
+          )
 
-            function Normalize-PathValue([string]\$Value) {
-              if (-not \$Value) { return \$null }
-              \$path = \$Value.Replace('\', '/').TrimEnd('/')
-              if (\$path -match '^/run/desktop/mnt/host/([a-zA-Z])/(.+)') {
-                return (\$Matches[1].ToUpper() + ':/' + \$Matches[2]).TrimEnd('/')
+          $ErrorActionPreference = 'Stop'
+
+          function Normalize-PathValue([string]$Value) {
+              if (-not $Value) { return $null }
+              $path = $Value.Replace('\', '/').TrimEnd('/')
+              if ($path -match '^/run/desktop/mnt/host/([a-zA-Z])/(.+)') {
+                  return ($Matches[1].ToUpper() + ':/' + $Matches[2]).TrimEnd('/')
               }
-              if (\$path -match '^/host_mnt/([a-zA-Z])/(.+)') {
-                return (\$Matches[1].ToUpper() + ':/' + \$Matches[2]).TrimEnd('/')
+              if ($path -match '^/host_mnt/([a-zA-Z])/(.+)') {
+                  return ($Matches[1].ToUpper() + ':/' + $Matches[2]).TrimEnd('/')
               }
-              return \$path
-            }
+              return $path
+          }
 
-            function Assert-PathExists([string]\$Path) {
-              if (!(Test-Path -LiteralPath \$Path)) { throw ('Missing required deploy data path: ' + \$Path) }
-            }
+          function Assert-PathExists([string]$Path) {
+              if (!(Test-Path -LiteralPath $Path)) { throw ('Missing required deploy data path: ' + $Path) }
+          }
 
-            function Assert-ComposeBind([object]\$Config, [string]\$Service, [string]\$Target, [string]\$ExpectedSource) {
-              \$serviceProperty = \$Config.services.PSObject.Properties[\$Service]
-              if (\$null -eq \$serviceProperty) { throw ('Missing compose service: ' + \$Service) }
-              \$serviceConfig = \$serviceProperty.Value
-              \$foundVolumes = @(\$serviceConfig.volumes | Where-Object { \$_.target -eq \$Target })
-              if (\$foundVolumes.Count -ne 1) { throw ('Service ' + \$Service + ' must have exactly one volume for ' + \$Target) }
+          function Assert-ComposeBind([object]$Config, [string]$Service, [string]$Target, [string]$ExpectedSource) {
+              $serviceProperty = $Config.services.PSObject.Properties[$Service]
+              if ($null -eq $serviceProperty) { throw ('Missing compose service: ' + $Service) }
+              $serviceConfig = $serviceProperty.Value
+              $foundVolumes = @($serviceConfig.volumes | Where-Object { $_.target -eq $Target })
+              if ($foundVolumes.Count -ne 1) { throw ('Service ' + $Service + ' must have exactly one volume for ' + $Target) }
 
-              \$volume = \$foundVolumes[0]
-              \$actualType = [string]\$volume.type
-              \$actualSource = Normalize-PathValue ([string]\$volume.source)
-              \$expectedSource = Normalize-PathValue \$ExpectedSource
-              if (\$actualType -ne 'bind') { throw ('Service ' + \$Service + ' volume ' + \$Target + ' must be bind, got ' + \$actualType) }
-              if (\$actualSource -ne \$expectedSource) { throw ('Service ' + \$Service + ' volume ' + \$Target + ' must use ' + \$expectedSource + ', got ' + \$actualSource) }
-            }
+              $volume = $foundVolumes[0]
+              $actualType = [string]$volume.type
+              $actualSource = Normalize-PathValue ([string]$volume.source)
+              $expectedSource = Normalize-PathValue $ExpectedSource
+              if ($actualType -ne 'bind') { throw ('Service ' + $Service + ' volume ' + $Target + ' must be bind, got ' + $actualType) }
+              if ($actualSource -ne $expectedSource) { throw ('Service ' + $Service + ' volume ' + $Target + ' must use ' + $expectedSource + ', got ' + $actualSource) }
+          }
 
-            Set-Location -LiteralPath '${DEPLOY_PATH}'
-            Assert-PathExists '${EXPECTED_POSTGRES_DIR}'
-            Assert-PathExists '${EXPECTED_STORAGE_DIR}'
-            Assert-PathExists '${EXPECTED_REDIS_DIR}'
+          Set-Location -LiteralPath $DeployPath
+          Assert-PathExists $ExpectedPostgresDir
+          Assert-PathExists $ExpectedStorageDir
+          Assert-PathExists $ExpectedRedisDir
 
-            \$configJson = docker compose --env-file .env -f docker-compose.yml config --format json
-            if (\$LASTEXITCODE -ne 0) { throw 'docker compose config failed.' }
-            \$config = (\$configJson -join [Environment]::NewLine) | ConvertFrom-Json
+          $configJson = docker compose --env-file .env -f docker-compose.yml config --format json
+          if ($LASTEXITCODE -ne 0) { throw 'docker compose config failed.' }
+          $config = ($configJson -join [Environment]::NewLine) | ConvertFrom-Json
 
-            Assert-ComposeBind \$config 'postgres' '/var/lib/postgresql/data' '${EXPECTED_POSTGRES_DIR}'
-            Assert-ComposeBind \$config 'redis' '/data' '${EXPECTED_REDIS_DIR}'
-            Assert-ComposeBind \$config 'api' '/data' '${EXPECTED_STORAGE_DIR}'
-            Assert-ComposeBind \$config 'worker' '/data' '${EXPECTED_STORAGE_DIR}'
-          \""
+          Assert-ComposeBind $config 'postgres' '/var/lib/postgresql/data' $ExpectedPostgresDir
+          Assert-ComposeBind $config 'redis' '/data' $ExpectedRedisDir
+          Assert-ComposeBind $config 'api' '/data' $ExpectedStorageDir
+          Assert-ComposeBind $config 'worker' '/data' $ExpectedStorageDir
+          PS1
+          scp -i ~/.ssh/deploy_key validate-frame-deploy.ps1 "${DEPLOY_USER}@${DEPLOY_SERVER_IP}:${DEPLOY_PATH}/validate-frame-deploy.ps1"
+          ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_SERVER_IP}" \
+            "powershell -NoProfile -ExecutionPolicy Bypass -Command \"& '${DEPLOY_PATH}/validate-frame-deploy.ps1' -DeployPath '${DEPLOY_PATH}' -ExpectedPostgresDir '${EXPECTED_POSTGRES_DIR}' -ExpectedStorageDir '${EXPECTED_STORAGE_DIR}' -ExpectedRedisDir '${EXPECTED_REDIS_DIR}'\""
 
       - name: Deploy via Docker Compose
         env:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
         run: |
-          ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_SERVER_IP}" "powershell -NoProfile -ExecutionPolicy Bypass -Command \"
-            \$ErrorActionPreference = 'Stop'
-            Set-Location -LiteralPath '${DEPLOY_PATH}'
-            docker compose --env-file .env -f docker-compose.yml pull --policy always postgres redis api worker web
-            if (\$LASTEXITCODE -ne 0) { throw 'docker compose pull failed.' }
-            docker compose --env-file .env -f docker-compose.yml up -d --pull always --force-recreate --no-build --remove-orphans postgres redis api worker web
-            if (\$LASTEXITCODE -ne 0) { throw 'docker compose up failed.' }
-            docker compose --env-file .env -f docker-compose.yml ps
-          \""
+          umask 077
+          trap 'rm -f deploy-frame-compose.ps1' EXIT
+          cat > deploy-frame-compose.ps1 <<'PS1'
+          param(
+              [Parameter(Mandatory = $true)] [string]$DeployPath
+          )
+
+          $ErrorActionPreference = 'Stop'
+          Set-Location -LiteralPath $DeployPath
+          docker compose --env-file .env -f docker-compose.yml pull --policy always postgres redis api worker web
+          if ($LASTEXITCODE -ne 0) { throw 'docker compose pull failed.' }
+          docker compose --env-file .env -f docker-compose.yml up -d --pull always --force-recreate --no-build --remove-orphans postgres redis api worker web
+          if ($LASTEXITCODE -ne 0) { throw 'docker compose up failed.' }
+          docker compose --env-file .env -f docker-compose.yml ps
+          PS1
+          scp -i ~/.ssh/deploy_key deploy-frame-compose.ps1 "${DEPLOY_USER}@${DEPLOY_SERVER_IP}:${DEPLOY_PATH}/deploy-frame-compose.ps1"
+          ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_SERVER_IP}" \
+            "powershell -NoProfile -ExecutionPolicy Bypass -Command \"& '${DEPLOY_PATH}/deploy-frame-compose.ps1' -DeployPath '${DEPLOY_PATH}'\""
 
       - name: Verify running images and G drive mounts
         env:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
         run: |
-          ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_SERVER_IP}" "powershell -NoProfile -ExecutionPolicy Bypass -Command \"
-            \$ErrorActionPreference = 'Stop'
+          umask 077
+          trap 'rm -f verify-frame-runtime.ps1' EXIT
+          cat > verify-frame-runtime.ps1 <<'PS1'
+          param(
+              [Parameter(Mandatory = $true)] [string]$DockerhubUsername,
+              [Parameter(Mandatory = $true)] [string]$ImageTag,
+              [Parameter(Mandatory = $true)] [string]$ExpectedPostgresDir,
+              [Parameter(Mandatory = $true)] [string]$ExpectedStorageDir,
+              [Parameter(Mandatory = $true)] [string]$ExpectedRedisDir
+          )
 
-            function Normalize-PathValue([string]\$Value) {
-              if (-not \$Value) { return \$null }
-              \$path = \$Value.Replace('\', '/').TrimEnd('/')
-              if (\$path -match '^/run/desktop/mnt/host/([a-zA-Z])/(.+)') {
-                return (\$Matches[1].ToUpper() + ':/' + \$Matches[2]).TrimEnd('/')
+          $ErrorActionPreference = 'Stop'
+
+          function Normalize-PathValue([string]$Value) {
+              if (-not $Value) { return $null }
+              $path = $Value.Replace('\', '/').TrimEnd('/')
+              if ($path -match '^/run/desktop/mnt/host/([a-zA-Z])/(.+)') {
+                  return ($Matches[1].ToUpper() + ':/' + $Matches[2]).TrimEnd('/')
               }
-              if (\$path -match '^/host_mnt/([a-zA-Z])/(.+)') {
-                return (\$Matches[1].ToUpper() + ':/' + \$Matches[2]).TrimEnd('/')
+              if ($path -match '^/host_mnt/([a-zA-Z])/(.+)') {
+                  return ($Matches[1].ToUpper() + ':/' + $Matches[2]).TrimEnd('/')
               }
-              return \$path
-            }
+              return $path
+          }
 
-            function Assert-ContainerBind([string]\$Container, [string]\$Destination, [string]\$ExpectedSource) {
-              \$inspectJson = docker inspect \$Container
-              if (\$LASTEXITCODE -ne 0) { throw ('docker inspect failed for ' + \$Container) }
-              \$inspect = (\$inspectJson -join [Environment]::NewLine) | ConvertFrom-Json
-              \$containerInfo = @(\$inspect)[0]
-              \$foundMounts = @(\$containerInfo.Mounts | Where-Object { \$_.Destination -eq \$Destination })
-              if (\$foundMounts.Count -ne 1) { throw ('Container ' + \$Container + ' must have exactly one mount for ' + \$Destination) }
+          function Assert-ContainerBind([string]$Container, [string]$Destination, [string]$ExpectedSource) {
+              $inspectJson = docker inspect $Container
+              if ($LASTEXITCODE -ne 0) { throw ('docker inspect failed for ' + $Container) }
+              $inspect = ($inspectJson -join [Environment]::NewLine) | ConvertFrom-Json
+              $containerInfo = @($inspect)[0]
+              $foundMounts = @($containerInfo.Mounts | Where-Object { $_.Destination -eq $Destination })
+              if ($foundMounts.Count -ne 1) { throw ('Container ' + $Container + ' must have exactly one mount for ' + $Destination) }
 
-              \$mount = \$foundMounts[0]
-              \$actualType = [string]\$mount.Type
-              \$actualSource = Normalize-PathValue ([string]\$mount.Source)
-              \$expectedSource = Normalize-PathValue \$ExpectedSource
-              if (\$actualType -ne 'bind') { throw ('Container ' + \$Container + ' mount ' + \$Destination + ' must be bind, got ' + \$actualType) }
-              if (\$actualSource -like '*/var/lib/docker/volumes/*') { throw ('Container ' + \$Container + ' uses Docker named volume storage: ' + \$actualSource) }
-              if (\$actualSource -ne \$expectedSource) { throw ('Container ' + \$Container + ' mount ' + \$Destination + ' must use ' + \$expectedSource + ', got ' + \$actualSource) }
-            }
+              $mount = $foundMounts[0]
+              $actualType = [string]$mount.Type
+              $actualSource = Normalize-PathValue ([string]$mount.Source)
+              $expectedSource = Normalize-PathValue $ExpectedSource
+              if ($actualType -ne 'bind') { throw ('Container ' + $Container + ' mount ' + $Destination + ' must be bind, got ' + $actualType) }
+              if ($actualSource -like '*/var/lib/docker/volumes/*') { throw ('Container ' + $Container + ' uses Docker named volume storage: ' + $actualSource) }
+              if ($actualSource -ne $expectedSource) { throw ('Container ' + $Container + ' mount ' + $Destination + ' must use ' + $expectedSource + ', got ' + $actualSource) }
+          }
 
-            function Assert-ContainerImage([string]\$Container, [string]\$ExpectedImage) {
-              \$inspectJson = docker inspect \$Container
-              if (\$LASTEXITCODE -ne 0) { throw ('docker inspect failed for ' + \$Container) }
-              \$inspect = (\$inspectJson -join [Environment]::NewLine) | ConvertFrom-Json
-              \$containerInfo = @(\$inspect)[0]
-              \$actualImage = [string]\$containerInfo.Config.Image
-              if (\$actualImage -ne \$ExpectedImage) { throw ('Container ' + \$Container + ' must use image ' + \$ExpectedImage + ', got ' + \$actualImage) }
-            }
+          function Assert-ContainerImage([string]$Container, [string]$ExpectedImage) {
+              $inspectJson = docker inspect $Container
+              if ($LASTEXITCODE -ne 0) { throw ('docker inspect failed for ' + $Container) }
+              $inspect = ($inspectJson -join [Environment]::NewLine) | ConvertFrom-Json
+              $containerInfo = @($inspect)[0]
+              $actualImage = [string]$containerInfo.Config.Image
+              if ($actualImage -ne $ExpectedImage) { throw ('Container ' + $Container + ' must use image ' + $ExpectedImage + ', got ' + $actualImage) }
+          }
 
-            \$expectedApiImage = '${DOCKERHUB_USERNAME}/frame-processor-api:${IMAGE_TAG}'
-            \$expectedWebImage = '${DOCKERHUB_USERNAME}/frame-processor-web:${IMAGE_TAG}'
-            Assert-ContainerImage 'frame-processor-api-1' \$expectedApiImage
-            Assert-ContainerImage 'frame-processor-worker-1' \$expectedApiImage
-            Assert-ContainerImage 'frame-processor-web-1' \$expectedWebImage
+          $expectedApiImage = $DockerhubUsername + '/frame-processor-api:' + $ImageTag
+          $expectedWebImage = $DockerhubUsername + '/frame-processor-web:' + $ImageTag
+          Assert-ContainerImage 'frame-processor-api-1' $expectedApiImage
+          Assert-ContainerImage 'frame-processor-worker-1' $expectedApiImage
+          Assert-ContainerImage 'frame-processor-web-1' $expectedWebImage
 
-            Assert-ContainerBind 'frame-processor-postgres-1' '/var/lib/postgresql/data' '${EXPECTED_POSTGRES_DIR}'
-            Assert-ContainerBind 'frame-processor-redis-1' '/data' '${EXPECTED_REDIS_DIR}'
-            Assert-ContainerBind 'frame-processor-api-1' '/data' '${EXPECTED_STORAGE_DIR}'
-            Assert-ContainerBind 'frame-processor-worker-1' '/data' '${EXPECTED_STORAGE_DIR}'
-          \""
+          Assert-ContainerBind 'frame-processor-postgres-1' '/var/lib/postgresql/data' $ExpectedPostgresDir
+          Assert-ContainerBind 'frame-processor-redis-1' '/data' $ExpectedRedisDir
+          Assert-ContainerBind 'frame-processor-api-1' '/data' $ExpectedStorageDir
+          Assert-ContainerBind 'frame-processor-worker-1' '/data' $ExpectedStorageDir
+          PS1
+          scp -i ~/.ssh/deploy_key verify-frame-runtime.ps1 "${DEPLOY_USER}@${DEPLOY_SERVER_IP}:${DEPLOY_PATH}/verify-frame-runtime.ps1"
+          ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_SERVER_IP}" \
+            "powershell -NoProfile -ExecutionPolicy Bypass -Command \"& '${DEPLOY_PATH}/verify-frame-runtime.ps1' -DockerhubUsername '${DOCKERHUB_USERNAME}' -ImageTag '${IMAGE_TAG}' -ExpectedPostgresDir '${EXPECTED_POSTGRES_DIR}' -ExpectedStorageDir '${EXPECTED_STORAGE_DIR}' -ExpectedRedisDir '${EXPECTED_REDIS_DIR}'\""
 
       - name: Health check through web proxy
         run: |

@@ -18,6 +18,9 @@ venv/
 .env.local
 deploy/.env.ci
 deploy/merge-frame-env.ps1
+deploy/validate-frame-deploy.ps1
+deploy/deploy-frame-compose.ps1
+deploy/verify-frame-runtime.ps1
 
 # Storage / data
 data/

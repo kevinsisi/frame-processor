@@ -1,2 +1,2 @@
-// v0.3.12 - make Gemini env key a deploy-time optional fallback.
-export const APP_VERSION = "0.3.12";
+// v0.3.13 - execute desktop Docker deploy and guards through uploaded scripts.
+export const APP_VERSION = "0.3.13";

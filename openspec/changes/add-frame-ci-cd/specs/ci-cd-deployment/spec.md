@@ -45,6 +45,11 @@ The system SHALL deploy to the Windows desktop at `100.83.112.20` by copying the
 - **WHEN** compose has been copied and pre-deploy guards pass
 - **THEN** the workflow pulls the published commit SHA images and force-recreates api, worker, and web without local builds
 
+#### Scenario: Remote Docker commands execute through script files
+- **WHEN** the workflow runs desktop pre-deploy guards, Docker Compose deployment, or runtime verification over SSH
+- **THEN** it uploads generated PowerShell scripts and invokes those scripts with `powershell -Command "& 'script.ps1' ..."`
+- **AND** it does not depend on large multiline PowerShell blocks embedded directly inside the SSH command string
+
 ### Requirement: Deployment fails closed when G drive data paths are unsafe
 The system SHALL refuse to deploy before `docker compose up` if required G drive persistent data directories are missing or if compose does not resolve postgres, redis, api, and worker storage as G drive bind mounts.
 
