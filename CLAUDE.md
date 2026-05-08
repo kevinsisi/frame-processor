@@ -32,7 +32,7 @@ docs/        Architecture、ADR、設計筆記
 正式環境：`https://frame.sisihome.org`
 
 - 桌機（Tailscale `100.83.112.20`）跑 Docker Compose stack：`docker compose -f deploy/docker-compose.yml up -d`
-- 持久資料已從 Docker Desktop named volumes 遷到 `G:\frame-processor\` bind mounts：`postgres-data`、`storage-data`、`redis-data`。不要改回 named volumes；C 槽空間不足，舊 C 上 named volumes 只作為遷移後暫存備援，未確認前不要刪。若重建或換機，必須先建立這三個目錄並把既有 volume 內容複製進去再啟動；空目錄會啟動成空 DB/storage。
+- 持久資料已從 Docker Desktop named volumes 遷到 `G:\frame-processor\` bind mounts：`postgres-data`、`storage-data`、`redis-data`。不要改回 named volumes；C 槽空間不足。舊 C 上的 frame-processor named volumes 與舊 Redis anonymous volume 已於 2026-05-08 遷移後移除。若重建或換機，必須先建立這三個目錄並把既有資料複製進去再啟動；空目錄會啟動成空 DB/storage。
 - 唯一對外 port 是 web container 的 `100.83.112.20:8533`（nginx）— api/postgres/redis 不外露；api debug 用 `127.0.0.1:8633`
 - web container 的 nginx 把 `/api/*` reverse proxy 到 `api:8000/*`（剝掉 `/api`），所以前端走同源
 - 前端 build 時 `VITE_API_BASE_URL=/api`（在 `deploy/docker-compose.yml`）
