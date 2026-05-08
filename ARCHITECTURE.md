@@ -238,7 +238,7 @@ FE ──GET /photos/{id}/file?variant=processed&preset=...──▶ API ── 
 
 prod 多接一層 reverse proxy（Cloudflare Tunnel 或 Caddy），參見部署 ADR（v1.0 寫）。
 
-## CI/CD（v0.3.5+）
+## CI/CD（v0.3.6+）
 
 `.github/workflows/ci.yml`：backend ruff + `python -m pytest tests` + import smoke + alembic offline check、frontend typecheck/build、api/web Docker build validation。
 

@@ -33,9 +33,9 @@ The system SHALL deploy to the Windows desktop at `100.83.112.20` by copying the
 - **WHEN** the deploy workflow starts after a successful Docker publish or manual dispatch
 - **THEN** it creates `D:/GitClone/_HomeProject/frame-processor/deploy` if needed and copies `deploy/docker-compose.yml` to `D:/GitClone/_HomeProject/frame-processor/deploy/docker-compose.yml`
 
-#### Scenario: SSH host-key scan is retried and fails closed
+#### Scenario: Desktop SSH uses Tailscale-only host config
 - **WHEN** the deploy workflow prepares SSH access to the desktop
-- **THEN** it retries `ssh-keyscan` for transient Tailscale readiness and fails before copying files if the desktop host key cannot be collected
+- **THEN** it configures SSH for the desktop Tailscale IP so host-key prompts do not block non-interactive deploy commands
 
 #### Scenario: Deploy workflow applies published images
 - **WHEN** compose has been copied and pre-deploy guards pass
