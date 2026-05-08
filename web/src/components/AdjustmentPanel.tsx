@@ -1,11 +1,22 @@
 import { useEffect, useRef, useState } from "react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, PointerEvent } from "react";
 
 import type { AdjustmentParams, AdjustmentPreset, HslColor } from "@/types";
+import {
+  CROP_HANDLES,
+  applyCropFrame,
+  containedImageFrame,
+  cropFrame,
+  moveCropFrame,
+  resizeCropFrame,
+} from "@/utils/geometryCrop";
+import type { CropHandle, Frame } from "@/utils/geometryCrop";
 
 import "./AdjustmentPanel.css";
 
 const HSL_COLORS: HslColor[] = ["red", "orange", "yellow", "green", "blue", "purple"];
+const PREVIEW_PERSPECTIVE_PX = 900;
+const PREVIEW_DISTORTION_DEGREES = 0.08;
 
 function orientationLabel(value: number): string {
   const normalized = ((Math.round(value) % 360) + 360) % 360;
@@ -32,6 +43,8 @@ export const DEFAULT_ADJUSTMENT_PARAMS: AdjustmentParams = {
   crop_x: 0,
   crop_y: 0,
   distortion: 0,
+  distortion_x: 0,
+  distortion_y: 0,
   grade_preset: null,
   hsl: {
     red: { hue: 0, saturation: 0, luminance: 0 },
@@ -60,6 +73,15 @@ type Props = {
 };
 
 type NumericAdjustmentKey = keyof Omit<AdjustmentParams, "hsl" | "source" | "grade_preset">;
+type CropInteraction = {
+  mode: "move" | "resize";
+  handle?: CropHandle;
+  pointerId: number;
+  startX: number;
+  startY: number;
+  startCrop: Frame;
+  imageFrame: Frame;
+};
 
 export function AdjustmentPanel({
   params,
@@ -172,7 +194,7 @@ export function AdjustmentPanel({
         <span>
           構圖 / 幾何調整
           <small className="mono">
-            水平 {params.rotation} · 裁切 {params.crop_zoom} · 變形 {params.distortion}
+            水平 {params.rotation} · 裁切 {params.crop_zoom} · 透視 H {distortionXValue(params)} / V {params.distortion_y ?? 0}
           </small>
         </span>
         <strong>開啟視窗</strong>
@@ -244,14 +266,18 @@ function GeometryEditor({
   onClose: () => void;
   onApply: (params: AdjustmentParams) => void;
 }) {
-  const [draft, setDraft] = useState(params);
+  const [draft, setDraft] = useState(() => withAdjustmentDefaults(params));
   const shellRef = useRef<HTMLDivElement | null>(null);
   const [imageSize, setImageSize] = useState({ width: 1, height: 1 });
   const [shellSize, setShellSize] = useState({ width: 1, height: 1 });
-  const draggingRef = useRef(false);
+  const interactionRef = useRef<CropInteraction | null>(null);
   const imageFrame = containedImageFrame(shellSize, imageSize);
-  const crop = cropFrame(draft.crop_zoom, draft.crop_x, draft.crop_y, imageFrame, shellSize);
-  const frameStyle = frameToStyle(imageFrame, shellSize);
+  const crop = cropFrame(draft.crop_zoom, draft.crop_x, draft.crop_y, imageFrame);
+  const cropStyle = frameToStyle(crop, shellSize);
+  const imageLayerStyle: CSSProperties = {
+    ...frameToStyle(imageFrame, shellSize),
+    ...geometryPreviewStyle(draft),
+  };
   useEffect(() => {
     const shell = shellRef.current;
     if (!shell) return;
@@ -265,32 +291,53 @@ function GeometryEditor({
     return () => observer.disconnect();
   }, []);
   const setValue = (key: NumericAdjustmentKey, value: number) => {
-    setDraft((current) => ({ ...current, [key]: value }));
+    setDraft((current) => syncLegacyDistortion({ ...current, [key]: value }, key, value));
   };
   const resetValue = (key: NumericAdjustmentKey) => {
     setValue(key, DEFAULT_ADJUSTMENT_PARAMS[key]);
   };
-  const moveCropToPointer = (clientX: number, clientY: number) => {
+  const startCropInteraction = (
+    event: PointerEvent<HTMLElement>,
+    mode: CropInteraction["mode"],
+    handle?: CropHandle,
+  ) => {
     const shell = shellRef.current;
     if (!shell) return;
-    const rect = shell.getBoundingClientRect();
-    const zoom = Math.max(1, draft.crop_zoom);
-    const cropWidth = 100 / zoom;
-    const cropHeight = 100 / zoom;
-    const maxLeft = 100 - cropWidth;
-    const maxTop = 100 - cropHeight;
-    if (maxLeft <= 0 && maxTop <= 0) return;
-    const pointerX = ((clientX - rect.left - imageFrame.left) / imageFrame.width) * 100;
-    const pointerY = ((clientY - rect.top - imageFrame.top) / imageFrame.height) * 100;
-    const left = Math.max(0, Math.min(maxLeft, pointerX - cropWidth / 2));
-    const top = Math.max(0, Math.min(maxTop, pointerY - cropHeight / 2));
-    const cropX = maxLeft > 0 ? ((left - maxLeft / 2) / (maxLeft / 2)) * 100 : 0;
-    const cropY = maxTop > 0 ? ((top - maxTop / 2) / (maxTop / 2)) * 100 : 0;
-    setDraft((current) => ({
-      ...current,
-      crop_x: Number(cropX.toFixed(1)),
-      crop_y: Number(cropY.toFixed(1)),
-    }));
+    event.preventDefault();
+    event.stopPropagation();
+    shell.setPointerCapture(event.pointerId);
+    interactionRef.current = {
+      mode,
+      handle,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startCrop: crop,
+      imageFrame,
+    };
+  };
+  const updateCropInteraction = (event: PointerEvent<HTMLDivElement>) => {
+    const interaction = interactionRef.current;
+    if (!interaction || interaction.pointerId !== event.pointerId) return;
+    const dx = event.clientX - interaction.startX;
+    const dy = event.clientY - interaction.startY;
+    const nextCrop = interaction.mode === "move"
+      ? moveCropFrame(interaction.startCrop, interaction.imageFrame, dx, dy)
+      : resizeCropFrame(
+          interaction.startCrop,
+          interaction.imageFrame,
+          interaction.handle ?? "se",
+          event.clientX,
+          event.clientY,
+        );
+    setDraft((current) => applyCropFrame(current, nextCrop, interaction.imageFrame));
+  };
+  const stopCropInteraction = (event: PointerEvent<HTMLDivElement>) => {
+    if (interactionRef.current?.pointerId !== event.pointerId) return;
+    interactionRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
   };
   return (
     <div className="geometry-editor" role="dialog" aria-modal="true" aria-label="構圖與幾何調整">
@@ -310,73 +357,61 @@ function GeometryEditor({
           <div
             ref={shellRef}
             className="geometry-editor__image-shell"
-            onPointerDown={(event) => {
-              draggingRef.current = true;
-              event.currentTarget.setPointerCapture(event.pointerId);
-              moveCropToPointer(event.clientX, event.clientY);
-            }}
-            onPointerMove={(event) => {
-              if (draggingRef.current) moveCropToPointer(event.clientX, event.clientY);
-            }}
-            onPointerUp={(event) => {
-              draggingRef.current = false;
-              event.currentTarget.releasePointerCapture(event.pointerId);
-            }}
-            onPointerCancel={() => {
-              draggingRef.current = false;
-            }}
+            onPointerMove={updateCropInteraction}
+            onPointerUp={stopCropInteraction}
+            onPointerCancel={stopCropInteraction}
           >
-            <img
-              src={baseUrl}
-              alt="構圖基準"
-              onLoad={(event) => {
-                setImageSize({
-                  width: Math.max(1, event.currentTarget.naturalWidth),
-                  height: Math.max(1, event.currentTarget.naturalHeight),
-                });
-              }}
-            />
-            <div className="geometry-editor__grid" style={frameStyle} aria-hidden>
-              {Array.from({ length: 9 }).map((_, index) => (
-                <span key={index} />
-              ))}
+            <div className="geometry-editor__image-layer" style={imageLayerStyle}>
+              <img
+                src={baseUrl}
+                alt="構圖基準"
+                onLoad={(event) => {
+                  setImageSize({
+                    width: Math.max(1, event.currentTarget.naturalWidth),
+                    height: Math.max(1, event.currentTarget.naturalHeight),
+                  });
+                }}
+              />
+              <div className="geometry-editor__grid" aria-hidden>
+                {Array.from({ length: 9 }).map((_, index) => (
+                  <span key={index} />
+                ))}
+              </div>
             </div>
-            <div className="geometry-editor__crop" style={crop}>
+            <div
+              className="geometry-editor__crop"
+              style={cropStyle}
+              onPointerDown={(event) => startCropInteraction(event, "move")}
+            >
               <span />
               <span />
               <span />
               <span />
+              {CROP_HANDLES.map((handle) => (
+                <button
+                  key={handle}
+                  type="button"
+                  className={`geometry-editor__handle geometry-editor__handle--${handle}`}
+                  aria-label={`調整裁切框 ${handle}`}
+                  onPointerDown={(event) => startCropInteraction(event, "resize", handle)}
+                />
+              ))}
             </div>
           </div>
         </div>
 
         <div className="geometry-editor__controls">
-          <Slider label="水平" value={draft.rotation} defaultValue={DEFAULT_ADJUSTMENT_PARAMS.rotation} min={-45} max={45} step={0.1} onChange={(v) => setValue("rotation", v)} onReset={() => resetValue("rotation")} />
+          <Slider label="水平校正" value={draft.rotation} defaultValue={DEFAULT_ADJUSTMENT_PARAMS.rotation} min={-45} max={45} step={0.1} onChange={(v) => setValue("rotation", v)} onReset={() => resetValue("rotation")} />
           <Slider label="裁切" value={draft.crop_zoom} defaultValue={DEFAULT_ADJUSTMENT_PARAMS.crop_zoom} min={1} max={3} step={0.01} onChange={(v) => setValue("crop_zoom", v)} onReset={() => resetValue("crop_zoom")} />
           <Slider label="裁切 X" value={draft.crop_x} defaultValue={DEFAULT_ADJUSTMENT_PARAMS.crop_x} onChange={(v) => setValue("crop_x", v)} onReset={() => resetValue("crop_x")} />
           <Slider label="裁切 Y" value={draft.crop_y} defaultValue={DEFAULT_ADJUSTMENT_PARAMS.crop_y} onChange={(v) => setValue("crop_y", v)} onReset={() => resetValue("crop_y")} />
-          <Slider label="變形修正" value={draft.distortion} defaultValue={DEFAULT_ADJUSTMENT_PARAMS.distortion} onChange={(v) => setValue("distortion", v)} onReset={() => resetValue("distortion")} />
+          <Slider label="水平透視" value={draft.distortion_x} defaultValue={DEFAULT_ADJUSTMENT_PARAMS.distortion_x} onChange={(v) => setValue("distortion_x", v)} onReset={() => resetValue("distortion_x")} />
+          <Slider label="垂直透視" value={draft.distortion_y} defaultValue={DEFAULT_ADJUSTMENT_PARAMS.distortion_y} onChange={(v) => setValue("distortion_y", v)} onReset={() => resetValue("distortion_y")} />
         </div>
         {busy && <p className="geometry-editor__busy mono">正在產生版本...</p>}
       </div>
     </div>
   );
-}
-
-type Frame = { left: number; top: number; width: number; height: number };
-
-function containedImageFrame(
-  shell: { width: number; height: number },
-  image: { width: number; height: number },
-): Frame {
-  const shellRatio = shell.width / shell.height;
-  const imageRatio = image.width / image.height;
-  if (imageRatio > shellRatio) {
-    const height = shell.width / imageRatio;
-    return { left: 0, top: (shell.height - height) / 2, width: shell.width, height };
-  }
-  const width = shell.height * imageRatio;
-  return { left: (shell.width - width) / 2, top: 0, width, height: shell.height };
 }
 
 function frameToStyle(frame: Frame, shell: { width: number; height: number }): CSSProperties {
@@ -388,28 +423,46 @@ function frameToStyle(frame: Frame, shell: { width: number; height: number }): C
   };
 }
 
-function cropFrame(
-  zoom: number,
-  x: number,
-  y: number,
-  imageFrame: Frame,
-  shell: { width: number; height: number },
-): CSSProperties {
-  const width = 100 / Math.max(1, zoom);
-  const height = 100 / Math.max(1, zoom);
-  const maxLeft = 100 - width;
-  const maxTop = 100 - height;
-  const left = maxLeft / 2 + (x / 100) * (maxLeft / 2);
-  const top = maxTop / 2 + (y / 100) * (maxTop / 2);
-  const cropLeft = imageFrame.left + imageFrame.width * (Math.max(0, Math.min(maxLeft, left)) / 100);
-  const cropTop = imageFrame.top + imageFrame.height * (Math.max(0, Math.min(maxTop, top)) / 100);
-  const cropWidth = imageFrame.width * (width / 100);
-  const cropHeight = imageFrame.height * (height / 100);
+function withAdjustmentDefaults(params: AdjustmentParams): AdjustmentParams {
+  const raw = params as Partial<AdjustmentParams>;
+  const distortionX = distortionXValue(params);
   return {
-    left: `${(cropLeft / shell.width) * 100}%`,
-    top: `${(cropTop / shell.height) * 100}%`,
-    width: `${(cropWidth / shell.width) * 100}%`,
-    height: `${(cropHeight / shell.height) * 100}%`,
+    ...structuredClone(DEFAULT_ADJUSTMENT_PARAMS),
+    ...params,
+    distortion: distortionX,
+    distortion_x: distortionX,
+    distortion_y: raw.distortion_y ?? DEFAULT_ADJUSTMENT_PARAMS.distortion_y,
+  };
+}
+
+function distortionXValue(params: Partial<AdjustmentParams>): number {
+  if (typeof params.distortion_x === "number" && (params.distortion_x !== 0 || !params.distortion)) {
+    return params.distortion_x;
+  }
+  return params.distortion ?? DEFAULT_ADJUSTMENT_PARAMS.distortion_x;
+}
+
+function syncLegacyDistortion(
+  params: AdjustmentParams,
+  key: NumericAdjustmentKey,
+  value: number,
+): AdjustmentParams {
+  if (key === "distortion" || key === "distortion_x") {
+    return { ...params, distortion: value, distortion_x: value };
+  }
+  return params;
+}
+
+function geometryPreviewStyle(params: AdjustmentParams): CSSProperties {
+  const horizontal = params.distortion_x ?? params.distortion;
+  const vertical = params.distortion_y ?? 0;
+  return {
+    transform: [
+      `perspective(${PREVIEW_PERSPECTIVE_PX}px)`,
+      `rotateX(${vertical * PREVIEW_DISTORTION_DEGREES}deg)`,
+      `rotateY(${-horizontal * PREVIEW_DISTORTION_DEGREES}deg)`,
+      `rotate(${params.rotation}deg)`,
+    ].join(" "),
   };
 }
 

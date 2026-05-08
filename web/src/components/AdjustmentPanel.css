@@ -109,17 +109,21 @@
   place-items: center;
   overflow: hidden;
   touch-action: none;
-  cursor: grab;
+  user-select: none;
 }
 
-.geometry-editor__image-shell:active {
-  cursor: grabbing;
+.geometry-editor__image-layer {
+  position: absolute;
+  transform-origin: center center;
+  transform-style: preserve-3d;
+  will-change: transform;
 }
 
-.geometry-editor__image-shell img {
+.geometry-editor__image-layer img {
   width: 100%;
   height: 100%;
   object-fit: contain;
+  display: block;
 }
 
 .geometry-editor__grid {
@@ -173,12 +177,19 @@
   position: absolute;
   border: 2px solid var(--gold);
   box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.48);
-  pointer-events: none;
+  box-sizing: border-box;
+  touch-action: none;
+  cursor: move;
+}
+
+.geometry-editor__crop:active {
+  cursor: grabbing;
 }
 
 .geometry-editor__crop span {
   position: absolute;
   background: rgba(201, 168, 107, 0.72);
+  pointer-events: none;
 }
 
 .geometry-editor__crop span:nth-child(1),
@@ -205,9 +216,77 @@
   left: 66.666%;
 }
 
+.geometry-editor__handle {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 2px solid var(--gold);
+  border-radius: 999px;
+  background: var(--ink-base);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  touch-action: none;
+}
+
+.geometry-editor__handle--n {
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  cursor: ns-resize;
+}
+
+.geometry-editor__handle--e {
+  top: 50%;
+  right: 0;
+  transform: translate(50%, -50%);
+  cursor: ew-resize;
+}
+
+.geometry-editor__handle--s {
+  bottom: 0;
+  left: 50%;
+  transform: translate(-50%, 50%);
+  cursor: ns-resize;
+}
+
+.geometry-editor__handle--w {
+  top: 50%;
+  left: 0;
+  transform: translate(-50%, -50%);
+  cursor: ew-resize;
+}
+
+.geometry-editor__handle--ne {
+  top: 0;
+  right: 0;
+  transform: translate(50%, -50%);
+  cursor: nesw-resize;
+}
+
+.geometry-editor__handle--se {
+  right: 0;
+  bottom: 0;
+  transform: translate(50%, 50%);
+  cursor: nwse-resize;
+}
+
+.geometry-editor__handle--sw {
+  bottom: 0;
+  left: 0;
+  transform: translate(-50%, 50%);
+  cursor: nesw-resize;
+}
+
+.geometry-editor__handle--nw {
+  top: 0;
+  left: 0;
+  transform: translate(-50%, -50%);
+  cursor: nwse-resize;
+}
+
 .geometry-editor__controls {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: var(--space-3) var(--space-5);
   margin-top: var(--space-4);
   padding-top: var(--space-4);

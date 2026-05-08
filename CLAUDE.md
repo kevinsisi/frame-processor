@@ -55,12 +55,12 @@ docs/        Architecture、ADR、設計筆記
 - `/preview` 支援點選照片同步上方 Before/After；不要再固定第一張 processed sample。
 - 手動調整目前走同步 preview/apply API：`POST /photos/{id}/preview` 回小張 JPEG，`POST /photos/{id}/adjustments` 寫出 `processed_paths.adjusted`。
 - Preview API 必須先把來源縮成小圖再套用手動旋轉/色調/幾何，避免手機原圖每次 preview 卡數十秒；full-resolution render 只屬於按「產生」後的版本輸出。
-- 可對每張照片獨立點按向左/向右 90 度旋轉，並可調整手動水平、裁切縮放/偏移、手動變形修正、曝光、對比、亮部、暗部、色溫、色偏、飽和、自然飽和、清晰度、銳利化與 HSL 六色區。
+- 可對每張照片獨立點按向左/向右 90 度旋轉，並可調整手動水平、裁切縮放/偏移、手動水平/垂直透視修正、曝光、對比、亮部、暗部、色溫、色偏、飽和、自然飽和、清晰度、銳利化與 HSL 六色區。
 - 90 度 orientation 旋轉與所有 slider 調整先存在該照片的 `photo_adjustments.params` 草稿，點按/拖曳後需立即更新 Before/After 原圖側與 live preview 側，且重開網頁要載回草稿。
 - 只有使用者按「產生目前版本」或「產生已選版本」時才建立 `photo_adjustment_versions` 與 `manual-vN.jpg`；單純操作 slider/旋轉不得建立版本。
-- 幾何類操作（水平、裁切、裁切 X/Y、變形修正）需集中在全螢幕單圖構圖工作區，讓使用者看到格線覆蓋並拖曳裁切框，且要有取消/完成語意；不要只散落在一般色彩 slider，也不要用擁擠的雙欄小 modal。
+- 幾何類操作（水平、裁切、裁切 X/Y、水平/垂直透視修正）需集中在全螢幕單圖構圖工作區，讓使用者看到格線覆蓋、拖曳裁切框本體、用邊角 handles 固定比例縮放裁切框，且預覽圖需即時呈現水平校正與透視變形；要有取消/完成語意，不要只散落在一般色彩 slider，也不要用擁擠的雙欄小 modal。
 - 未明確選版本時，Manual adjustment 從非 `adjusted` 的基準圖重新計算，不得把內部 latest adjusted 當來源累加；若使用者在照片卡片版本下拉明確選擇原圖、批次版本或手動 vN，該版本就是後續 preview/apply/download 的來源。
-- 手動水平、裁切、變形修正路徑不得呼叫 Gemini AI；AI level correction 只屬於原本 batch pipeline。
+- 手動水平、裁切、水平/垂直透視修正路徑不得呼叫 Gemini AI；AI level correction 只屬於原本 batch pipeline。
 - 使用者 preset 存在 `adjustment_presets`；單張調整參數存在 `photo_adjustments`。
 - 手動產生版本存在 `photo_adjustment_versions`；照片卡片版本下拉必須可選原圖、pipeline preset、各手動版本，並同步切換卡片圖、上方 Before/After 基準、手動調整來源與下載目標。未手動指定版本時，live preview 預設從原圖套用目前 pipeline 色調選擇；批次處理完成後才自動切到剛產生的 preset 版本。UI 不可暴露 `adjusted`、`latest`、raw preset key 等內部狀態名稱。
 - PipelinePanel 預設值：AI 降噪重度、廣角畸變矯正開啟、Gemini Vision 水平校正開啟、自動裁剪原圖比例；主要「開始產生」動作放在手動微調區塊下方。色調 preset 必須有可見差異，OpenCV fallback 降噪不得弱到使用者在重度模式看不出效果。

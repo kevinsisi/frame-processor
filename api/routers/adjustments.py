@@ -54,6 +54,8 @@ class AdjustmentParams(BaseModel):
     crop_x: float = Field(default=0, ge=-100, le=100)
     crop_y: float = Field(default=0, ge=-100, le=100)
     distortion: float = Field(default=0, ge=-100, le=100)
+    distortion_x: float = Field(default=0, ge=-100, le=100)
+    distortion_y: float = Field(default=0, ge=-100, le=100)
     hsl: dict[str, dict[str, float]] = Field(default_factory=dict)
     source: AdjustmentSource | None = None
     grade_preset: ColorGradePreset | None = None

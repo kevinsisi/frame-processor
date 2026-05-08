@@ -146,6 +146,8 @@ export type AdjustmentParams = {
   crop_x: number;
   crop_y: number;
   distortion: number;
+  distortion_x: number;
+  distortion_y: number;
   hsl: Record<HslColor, HslAdjustment>;
   source?: AdjustmentSource | null;
   grade_preset?: ColorGradePreset | null;

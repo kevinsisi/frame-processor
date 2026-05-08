@@ -11,6 +11,10 @@ from services import color_grade
 
 def normalize_params(params: dict[str, Any] | None) -> dict[str, Any]:
     params = params or {}
+    legacy_distortion = _bounded_float(params.get("distortion"), -100.0, 100.0)
+    distortion_x = _bounded_float(params.get("distortion_x"), -100.0, 100.0)
+    if legacy_distortion and not distortion_x:
+        distortion_x = legacy_distortion
     return {
         "exposure": _bounded_float(params.get("exposure"), -5.0, 5.0),
         "contrast": _bounded_float(params.get("contrast"), -100.0, 100.0),
@@ -27,7 +31,9 @@ def normalize_params(params: dict[str, Any] | None) -> dict[str, Any]:
         "crop_zoom": _bounded_float(params.get("crop_zoom"), 1.0, 3.0),
         "crop_x": _bounded_float(params.get("crop_x"), -100.0, 100.0),
         "crop_y": _bounded_float(params.get("crop_y"), -100.0, 100.0),
-        "distortion": _bounded_float(params.get("distortion"), -100.0, 100.0),
+        "distortion": distortion_x,
+        "distortion_x": distortion_x,
+        "distortion_y": _bounded_float(params.get("distortion_y"), -100.0, 100.0),
         "grade_preset": _normalized_grade_preset(params.get("grade_preset")),
         "hsl": _normalize_hsl(params.get("hsl")),
     }
@@ -67,8 +73,8 @@ def _orientation(image: Image.Image, degrees: int) -> Image.Image:
 
 def _geometry(image: Image.Image, params: dict[str, Any]) -> Image.Image:
     img = image
-    if params["distortion"]:
-        img = _manual_distortion(img, params["distortion"])
+    if params["distortion_x"] or params["distortion_y"]:
+        img = _manual_distortion(img, params["distortion_x"], params["distortion_y"])
     if params["rotation"]:
         img = img.rotate(
             params["rotation"],
@@ -96,13 +102,19 @@ def _manual_crop(image: Image.Image, zoom: float, offset_x: float, offset_y: flo
     )
 
 
-def _manual_distortion(image: Image.Image, amount: float) -> Image.Image:
-    # Lightweight horizontal keystone-style correction for manual lens/shape fixes.
+def _manual_distortion(image: Image.Image, horizontal: float, vertical: float) -> Image.Image:
+    # X-axis correction preserves the legacy single `distortion` trapezoid behavior.
     w, h = image.size
-    shift = (amount / 100) * w * 0.08
+    x_shift = (horizontal / 100) * w * 0.08
+    y_shift = (vertical / 100) * h * 0.08
     coeffs = _perspective_coeffs(
         [(0, 0), (w, 0), (w, h), (0, h)],
-        [(-shift, 0), (w + shift, 0), (w - shift, h), (shift, h)],
+        [
+            (-x_shift, y_shift),
+            (w + x_shift, -y_shift),
+            (w - x_shift, h + y_shift),
+            (x_shift, h - y_shift),
+        ],
     )
     return image.transform(
         (w, h),

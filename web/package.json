@@ -1,7 +1,7 @@
 {
   "name": "frame-processor-web",
   "private": true,
-  "version": "0.3.18",
+  "version": "0.3.19",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,6 +9,7 @@
     "preview": "vite preview --host 0.0.0.0",
     "lint": "eslint . --ext ts,tsx --max-warnings 0",
     "test:time": "node scripts/test-time-format.cjs",
+    "test:geometry": "node scripts/test-geometry-crop.cjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

@@ -35,6 +35,7 @@ web/node_modules/
 web/dist/
 web/.vite/
 web/coverage/
+web/scripts/.geometry-crop-test/
 # tsc -b composite-project artifacts (regenerated locally on every build)
 web/*.tsbuildinfo
 web/vite.config.js

@@ -39,6 +39,7 @@
 - [x] Make live preview render from a resized preview image before manual adjustments so rotation/color changes are immediate.
 - [x] Increase manual warmth/tint feedback enough to be visible in mobile preview.
 - [x] Replace the geometry two-column modal with a full-screen single-photo editor with grid overlay and cancel/done controls.
+- [x] Make the geometry crop frame draggable/resizable and split manual perspective into horizontal/vertical controls with live transform preview.
 - [x] Default pipeline settings to heavy denoise, lens correction on, level correction on, original crop ratio.
 - [x] Move the primary batch start action below the manual adjustment section.
 - [ ] Validate mobile layout on iPhone Safari.

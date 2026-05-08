@@ -18,7 +18,7 @@ v0.2.0 ship 後晴晴實際使用發現：preset + auto-pipeline 出來的結果
 
 1. `white_balance_offset(image, temp, tint)` — 色溫（藍↔黃）+ 色調（綠↔洋紅）偏移
 2. `orientation(image, degrees)` — 每張照片獨立 90 度左/右旋轉，Before/After 原圖側與 preview 側都立即套用
-3. `manual_geometry(image, rotation, crop_zoom, crop_x, crop_y, distortion)` — 手動水平、裁切與變形修正，不呼叫 Gemini AI
+3. `manual_geometry(image, rotation, crop_zoom, crop_x, crop_y, distortion_x, distortion_y)` — 手動水平、裁切與水平/垂直透視修正，不呼叫 Gemini AI；legacy `distortion` payload 映射到 `distortion_x`
 4. `exposure(image, ev)` — ±5 EV 線性增益
 5. `contrast(image, amount)` — S-curve 對比
 6. `highlights_shadows(image, hl, sh, whites, blacks)` — 4 通道 tone curve（Lightroom 風格）
@@ -41,7 +41,7 @@ v0.2.0 ship 後晴晴實際使用發現：preset + auto-pipeline 出來的結果
 - Slider/rotation changes autosave as per-photo draft params in `photo_adjustments`; this does not create output versions.
 - Generate/apply creates immutable manual versions in `photo_adjustment_versions` (`manual-vN.jpg`) and updates `processed_paths.adjusted` to the newest generated version.
 - Photo cards expose version download selection: original, pipeline preset outputs, and manual vN outputs.
-- Geometry controls use a dedicated visual editor window with a crop frame and live preview.
+- Geometry controls use a dedicated visual editor window with a crop frame, drag/resize handles, and live preview of manual rotation plus horizontal/vertical perspective.
 - `POST /adjustment-presets` 儲存 / `GET /adjustment-presets` 列出 / `DELETE /adjustment-presets/{id}`
 
 ### Frontend
@@ -62,7 +62,7 @@ v0.2.0 ship 後晴晴實際使用發現：preset + auto-pipeline 出來的結果
 - Version labels must use user-facing wording, not internal pipeline/state names. Avoid labels such as `adjusted`, `latest`, or raw preset keys.
 - Top Before/After must behave as a large editing workspace. Desktop should prioritize a tall work area; mobile should keep the image area dominant and avoid shrinking into a small strip.
 - Manual color-temperature and tint changes must be visually obvious in the live preview; do not use coefficients so subtle that a full slider move looks unchanged on a phone.
-- Manual geometry is a full-screen single-photo editor, not a cramped two-column modal. It should show one large image, visible crop/level grid guides, direct crop-frame manipulation, bottom controls, and explicit cancel/done actions.
+- Manual geometry is a full-screen single-photo editor, not a cramped two-column modal. It should show one large image, visible crop/level grid guides, direct crop-frame manipulation with fixed-ratio resize handles, bottom controls, live rotation/perspective preview, and explicit cancel/done actions.
 - Batch pipeline defaults are: AI denoise = heavy, wide-angle distortion correction checked, Gemini level correction checked, auto-crop aspect = original unless changed.
 - The batch "開始處理" action belongs below the manual adjustment section, so the workflow reads: choose/edit photo versions → fine tune → then generate/process, instead of burying the primary action inside the upper pipeline settings.
 
@@ -93,7 +93,7 @@ v0.2.0 ship 後晴晴實際使用發現：preset + auto-pipeline 出來的結果
 - Photo card version dropdown changes the visible card image and active editing/download base for that photo.
 - Pipeline defaults are heavy denoise, lens distortion correction on, and level correction on.
 - Primary batch start button is visually placed after the manual adjustment controls.
-- Geometry editing opens as a full-screen single-image workspace with grid overlay guides and cancel/done semantics.
+- Geometry editing opens as a full-screen single-image workspace with grid overlay guides, draggable/resizable crop frame, horizontal/vertical perspective controls, live transform preview, and cancel/done semantics.
 
 ## Open Questions (need decisions before implementation)
 
