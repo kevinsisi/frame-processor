@@ -2,7 +2,7 @@
 
 照片批次後製工具。上傳 N 張 → 選 preset + 處理選項 → 全部一鍵處理 → 下載 zip。
 
-目前狀態：**v0.3.11 shipped — bundled pipeline + settings key import + manual adjustment panel + desktop CI/CD**（NAFNet AI 降噪 / 廣角畸變矯正 / Gemini Vision 水平校正 / YOLOv8 自動裁剪 / Pillow 色調 preset / before-after 對比 / per-photo queue progress / Gemini key 設定頁 / 手動曝光、對比、亮暗部、色溫、色偏、飽和、自然飽和、清晰度、銳利化、HSL 微調與 preset 儲存載入）。已部署至 [frame.sisihome.org](https://frame.sisihome.org)。
+目前狀態：**v0.3.12 shipped — bundled pipeline + settings key import + manual adjustment panel + desktop CI/CD**（NAFNet AI 降噪 / 廣角畸變矯正 / Gemini Vision 水平校正 / YOLOv8 自動裁剪 / Pillow 色調 preset / before-after 對比 / per-photo queue progress / Gemini key 設定頁 / 手動曝光、對比、亮暗部、色溫、色偏、飽和、自然飽和、清晰度、銳利化、HSL 微調與 preset 儲存載入）。已部署至 [frame.sisihome.org](https://frame.sisihome.org)。
 
 ## Quick start
 
@@ -26,7 +26,7 @@ docker compose up -d --build
 `deploy/docker-compose.yml` 從同目錄 `deploy/.env` 讀取（或主機 env 直接 inject）：
 
 ```bash
-GEMINI_API_KEY=xxx          # 水平校正必要（Gemini Vision 估角度）；缺則 level_correct 會 fail
+GEMINI_API_KEY=xxx          # 可選 fallback；DB key pool 優先，兩者都缺才會讓 level_correct fail
 GEMINI_MODEL=gemini-2.5-flash   # 預設值
 SETTINGS_ADMIN_TOKEN=xxx    # /settings 修改金鑰必要；只用於 PUT/DELETE/sync mutation
 KEY_MANAGER_URL=            # 可選；空白代表不啟用 key-manager 同步，直接貼 key 即可
@@ -45,7 +45,7 @@ GitHub Actions 使用 HomeProject two-workflow pattern：
 
 部署前 workflow 會拒絕缺少 `G:/frame-processor/postgres-data`、`G:/frame-processor/storage-data`、`G:/frame-processor/redis-data` 的主機，也會用 `docker compose config` 確認 postgres/storage/redis 都是 G 槽 bind mounts。部署後會用 `docker inspect` 再確認 runtime images 使用該 commit tag 且 mounts 沒有回到 Docker Desktop C 槽 named volumes，最後檢查 `http://100.83.112.20:8533/api/health` 回傳預期 app version。
 
-必要 GitHub secrets：`DOCKERHUB_TOKEN`、`DEPLOY_SSH_KEY`、`DEPLOY_USER`、`TS_OAUTH_CLIENT_ID`、`TS_OAUTH_SECRET`。`DOCKERHUB_USERNAME` 可省略，預設 `kevin950805`。`GEMINI_API_KEY`、`SETTINGS_ADMIN_TOKEN`、`KEY_MANAGER_URL` 可由 GitHub secrets 提供；若未提供，workflow 會保留桌機既有 `deploy/.env` 值並在 merge 後驗證 `GEMINI_API_KEY` 與 `SETTINGS_ADMIN_TOKEN` 仍存在。`KEY_MANAGER_URL` 是 optional；空白代表不啟用 key-manager sync。`GEMINI_MODEL` 由 workflow 固定為 `gemini-2.5-flash`。`SETTINGS_ADMIN_TOKEN` 只進 api/worker runtime env，不 bake 進 static web image；Settings 頁需要修改金鑰時可手動輸入 token。
+必要 GitHub secrets：`DOCKERHUB_TOKEN`、`DEPLOY_SSH_KEY`、`DEPLOY_USER`、`TS_OAUTH_CLIENT_ID`、`TS_OAUTH_SECRET`。`DOCKERHUB_USERNAME` 可省略，預設 `kevin950805`。`GEMINI_API_KEY`、`SETTINGS_ADMIN_TOKEN`、`KEY_MANAGER_URL` 可由 GitHub secrets 提供；若未提供，workflow 會保留桌機既有 `deploy/.env` 值而不是寫入空字串。`GEMINI_API_KEY` 只是 runtime fallback，DB key pool 才是優先來源；CD 不因缺少 fallback key 而阻擋部署。`SETTINGS_ADMIN_TOKEN` merge 後仍必須存在，且只進 api/worker runtime env，不 bake 進 static web image；Settings 頁需要修改金鑰時可手動輸入 token。`KEY_MANAGER_URL` 是 optional；空白代表不啟用 key-manager sync。`GEMINI_MODEL` 由 workflow 固定為 `gemini-2.5-flash`。
 
 ## 開發
 

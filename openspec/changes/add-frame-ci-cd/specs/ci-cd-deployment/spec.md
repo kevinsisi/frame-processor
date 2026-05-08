@@ -86,9 +86,10 @@ The system SHALL keep Gemini model selection, settings admin protection, and key
 - **WHEN** `GEMINI_API_KEY`, `SETTINGS_ADMIN_TOKEN`, or `KEY_MANAGER_URL` are not provided as GitHub Actions secrets
 - **THEN** the deploy workflow keeps the existing desktop `deploy/.env` values instead of replacing them with empty strings
 
-#### Scenario: Required runtime secrets are present after env merge
+#### Scenario: Required runtime secret is present after env merge
 - **WHEN** the deploy workflow merges CI-provided env values with the desktop `deploy/.env`
-- **THEN** deployment fails before Docker Compose if `GEMINI_API_KEY` or `SETTINGS_ADMIN_TOKEN` is missing from the merged env file
+- **THEN** deployment fails before Docker Compose if `SETTINGS_ADMIN_TOKEN` is missing from the merged env file
+- **AND** `GEMINI_API_KEY` remains an optional runtime fallback because the DB key pool is the preferred source
 
 #### Scenario: Settings token is not baked into web image
 - **WHEN** the web Docker image is built for CI/CD or local compose builds

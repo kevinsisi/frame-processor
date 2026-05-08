@@ -18,7 +18,7 @@ The current deploy workflow is a placeholder, so production updates still depend
 - Keep `deploy/docker-compose.yml` usable for local manual `docker compose up --build` while also supporting registry image pull in CD.
 - Make deployment fail before `docker compose up` if the required G drive directories are missing or compose no longer uses G drive bind mounts.
 - Make deployment fail after `docker compose up` if running containers use named volumes or non-G drive mount sources.
-- Keep `GEMINI_MODEL` fixed to `gemini-2.5-flash`, keep settings mutations protected by `SETTINGS_ADMIN_TOKEN`, and keep `KEY_MANAGER_URL` optional.
+- Keep `GEMINI_MODEL` fixed to `gemini-2.5-flash`, keep `GEMINI_API_KEY` as an optional fallback instead of a deploy blocker, keep settings mutations protected by `SETTINGS_ADMIN_TOKEN`, and keep `KEY_MANAGER_URL` optional.
 
 **Non-Goals:**
 
@@ -59,13 +59,13 @@ The deploy workflow writes a host-side `.env` in the deploy directory from GitHu
 - `DOCKERHUB_USERNAME`
 - `IMAGE_TAG=<workflow_run.head_sha>` for automatic deploys
 - `GEMINI_MODEL=gemini-2.5-flash`
-- `GEMINI_API_KEY`
+- `GEMINI_API_KEY` optional fallback
 - `SETTINGS_ADMIN_TOKEN`
 - `KEY_MANAGER_URL` optional
 
 The web image is built with `VITE_API_BASE_URL=/api`. The settings admin token remains a backend runtime secret; users can type it into the Settings page when needed instead of baking the token into the static web image.
 
-Alternative considered: keep relying on the desktop's manually maintained `.env`. That avoids moving secrets through GitHub Actions, but it keeps production deployment non-reproducible and lets stale local `.env` state silently control releases.
+Alternative considered: keep requiring `GEMINI_API_KEY` in GitHub secrets or desktop `.env`. That overfits deployment to an optional fallback secret even though the DB key pool is the preferred runtime key source.
 
 ### Volume guards
 
@@ -83,7 +83,7 @@ Alternative considered: string search the compose file only. That catches obviou
 
 ## Risks / Trade-offs
 
-- Missing GitHub secrets block deployment -> fail fast with explicit required secret validation before writing `.env`.
+- Missing required GitHub secrets block deployment -> fail fast with explicit required secret validation before writing `.env`; optional runtime fallbacks such as `GEMINI_API_KEY` must not block deployment.
 - Docker Compose JSON output may vary by version -> keep validation focused on stable `services.*.volumes` fields and fail closed if parsing fails.
 - Windows/Docker Desktop may report bind mount sources as Linux VM paths -> normalize known Docker Desktop host mount prefixes before comparing.
 - The first api image build is heavy because it installs torch/ultralytics -> use GitHub Actions build cache and publish only amd64 for the desktop target.

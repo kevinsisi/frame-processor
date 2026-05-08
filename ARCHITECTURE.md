@@ -222,7 +222,7 @@ FE ──GET /photos/{id}/file?variant=processed&preset=...──▶ API ── 
 
 - YOLOv8n：lazy download，Ultralytics 自動寫到 `ULTRALYTICS_DIR=/data/models-weights/ultralytics/`
 - NAFNet-SIDD-width32：lazy download from HuggingFace mirror，寫到 `NAFNET_DIR=/data/models-weights/nafnet/NAFNet-SIDD-width32.pth`
-- Gemini Vision：呼叫 Google AI Studio API，需 `GEMINI_API_KEY` env
+- Gemini Vision：呼叫 Google AI Studio API，優先使用 DB key pool；`GEMINI_API_KEY` env 只是 fallback
 
 ## 容器拓樸（dev）
 
@@ -238,13 +238,13 @@ FE ──GET /photos/{id}/file?variant=processed&preset=...──▶ API ── 
 
 prod 多接一層 reverse proxy（Cloudflare Tunnel 或 Caddy），參見部署 ADR（v1.0 寫）。
 
-## CI/CD（v0.3.11+）
+## CI/CD（v0.3.12+）
 
 `.github/workflows/ci.yml`：backend ruff + `python -m pytest tests` + import smoke + alembic offline check、frontend typecheck/build、api/web Docker build validation。
 
 `.github/workflows/docker-publish.yml`：push `main` 或手動 dispatch 時 build/push `kevin950805/frame-processor-api:<commit-sha>`、`kevin950805/frame-processor-web:<commit-sha>`，並更新 `latest` alias。worker 服務重用 api image，僅用不同 command 啟動 RQ worker。
 
-`.github/workflows/deploy-dev.yml`：Docker publish 成功後透過 Tailscale network + Windows OpenSSH Server 部署到 Windows desktop `100.83.112.20`。Workflow 會複製 `deploy/docker-compose.yml` 到 `D:/GitClone/_HomeProject/frame-processor/deploy/docker-compose.yml`，寫 host-side `deploy/.env` 的 commit SHA image tag，驗證 `G:/frame-processor/{postgres-data,storage-data,redis-data}` 皆存在且 compose/runtime mounts 都是 G 槽 bind mounts，再執行 `docker compose pull && docker compose up -d`，確認 runtime images 使用該 commit tag，並檢查 `http://100.83.112.20:8533/api/health` 回傳預期 app version。
+`.github/workflows/deploy-dev.yml`：Docker publish 成功後透過 Tailscale network + Windows OpenSSH Server 部署到 Windows desktop `100.83.112.20`。Workflow 會複製 `deploy/docker-compose.yml` 到 `D:/GitClone/_HomeProject/frame-processor/deploy/docker-compose.yml`，寫 host-side `deploy/.env` 的 commit SHA image tag，保留未由 GitHub secrets 提供的既有 runtime secrets，驗證 `SETTINGS_ADMIN_TOKEN` 仍存在，驗證 `G:/frame-processor/{postgres-data,storage-data,redis-data}` 皆存在且 compose/runtime mounts 都是 G 槽 bind mounts，再執行 `docker compose pull && docker compose up -d`，確認 runtime images 使用該 commit tag，並檢查 `http://100.83.112.20:8533/api/health` 回傳預期 app version。`GEMINI_API_KEY` 不再是 deploy blocker；它只是 DB key pool 之外的 runtime fallback。
 
 ## 後續演進指引
 

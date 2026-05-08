@@ -16,6 +16,8 @@ venv/
 # Env
 .env
 .env.local
+deploy/.env.ci
+deploy/merge-frame-env.ps1
 
 # Storage / data
 data/
