@@ -21,7 +21,7 @@ on:
 
 env:
   DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME || 'kevin950805' }}
-  IMAGE_TAG: latest
+  IMAGE_TAG: ${{ github.sha }}
 
 jobs:
   build-and-push:
@@ -73,7 +73,9 @@ jobs:
           file: ${{ matrix.file }}
           platforms: linux/amd64
           push: true
-          tags: ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.image }}:${{ env.IMAGE_TAG }}
+          tags: |
+            ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.image }}:${{ env.IMAGE_TAG }}
+            ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.image }}:latest
           build-args: ${{ matrix.build-args }}
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
@@ -84,3 +86,4 @@ jobs:
           echo "## Docker Image Published" >> "$GITHUB_STEP_SUMMARY"
           echo "- Service: \`${{ matrix.service }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Image: \`${{ env.DOCKERHUB_USERNAME }}/${{ matrix.image }}:${{ env.IMAGE_TAG }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Latest alias: \`${{ env.DOCKERHUB_USERNAME }}/${{ matrix.image }}:latest\`" >> "$GITHUB_STEP_SUMMARY"

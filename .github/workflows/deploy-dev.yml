@@ -11,10 +11,10 @@ env:
   DEPLOY_SERVER_IP: 100.83.112.20
   DEPLOY_PATH: D:/GitClone/_HomeProject/frame-processor/deploy
   DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME || 'kevin950805' }}
-  IMAGE_TAG: latest
+  IMAGE_TAG: ${{ github.event.workflow_run.head_sha || github.sha }}
   GEMINI_MODEL: gemini-2.5-flash
   HEALTH_URL: http://100.83.112.20:8533/api/health
-  EXPECTED_APP_VERSION: "0.3.8"
+  EXPECTED_APP_VERSION: "0.3.9"
   EXPECTED_POSTGRES_DIR: G:/frame-processor/postgres-data
   EXPECTED_STORAGE_DIR: G:/frame-processor/storage-data
   EXPECTED_REDIS_DIR: G:/frame-processor/redis-data
@@ -218,7 +218,7 @@ jobs:
             docker compose --env-file .env -f docker-compose.yml ps
           \""
 
-      - name: Verify running G drive mounts
+      - name: Verify running images and G drive mounts
         env:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
         run: |
@@ -253,6 +253,21 @@ jobs:
               if (\$actualSource -like '*/var/lib/docker/volumes/*') { throw ('Container ' + \$Container + ' uses Docker named volume storage: ' + \$actualSource) }
               if (\$actualSource -ne \$expectedSource) { throw ('Container ' + \$Container + ' mount ' + \$Destination + ' must use ' + \$expectedSource + ', got ' + \$actualSource) }
             }
+
+            function Assert-ContainerImage([string]\$Container, [string]\$ExpectedImage) {
+              \$inspectJson = docker inspect \$Container
+              if (\$LASTEXITCODE -ne 0) { throw ('docker inspect failed for ' + \$Container) }
+              \$inspect = (\$inspectJson -join [Environment]::NewLine) | ConvertFrom-Json
+              \$containerInfo = @(\$inspect)[0]
+              \$actualImage = [string]\$containerInfo.Config.Image
+              if (\$actualImage -ne \$ExpectedImage) { throw ('Container ' + \$Container + ' must use image ' + \$ExpectedImage + ', got ' + \$actualImage) }
+            }
+
+            \$expectedApiImage = '${DOCKERHUB_USERNAME}/frame-processor-api:${IMAGE_TAG}'
+            \$expectedWebImage = '${DOCKERHUB_USERNAME}/frame-processor-web:${IMAGE_TAG}'
+            Assert-ContainerImage 'frame-processor-api-1' \$expectedApiImage
+            Assert-ContainerImage 'frame-processor-worker-1' \$expectedApiImage
+            Assert-ContainerImage 'frame-processor-web-1' \$expectedWebImage
 
             Assert-ContainerBind 'frame-processor-postgres-1' '/var/lib/postgresql/data' '${EXPECTED_POSTGRES_DIR}'
             Assert-ContainerBind 'frame-processor-redis-1' '/data' '${EXPECTED_REDIS_DIR}'

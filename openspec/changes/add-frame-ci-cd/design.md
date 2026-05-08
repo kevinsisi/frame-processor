@@ -33,8 +33,8 @@ The current deploy workflow is a placeholder, so production updates still depend
 
 Publish two images to Docker Hub:
 
-- `kevin950805/frame-processor-api:latest`
-- `kevin950805/frame-processor-web:latest`
+- `kevin950805/frame-processor-api:<commit-sha>` plus `latest`
+- `kevin950805/frame-processor-web:<commit-sha>` plus `latest`
 
 The `worker` compose service uses the api image with a different command. This avoids rebuilding the same Python image twice and keeps the worker dependency set identical to api.
 
@@ -57,7 +57,7 @@ Alternative considered: copy compose to the repo root. That would diverge from t
 The deploy workflow writes a host-side `.env` in the deploy directory from GitHub Actions secrets and constants:
 
 - `DOCKERHUB_USERNAME`
-- `IMAGE_TAG=latest`
+- `IMAGE_TAG=<workflow_run.head_sha>` for automatic deploys
 - `GEMINI_MODEL=gemini-2.5-flash`
 - `GEMINI_API_KEY`
 - `SETTINGS_ADMIN_TOKEN`

@@ -1,2 +1,2 @@
-// v0.3.8 - force production compose to use published images.
-export const APP_VERSION = "0.3.8";
+// v0.3.9 - deploy immutable Docker image tags.
+export const APP_VERSION = "0.3.9";

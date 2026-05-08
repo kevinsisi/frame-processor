@@ -5,7 +5,7 @@ The system SHALL publish Docker images for `frame-processor-api` and `frame-proc
 
 #### Scenario: Main branch image publish
 - **WHEN** changes are pushed to `main` for application code, Dockerfiles, compose, or CI/CD workflows
-- **THEN** GitHub Actions builds `linux/amd64` images for api and web and pushes them to Docker Hub with tag `latest`
+- **THEN** GitHub Actions builds `linux/amd64` images for api and web and pushes them to Docker Hub with the commit SHA tag plus a `latest` alias
 
 #### Scenario: Worker uses api image
 - **WHEN** production compose resolves the worker service image
@@ -43,7 +43,7 @@ The system SHALL deploy to the Windows desktop at `100.83.112.20` by copying the
 
 #### Scenario: Deploy workflow applies published images
 - **WHEN** compose has been copied and pre-deploy guards pass
-- **THEN** the workflow pulls published images and force-recreates api, worker, and web without local builds
+- **THEN** the workflow pulls the published commit SHA images and force-recreates api, worker, and web without local builds
 
 ### Requirement: Deployment fails closed when G drive data paths are unsafe
 The system SHALL refuse to deploy before `docker compose up` if required G drive persistent data directories are missing or if compose does not resolve postgres, redis, api, and worker storage as G drive bind mounts.
@@ -57,7 +57,7 @@ The system SHALL refuse to deploy before `docker compose up` if required G drive
 - **THEN** the deploy workflow fails before running `docker compose up`
 
 ### Requirement: Deployment verifies runtime mounts and health
-The system SHALL verify running container mounts and the web-proxied health endpoint after deployment.
+The system SHALL verify running container images, mounts, and the web-proxied health endpoint after deployment.
 
 #### Scenario: Runtime mount verification succeeds
 - **WHEN** `docker compose up -d` completes
