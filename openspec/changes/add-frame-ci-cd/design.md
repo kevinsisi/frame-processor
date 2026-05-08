@@ -93,6 +93,7 @@ Alternative considered: string search the compose file only. That catches obviou
 - Docker Compose JSON output may vary by version -> keep validation focused on stable `services.*.volumes` fields and fail closed if parsing fails.
 - Windows/Docker Desktop may report bind mount sources as Linux VM paths -> normalize known Docker Desktop host mount prefixes before comparing.
 - Multiline remote shell parsing can skip intended Docker commands -> upload PowerShell scripts and execute script files instead of relying on inline multiline SSH strings.
+- Windows SSH sessions may not have an interactive Docker credential-helper logon session -> set a temporary empty `DOCKER_CONFIG` for deploy pulls so public image pulls do not invoke the desktop credential helper.
 - The first api image build is heavy because it installs torch/ultralytics -> use GitHub Actions build cache and publish only amd64 for the desktop target.
 - Web image cannot receive runtime env after build -> do not bake `SETTINGS_ADMIN_TOKEN`; keep the Settings page manual-token path for admin mutations.
 

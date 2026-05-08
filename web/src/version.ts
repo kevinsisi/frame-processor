@@ -1,2 +1,2 @@
-// v0.3.13 - execute desktop Docker deploy and guards through uploaded scripts.
-export const APP_VERSION = "0.3.13";
+// v0.3.14 - avoid Docker credential helper in SSH deploy pulls.
+export const APP_VERSION = "0.3.14";
