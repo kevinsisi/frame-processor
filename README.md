@@ -18,6 +18,9 @@ docker compose up -d --build
 
 > alembic migration 由 api container 啟動時自動跑（`alembic upgrade head` 寫死在 entrypoint）。
 
+> Production on `kevinhome` stores persistent Docker data under `G:\frame-processor\` (`postgres-data`, `storage-data`, `redis-data`) to avoid filling the C drive.
+> For migration or disaster recovery, create these directories first and copy the existing Docker volume contents into them before starting the stack; starting with empty directories creates an empty PostgreSQL/storage state.
+
 ### 必要環境變數
 
 `deploy/docker-compose.yml` 從同目錄 `deploy/.env` 讀取（或主機 env 直接 inject）：

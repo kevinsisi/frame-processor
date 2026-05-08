@@ -8,7 +8,9 @@ services:
       POSTGRES_PASSWORD: frame
       POSTGRES_DB: frame_processor
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - type: bind
+        source: G:/frame-processor/postgres-data
+        target: /var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U frame -d frame_processor"]
       interval: 5s
@@ -17,6 +19,10 @@ services:
 
   redis:
     image: redis:7-alpine
+    volumes:
+      - type: bind
+        source: G:/frame-processor/redis-data
+        target: /data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -46,7 +52,9 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - storage-data:/data
+      - type: bind
+        source: G:/frame-processor/storage-data
+        target: /data
     command: ["sh", "-c", "alembic upgrade head && uvicorn api.main:app --host 0.0.0.0 --port 8000"]
 
   worker:
@@ -70,7 +78,9 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - storage-data:/data
+      - type: bind
+        source: G:/frame-processor/storage-data
+        target: /data
     command: ["python", "-m", "worker.main"]
 
   web:
@@ -85,6 +95,3 @@ services:
     depends_on:
       - api
 
-volumes:
-  postgres-data:
-  storage-data:

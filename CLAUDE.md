@@ -32,6 +32,7 @@ docs/        Architecture、ADR、設計筆記
 正式環境：`https://frame.sisihome.org`
 
 - 桌機（Tailscale `100.83.112.20`）跑 Docker Compose stack：`docker compose -f deploy/docker-compose.yml up -d`
+- 持久資料已從 Docker Desktop named volumes 遷到 `G:\frame-processor\` bind mounts：`postgres-data`、`storage-data`、`redis-data`。不要改回 named volumes；C 槽空間不足，舊 C 上 named volumes 只作為遷移後暫存備援，未確認前不要刪。若重建或換機，必須先建立這三個目錄並把既有 volume 內容複製進去再啟動；空目錄會啟動成空 DB/storage。
 - 唯一對外 port 是 web container 的 `100.83.112.20:8533`（nginx）— api/postgres/redis 不外露；api debug 用 `127.0.0.1:8633`
 - web container 的 nginx 把 `/api/*` reverse proxy 到 `api:8000/*`（剝掉 `/api`），所以前端走同源
 - 前端 build 時 `VITE_API_BASE_URL=/api`（在 `deploy/docker-compose.yml`）
@@ -42,7 +43,7 @@ docs/        Architecture、ADR、設計筆記
 ### v0.2.0 處理 pipeline 必要條件
 
 - `GEMINI_API_KEY` env 是水平校正的 deploy fallback；v0.2.2 起也可在 `/settings` 批次匯入 Gemini keys，DB key pool 會優先於 env，無任何 key 則 level_correct step 會 fail。使用 `docker compose -f deploy/docker-compose.yml` 時，deploy host 應在 `deploy/.env` 放至少一把 fallback key（compose 自動讀，注入 api + worker container）。`/settings` 的 PUT/DELETE/sync mutation 需要 `SETTINGS_ADMIN_TOKEN`。key-manager 不是本系統依賴；只有明確設定後端 `KEY_MANAGER_URL` 時才啟用可選同步入口，不接受前端任意 URL。
-- 模型權重 lazy download 寫到 `storage-data` volume 的 `models-weights/{ultralytics,nafnet}/`；首次處理會下載 ~70MB（NAFNet）+ 6MB（YOLO），之後跨 container restart cached
+- 模型權重 lazy download 寫到 `G:\frame-processor\storage-data\models-weights\{ultralytics,nafnet}`；首次處理會下載 ~70MB（NAFNet）+ 6MB（YOLO），之後跨 container restart cached
 - worker image build 會拉 CPU-only torch wheel（避免 CUDA 多 GB），有 GPU 也只在 `torch.cuda.is_available()` 為 true 時自動用
 - pipeline 順序固定 `denoise → lens_distort → level → crop → grade`，理由見 `ARCHITECTURE.md` § Pipeline 順序
 
