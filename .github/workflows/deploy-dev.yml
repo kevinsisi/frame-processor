@@ -14,7 +14,7 @@ env:
   IMAGE_TAG: ${{ github.event.workflow_run.head_sha || github.sha }}
   GEMINI_MODEL: gemini-2.5-flash
   HEALTH_URL: http://100.83.112.20:8533/api/health
-  EXPECTED_APP_VERSION: "0.3.14"
+  EXPECTED_APP_VERSION: "0.3.15"
   EXPECTED_POSTGRES_DIR: G:/frame-processor/postgres-data
   EXPECTED_STORAGE_DIR: G:/frame-processor/storage-data
   EXPECTED_REDIS_DIR: G:/frame-processor/redis-data
@@ -242,13 +242,12 @@ jobs:
           $dockerConfig = Join-Path $env:TEMP 'frame-processor-docker-config'
           New-Item -ItemType Directory -Force -Path $dockerConfig | Out-Null
           [System.IO.File]::WriteAllText((Join-Path $dockerConfig 'config.json'), '{}', [System.Text.UTF8Encoding]::new($false))
-          $env:DOCKER_CONFIG = $dockerConfig
 
-          docker compose --env-file .env -f docker-compose.yml pull --policy always postgres redis api worker web
+          docker --config $dockerConfig compose --env-file .env -f docker-compose.yml pull --policy always postgres redis api worker web
           if ($LASTEXITCODE -ne 0) { throw 'docker compose pull failed.' }
-          docker compose --env-file .env -f docker-compose.yml up -d --pull always --force-recreate --no-build --remove-orphans postgres redis api worker web
+          docker --config $dockerConfig compose --env-file .env -f docker-compose.yml up -d --pull always --force-recreate --no-build --remove-orphans postgres redis api worker web
           if ($LASTEXITCODE -ne 0) { throw 'docker compose up failed.' }
-          docker compose --env-file .env -f docker-compose.yml ps
+          docker --config $dockerConfig compose --env-file .env -f docker-compose.yml ps
           PS1
           scp -i ~/.ssh/deploy_key deploy-frame-compose.ps1 "${DEPLOY_USER}@${DEPLOY_SERVER_IP}:${DEPLOY_PATH}/deploy-frame-compose.ps1"
           ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_SERVER_IP}" \

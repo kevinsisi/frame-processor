@@ -44,7 +44,7 @@ The system SHALL deploy to the Windows desktop at `100.83.112.20` by copying the
 #### Scenario: Deploy workflow applies published images
 - **WHEN** compose has been copied and pre-deploy guards pass
 - **THEN** the workflow pulls the published commit SHA images and force-recreates api, worker, and web without local builds
-- **AND** desktop pulls use a temporary `DOCKER_CONFIG` that does not invoke the Windows Docker credential helper
+- **AND** desktop pulls use `docker --config <temp-dir>` with an empty config that does not invoke the Windows Docker credential helper
 
 #### Scenario: Remote Docker commands execute through script files
 - **WHEN** the workflow runs desktop pre-deploy guards, Docker Compose deployment, or runtime verification over SSH
