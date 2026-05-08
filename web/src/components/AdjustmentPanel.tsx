@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { CSSProperties } from "react";
 
 import type { AdjustmentParams, AdjustmentPreset, HslColor } from "@/types";
@@ -46,7 +46,6 @@ type Props = {
   params: AdjustmentParams;
   presets: AdjustmentPreset[];
   geometryBaseUrl: string;
-  geometryPreviewUrl: string;
   busy: boolean;
   onChange: (params: AdjustmentParams) => void;
   onApplyCurrent: () => void;
@@ -59,11 +58,12 @@ type Props = {
   onRotateRight: () => void;
 };
 
+type NumericAdjustmentKey = keyof Omit<AdjustmentParams, "hsl" | "source">;
+
 export function AdjustmentPanel({
   params,
   presets,
   geometryBaseUrl,
-  geometryPreviewUrl,
   busy,
   onChange,
   onApplyCurrent,
@@ -76,10 +76,10 @@ export function AdjustmentPanel({
   onRotateRight,
 }: Props) {
   const [geometryOpen, setGeometryOpen] = useState(false);
-  const setValue = (key: keyof Omit<AdjustmentParams, "hsl">, value: number) => {
+  const setValue = (key: NumericAdjustmentKey, value: number) => {
     onChange({ ...params, [key]: value });
   };
-  const resetValue = (key: keyof Omit<AdjustmentParams, "hsl">) => {
+  const resetValue = (key: NumericAdjustmentKey) => {
     onChange({ ...params, [key]: DEFAULT_ADJUSTMENT_PARAMS[key] });
   };
   const setHsl = (
@@ -181,11 +181,12 @@ export function AdjustmentPanel({
         <GeometryEditor
           params={params}
           baseUrl={geometryBaseUrl}
-          previewUrl={geometryPreviewUrl}
           busy={busy}
           onClose={() => setGeometryOpen(false)}
-          onSetValue={setValue}
-          onResetValue={resetValue}
+          onApply={(next) => {
+            onChange(next);
+            setGeometryOpen(false);
+          }}
         />
       )}
 
@@ -232,59 +233,103 @@ export function AdjustmentPanel({
 function GeometryEditor({
   params,
   baseUrl,
-  previewUrl,
   busy,
   onClose,
-  onSetValue,
-  onResetValue,
+  onApply,
 }: {
   params: AdjustmentParams;
   baseUrl: string;
-  previewUrl: string;
   busy: boolean;
   onClose: () => void;
-  onSetValue: (key: keyof Omit<AdjustmentParams, "hsl">, value: number) => void;
-  onResetValue: (key: keyof Omit<AdjustmentParams, "hsl">) => void;
+  onApply: (params: AdjustmentParams) => void;
 }) {
-  const crop = cropFrame(params.crop_zoom, params.crop_x, params.crop_y);
+  const [draft, setDraft] = useState(params);
+  const shellRef = useRef<HTMLDivElement | null>(null);
+  const draggingRef = useRef(false);
+  const crop = cropFrame(draft.crop_zoom, draft.crop_x, draft.crop_y);
+  const setValue = (key: NumericAdjustmentKey, value: number) => {
+    setDraft((current) => ({ ...current, [key]: value }));
+  };
+  const resetValue = (key: NumericAdjustmentKey) => {
+    setValue(key, DEFAULT_ADJUSTMENT_PARAMS[key]);
+  };
+  const moveCropToPointer = (clientX: number, clientY: number) => {
+    const shell = shellRef.current;
+    if (!shell) return;
+    const rect = shell.getBoundingClientRect();
+    const zoom = Math.max(1, draft.crop_zoom);
+    const cropWidth = 100 / zoom;
+    const cropHeight = 100 / zoom;
+    const maxLeft = 100 - cropWidth;
+    const maxTop = 100 - cropHeight;
+    if (maxLeft <= 0 && maxTop <= 0) return;
+    const pointerX = ((clientX - rect.left) / rect.width) * 100;
+    const pointerY = ((clientY - rect.top) / rect.height) * 100;
+    const left = Math.max(0, Math.min(maxLeft, pointerX - cropWidth / 2));
+    const top = Math.max(0, Math.min(maxTop, pointerY - cropHeight / 2));
+    const cropX = maxLeft > 0 ? ((left - maxLeft / 2) / (maxLeft / 2)) * 100 : 0;
+    const cropY = maxTop > 0 ? ((top - maxTop / 2) / (maxTop / 2)) * 100 : 0;
+    setDraft((current) => ({
+      ...current,
+      crop_x: Number(cropX.toFixed(1)),
+      crop_y: Number(cropY.toFixed(1)),
+    }));
+  };
   return (
     <div className="geometry-editor" role="dialog" aria-modal="true" aria-label="構圖與幾何調整">
       <div className="geometry-editor__panel">
         <header className="geometry-editor__head">
           <div>
             <strong>構圖 / 幾何調整</strong>
-            <span className="mono">即時裁切框與處理預覽</span>
+            <span className="mono">拖曳裁切框，完成後套用到目前照片</span>
           </div>
-          <button type="button" className="cta cta--quiet" onClick={onClose}>關閉</button>
+          <div className="geometry-editor__head-actions">
+            <button type="button" className="cta cta--quiet" onClick={onClose}>取消</button>
+            <button type="button" className="cta cta--primary" onClick={() => onApply(draft)}>完成</button>
+          </div>
         </header>
 
         <div className="geometry-editor__stage">
-          <figure className="geometry-editor__figure">
-            <figcaption className="mono">裁切範圍</figcaption>
-            <div className="geometry-editor__image-shell">
-              <img src={baseUrl} alt="裁切基準" />
-              <div className="geometry-editor__crop" style={crop}>
-                <span />
-                <span />
-                <span />
-                <span />
-              </div>
+          <div
+            ref={shellRef}
+            className="geometry-editor__image-shell"
+            onPointerDown={(event) => {
+              draggingRef.current = true;
+              event.currentTarget.setPointerCapture(event.pointerId);
+              moveCropToPointer(event.clientX, event.clientY);
+            }}
+            onPointerMove={(event) => {
+              if (draggingRef.current) moveCropToPointer(event.clientX, event.clientY);
+            }}
+            onPointerUp={(event) => {
+              draggingRef.current = false;
+              event.currentTarget.releasePointerCapture(event.pointerId);
+            }}
+            onPointerCancel={() => {
+              draggingRef.current = false;
+            }}
+          >
+            <img src={baseUrl} alt="構圖基準" />
+            <div className="geometry-editor__grid" aria-hidden>
+              {Array.from({ length: 9 }).map((_, index) => (
+                <span key={index} />
+              ))}
             </div>
-          </figure>
-          <figure className="geometry-editor__figure">
-            <figcaption className="mono">Live preview</figcaption>
-            <div className="geometry-editor__image-shell">
-              <img src={previewUrl} alt="幾何調整預覽" />
+            <div className="geometry-editor__crop" style={crop}>
+              <span />
+              <span />
+              <span />
+              <span />
             </div>
-          </figure>
+          </div>
         </div>
 
         <div className="geometry-editor__controls">
-          <Slider label="水平" value={params.rotation} defaultValue={DEFAULT_ADJUSTMENT_PARAMS.rotation} min={-45} max={45} step={0.1} onChange={(v) => onSetValue("rotation", v)} onReset={() => onResetValue("rotation")} />
-          <Slider label="裁切" value={params.crop_zoom} defaultValue={DEFAULT_ADJUSTMENT_PARAMS.crop_zoom} min={1} max={3} step={0.01} onChange={(v) => onSetValue("crop_zoom", v)} onReset={() => onResetValue("crop_zoom")} />
-          <Slider label="裁切 X" value={params.crop_x} defaultValue={DEFAULT_ADJUSTMENT_PARAMS.crop_x} onChange={(v) => onSetValue("crop_x", v)} onReset={() => onResetValue("crop_x")} />
-          <Slider label="裁切 Y" value={params.crop_y} defaultValue={DEFAULT_ADJUSTMENT_PARAMS.crop_y} onChange={(v) => onSetValue("crop_y", v)} onReset={() => onResetValue("crop_y")} />
-          <Slider label="變形修正" value={params.distortion} defaultValue={DEFAULT_ADJUSTMENT_PARAMS.distortion} onChange={(v) => onSetValue("distortion", v)} onReset={() => onResetValue("distortion")} />
+          <Slider label="水平" value={draft.rotation} defaultValue={DEFAULT_ADJUSTMENT_PARAMS.rotation} min={-45} max={45} step={0.1} onChange={(v) => setValue("rotation", v)} onReset={() => resetValue("rotation")} />
+          <Slider label="裁切" value={draft.crop_zoom} defaultValue={DEFAULT_ADJUSTMENT_PARAMS.crop_zoom} min={1} max={3} step={0.01} onChange={(v) => setValue("crop_zoom", v)} onReset={() => resetValue("crop_zoom")} />
+          <Slider label="裁切 X" value={draft.crop_x} defaultValue={DEFAULT_ADJUSTMENT_PARAMS.crop_x} onChange={(v) => setValue("crop_x", v)} onReset={() => resetValue("crop_x")} />
+          <Slider label="裁切 Y" value={draft.crop_y} defaultValue={DEFAULT_ADJUSTMENT_PARAMS.crop_y} onChange={(v) => setValue("crop_y", v)} onReset={() => resetValue("crop_y")} />
+          <Slider label="變形修正" value={draft.distortion} defaultValue={DEFAULT_ADJUSTMENT_PARAMS.distortion} onChange={(v) => setValue("distortion", v)} onReset={() => resetValue("distortion")} />
         </div>
         {busy && <p className="geometry-editor__busy mono">正在產生版本...</p>}
       </div>

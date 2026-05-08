@@ -74,8 +74,8 @@
 
 範圍（第一版已部署，持續收斂）：
 - `services/adjustments.py`：每張照片獨立 90 度 orientation 旋轉 / 手動水平 / 裁切縮放與偏移 / 手動變形修正 / 曝光 / 對比 / 亮部 / 暗部 / 色溫 / 色偏 / 飽和 / 自然飽和 / 清晰度 / 銳利化 / HSL × 6 色
-- `photo_adjustments` 保存草稿；`photo_adjustment_versions` 保存使用者按「產生」後的手動版本，照片卡片可選版本下載
-- 幾何操作走可視化構圖視窗，顯示裁切框與 live preview
+- `photo_adjustments` 保存草稿；`photo_adjustment_versions` 保存使用者按「產生」後的手動版本，照片卡片版本下拉會切換卡片圖、Before/After 基準、調整來源與下載目標
+- 幾何操作走全螢幕單圖構圖工作區，顯示水平比對格線、可拖曳裁切框並提供取消/完成
 - `models/adjustment_preset.py` + `models/photo_adjustment.py` + alembic `0004_adjustment_panel`
 - API：`POST /photos/{id}/adjustments`、`POST /photos/{id}/preview` (live 同步)、`POST /projects/{id}/adjustments/apply` worker batch、preset CRUD
 - FE：`AdjustmentPanel` + 即時 preview slider + preset save/load/delete + 點照片同步上方 Before/After + 單張 processed download

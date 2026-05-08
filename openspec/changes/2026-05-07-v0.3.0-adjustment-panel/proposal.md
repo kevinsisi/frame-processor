@@ -55,6 +55,15 @@ v0.2.0 ship 後晴晴實際使用發現：preset + auto-pipeline 出來的結果
 - 每張照片卡片提供「下載處理後」單張下載；批次 zip 仍保留
 - `showroom_white` 必須是中性 / 偏冷白，不可比原圖更暖
 
+### Confirmed UX Revision (2026-05-08)
+
+- Photo card version selector is not only a download selector. Selecting a version changes the displayed tile image, the top Before/After source, the manual adjustment base, and the single-photo download target for that photo.
+- Version labels must use user-facing wording, not internal pipeline/state names. Avoid labels such as `adjusted`, `latest`, or raw preset keys.
+- Top Before/After must behave as a large editing workspace. Desktop should prioritize a tall work area; mobile should keep the image area dominant and avoid shrinking into a small strip.
+- Manual geometry is a full-screen single-photo editor, not a cramped two-column modal. It should show one large image, visible crop/level grid guides, direct crop-frame manipulation, bottom controls, and explicit cancel/done actions.
+- Batch pipeline defaults are: AI denoise = heavy, wide-angle distortion correction checked, Gemini level correction checked, auto-crop aspect = original unless changed.
+- The batch "開始處理" action belongs below the manual adjustment section, so the workflow reads: choose/edit photo versions → fine tune → then generate/process, instead of burying the primary action inside the upper pipeline settings.
+
 ### DB migration `0004_adjustment_panel.py`
 
 新增 `photo_adjustments` + `adjustment_presets` 表；`Photo.processed_paths` 加 `"adjusted"` key 存最終手動調整輸出路徑。
@@ -79,6 +88,10 @@ v0.2.0 ship 後晴晴實際使用發現：preset + auto-pipeline 出來的結果
 - 使用者可先套用到全部，再切單張做獨立微調；單張 override 不影響其他照片
 - 套用過的 photo 在 PhotoGrid 上有「已調整」mark
 - export zip 優先用 adjusted（若無）→ preset processed → 原圖
+- Photo card version dropdown changes the visible card image and active editing/download base for that photo.
+- Pipeline defaults are heavy denoise, lens distortion correction on, and level correction on.
+- Primary batch start button is visually placed after the manual adjustment controls.
+- Geometry editing opens as a full-screen single-image workspace with grid overlay guides and cancel/done semantics.
 
 ## Open Questions (need decisions before implementation)
 

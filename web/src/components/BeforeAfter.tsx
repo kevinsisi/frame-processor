@@ -10,7 +10,6 @@ export interface BeforeAfterProps {
 
 export function BeforeAfter({ beforeUrl, afterUrl, alt }: BeforeAfterProps) {
   const [percent, setPercent] = useState(50);
-  const [aspectRatio, setAspectRatio] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const draggingRef = useRef(false);
 
@@ -44,7 +43,6 @@ export function BeforeAfter({ beforeUrl, afterUrl, alt }: BeforeAfterProps) {
       ref={containerRef}
       className="before-after"
       aria-label={`${alt} 前後對比`}
-      style={aspectRatio ? { aspectRatio } : undefined}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -67,12 +65,6 @@ export function BeforeAfter({ beforeUrl, afterUrl, alt }: BeforeAfterProps) {
           alt=""
           className="before-after__img"
           draggable={false}
-          onLoad={(event) => {
-            const img = event.currentTarget;
-            if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-              setAspectRatio(img.naturalWidth / img.naturalHeight);
-            }
-          }}
         />
       </div>
       <div className="before-after__divider" style={{ left: `${percent}%` }}>

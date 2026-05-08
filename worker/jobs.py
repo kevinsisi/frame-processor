@@ -149,13 +149,19 @@ def apply_adjustments_job(job_id: str) -> int:
         db.commit()
 
         try:
+            base_params = dict(job.params or {})
+            sources = base_params.pop("_sources", {})
             for photo_id in photo_ids:
                 photo = db.get(Photo, photo_id)
                 if photo is None:
                     job.progress += 1
                     db.commit()
                     continue
-                adjustment_renderer.apply_to_photo(db, photo, dict(job.params or {}))
+                params = dict(base_params)
+                source = sources.get(str(photo_id)) if isinstance(sources, dict) else None
+                if isinstance(source, dict):
+                    params["source"] = source
+                adjustment_renderer.apply_to_photo(db, photo, params)
                 job.progress += 1
                 db.commit()
 

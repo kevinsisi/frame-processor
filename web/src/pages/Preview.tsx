@@ -7,12 +7,15 @@ import {
   DEFAULT_ADJUSTMENT_PARAMS,
 } from "@/components/AdjustmentPanel";
 import { BeforeAfter } from "@/components/BeforeAfter";
-import { PhotoGrid } from "@/components/PhotoGrid";
+import {
+  buildPhotoVersionOptions,
+  PhotoGrid,
+  type PhotoVersionOption,
+} from "@/components/PhotoGrid";
 import { PipelinePanel } from "@/components/PipelinePanel";
 import { Spinner } from "@/components/Spinner";
 import { useToast } from "@/components/Toast";
 import type {
-  ColorGradePreset,
   AdjustmentParams,
   AdjustmentJob,
   AdjustmentPreset,
@@ -39,6 +42,14 @@ function defaultSelectedPhotoIds(project: ProjectDetail): Set<string> {
   return new Set(adjusted.length > 0 ? adjusted : project.photos.map((photo) => photo.id));
 }
 
+function sourceToVersionValue(source: AdjustmentParams["source"]): string | null {
+  if (!source) return null;
+  if (source.kind === "original") return "original";
+  if (source.kind === "preset" && source.value) return `preset:${source.value}`;
+  if (source.kind === "manual" && source.value) return `manual:${source.value}`;
+  return null;
+}
+
 export default function PreviewPage() {
   const { projectId } = useParams();
   const { push: toast } = useToast();
@@ -51,6 +62,7 @@ export default function PreviewPage() {
   );
   const [preview, setPreview] = useState<{ photoId: string; url: string } | null>(null);
   const [basePreview, setBasePreview] = useState<{ photoId: string; url: string } | null>(null);
+  const [photoVersionValues, setPhotoVersionValues] = useState<Record<string, string>>({});
   const [presets, setPresets] = useState<AdjustmentPreset[]>([]);
   const [job, setJob] = useState<ProcessingJob | null>(null);
   const [adjustmentJob, setAdjustmentJob] = useState<AdjustmentJob | null>(null);
@@ -89,6 +101,13 @@ export default function PreviewPage() {
       .catch((err) => toast(`讀取 preset 失敗：${String(err)}`, "error"));
   }
 
+  function selectedPhotoVersion(photo: ProjectDetail["photos"][number]): PhotoVersionOption {
+    const options = buildPhotoVersionOptions(photo);
+    const draftValue = sourceToVersionValue(photo.adjustment_params?.source);
+    const value = photoVersionValues[photo.id] ?? draftValue ?? options[0].value;
+    return options.find((option) => option.value === value) ?? options[0];
+  }
+
   useEffect(() => {
     if (!projectId) {
       setProject(null);
@@ -118,10 +137,12 @@ export default function PreviewPage() {
   useEffect(() => {
     if (!project || !activePhotoId) return;
     const active = project.photos.find((photo) => photo.id === activePhotoId);
+    if (!active) return;
+    const source = selectedPhotoVersion(active).source;
     updateAdjustmentParams(
-      active?.adjustment_params
-        ? { ...structuredClone(DEFAULT_ADJUSTMENT_PARAMS), ...active.adjustment_params }
-        : structuredClone(DEFAULT_ADJUSTMENT_PARAMS),
+      active.adjustment_params
+        ? { ...structuredClone(DEFAULT_ADJUSTMENT_PARAMS), ...active.adjustment_params, source }
+        : { ...structuredClone(DEFAULT_ADJUSTMENT_PARAMS), source },
       { persist: false },
     );
     setDraftDirty(false);
@@ -173,6 +194,7 @@ export default function PreviewPage() {
     const params = {
       ...structuredClone(DEFAULT_ADJUSTMENT_PARAMS),
       orientation: adjustmentParams.orientation,
+      source: adjustmentParams.source,
     };
     const handle = window.setTimeout(async () => {
       try {
@@ -187,7 +209,18 @@ export default function PreviewPage() {
       }
     }, 60);
     return () => window.clearTimeout(handle);
-  }, [activePhotoId, adjustmentParams.orientation]);
+  }, [activePhotoId, adjustmentParams.orientation, adjustmentParams.source]);
+
+  function handlePhotoVersionChange(
+    photoId: string,
+    value: string,
+    option: PhotoVersionOption,
+  ) {
+    setPhotoVersionValues((prev) => ({ ...prev, [photoId]: value }));
+    if (photoId === activePhotoId) {
+      updateAdjustmentParams({ ...adjustmentParamsRef.current, source: option.source });
+    }
+  }
 
   useEffect(() => {
     return () => {
@@ -278,7 +311,20 @@ export default function PreviewPage() {
         setAdjustmentBusy(false);
         return;
       }
-      const created = await api.createAdjustmentJob(projectId, adjustmentParams, photoIds);
+      const sources = Object.fromEntries(
+        photoIds
+          .map((photoId) => {
+            const photo = project?.photos.find((item) => item.id === photoId);
+            return photo ? [photoId, selectedPhotoVersion(photo).source] : null;
+          })
+          .filter((item): item is [string, PhotoVersionOption["source"]] => item !== null),
+      );
+      const created = await api.createAdjustmentJob(
+        projectId,
+        adjustmentParams,
+        photoIds,
+        sources,
+      );
       setAdjustmentJob(created);
       toast(`已開始套用微調，共 ${created.total} 張`, "info");
       if (adjustmentPollRef.current !== null) {
@@ -324,7 +370,8 @@ export default function PreviewPage() {
 
   async function savePreset(name: string) {
     try {
-      await api.createAdjustmentPreset(name, adjustmentParams, projectId);
+      const { source: _source, ...presetParams } = adjustmentParams;
+      await api.createAdjustmentPreset(name, presetParams, projectId);
       toast("已儲存 preset", "success");
       reloadPresets();
     } catch (err) {
@@ -395,21 +442,15 @@ export default function PreviewPage() {
     activePhoto ??
     project.photos.find((p) => Object.keys(p.processed_paths ?? {}).length > 0) ??
     null;
-  const processedKeys = samplePhoto ? Object.keys(samplePhoto.processed_paths ?? {}) : [];
-  const samplePreset = processedKeys[0] ? (processedKeys[0] as ColorGradePreset | "adjusted") : null;
-  const basePreset = processedKeys.find((key) => key !== "adjusted") as
-    | ColorGradePreset
-    | undefined;
+  const sampleVersion = samplePhoto ? selectedPhotoVersion(samplePhoto) : null;
+  const resolvedPhotoVersionValues = Object.fromEntries(
+    project.photos.map((photo) => [photo.id, selectedPhotoVersion(photo).value]),
+  );
   const activePreviewUrl =
     preview && preview.photoId === samplePhoto?.id ? preview.url : null;
   const activeBasePreviewUrl =
     basePreview && basePreview.photoId === samplePhoto?.id ? basePreview.url : null;
-  const baseDisplayUrl =
-    samplePhoto && basePreset
-      ? api.processedPhotoUrl(samplePhoto.id, basePreset)
-      : samplePhoto
-        ? api.photoFileUrl(samplePhoto.id)
-        : "";
+  const baseDisplayUrl = sampleVersion?.url ?? "";
   const progressPct =
     job && job.total > 0 ? Math.round((job.progress / job.total) * 100) : 0;
   const adjustmentProgressPct =
@@ -426,13 +467,6 @@ export default function PreviewPage() {
         <h1 className="hero__title">{project.name}</h1>
         <p className="hero__lede">{project.photo_count} 張照片</p>
       </section>
-
-      <PipelinePanel
-        selectedCount={selected.size}
-        totalCount={project.photos.length}
-        busy={pipelineBusy}
-        onSubmit={handleSubmit}
-      />
 
       {job && (
         <section className="job-status">
@@ -482,17 +516,15 @@ export default function PreviewPage() {
           <header className="section__head">
             <h2 className="section__title">前後對比</h2>
             <span className="section__meta mono">
-              {activePreviewUrl ? "manual_adjust" : samplePreset ?? "original"}
+              {activePreviewUrl ? "目前微調" : sampleVersion?.label ?? "原圖"}
             </span>
           </header>
           <BeforeAfter
-            key={`${samplePhoto.id}:${adjustmentParams.orientation}:${samplePreset ?? "original"}`}
+            key={`${samplePhoto.id}:${adjustmentParams.orientation}:${sampleVersion?.value ?? "original"}`}
             beforeUrl={activeBasePreviewUrl ?? baseDisplayUrl}
             afterUrl={
               activePreviewUrl ??
-              (samplePreset
-                ? api.processedPhotoUrl(samplePhoto.id, samplePreset)
-                : api.photoFileUrl(samplePhoto.id))
+              (sampleVersion?.url ?? api.photoFileUrl(samplePhoto.id))
             }
             alt={samplePhoto.original_filename}
           />
@@ -525,19 +557,35 @@ export default function PreviewPage() {
           params={adjustmentParams}
           presets={presets}
           geometryBaseUrl={activeBasePreviewUrl ?? baseDisplayUrl}
-          geometryPreviewUrl={activePreviewUrl ?? activeBasePreviewUrl ?? baseDisplayUrl}
           busy={adjustmentBusy}
           onChange={updateAdjustmentParams}
           onApplyCurrent={() => void applyAdjustment([activePhotoId])}
           onApplySelected={() => void applyAdjustment(Array.from(selected))}
-          onReset={() => updateAdjustmentParams(structuredClone(DEFAULT_ADJUSTMENT_PARAMS))}
+          onReset={() =>
+            updateAdjustmentParams({
+              ...structuredClone(DEFAULT_ADJUSTMENT_PARAMS),
+              source: adjustmentParams.source,
+            })
+          }
           onSavePreset={(name) => void savePreset(name)}
-          onLoadPreset={(preset) => updateAdjustmentParams(preset.params)}
+          onLoadPreset={(preset) =>
+            updateAdjustmentParams({
+              ...preset.params,
+              source: adjustmentParamsRef.current.source,
+            })
+          }
           onDeletePreset={(preset) => void deletePreset(preset)}
           onRotateLeft={() => rotateActivePhoto("left")}
           onRotateRight={() => rotateActivePhoto("right")}
         />
       )}
+
+      <PipelinePanel
+        selectedCount={selected.size}
+        totalCount={project.photos.length}
+        busy={pipelineBusy}
+        onSubmit={handleSubmit}
+      />
 
       <section className="section">
         <header className="section__head">
@@ -585,8 +633,10 @@ export default function PreviewPage() {
           selectable
           selectedIds={selected}
           activeId={samplePhoto?.id ?? activePhotoId}
+          versionValues={resolvedPhotoVersionValues}
           onToggleSelect={toggle}
           onOpenPreview={setActivePhotoId}
+          onVersionChange={handlePhotoVersionChange}
         />
       </section>
     </main>

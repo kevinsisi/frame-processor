@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -20,6 +20,21 @@ from models.project import Project
 from services import adjustment_renderer, adjustments
 
 router = APIRouter(tags=["adjustments"])
+
+
+class AdjustmentSource(BaseModel):
+    kind: Literal["auto", "original", "preset", "manual"] = "auto"
+    value: str | None = None
+
+    @model_validator(mode="after")
+    def require_version_value(self) -> AdjustmentSource:
+        if self.kind in {"preset", "manual"} and not (self.value or "").strip():
+            raise ValueError("source value is required for preset/manual sources")
+        return self
+
+    def normalized(self) -> dict[str, str | None]:
+        value = self.value.strip() if isinstance(self.value, str) else None
+        return {"kind": self.kind, "value": value or None}
 
 
 class AdjustmentParams(BaseModel):
@@ -40,9 +55,13 @@ class AdjustmentParams(BaseModel):
     crop_y: float = Field(default=0, ge=-100, le=100)
     distortion: float = Field(default=0, ge=-100, le=100)
     hsl: dict[str, dict[str, float]] = Field(default_factory=dict)
+    source: AdjustmentSource | None = None
 
     def normalized(self) -> dict[str, Any]:
-        return adjustments.normalize_params(self.model_dump())
+        normalized = adjustments.normalize_params(self.model_dump())
+        if self.source is not None:
+            normalized["source"] = self.source.normalized()
+        return normalized
 
 
 class AdjustmentApplyOut(BaseModel):
@@ -54,6 +73,7 @@ class AdjustmentApplyOut(BaseModel):
 class AdjustmentBatchCreate(BaseModel):
     params: AdjustmentParams
     photo_ids: list[UUID] = Field(default_factory=list)
+    sources: dict[UUID, AdjustmentSource] = Field(default_factory=dict)
 
 
 class AdjustmentJobOut(BaseModel):
@@ -94,7 +114,15 @@ def preview_photo_adjustment(
     db: Session = Depends(get_db),
 ) -> Response:
     photo = _get_photo(db, photo_id)
-    src = settings.storage_root / adjustment_renderer.source_relative_path(photo)
+    try:
+        source_relative = adjustment_renderer.source_relative_path(
+            photo,
+            payload.source.normalized() if payload.source is not None else None,
+            db=db,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=410, detail=str(exc)) from exc
+    src = settings.storage_root / source_relative
     if not src.exists():
         raise HTTPException(status_code=410, detail="source image missing on disk")
     from PIL import Image, ImageOps
@@ -175,10 +203,16 @@ def create_adjustment_job(
         )
         if not photo_ids:
             raise HTTPException(status_code=400, detail="project has no photos")
+    job_params = payload.params.normalized()
+    if payload.sources:
+        job_params["_sources"] = {
+            str(photo_id): source.normalized()
+            for photo_id, source in payload.sources.items()
+        }
     job = AdjustmentJob(
         project_id=project_id,
         status=ProcessingJobStatus.PENDING,
-        params=payload.params.normalized(),
+        params=job_params,
         photo_ids=list(photo_ids),
         progress=0,
         total=len(photo_ids),

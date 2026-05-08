@@ -31,9 +31,9 @@ export function PipelinePanel({
   onSubmit,
 }: PipelinePanelProps) {
   const [preset, setPreset] = useState<StylePreset>("showroom_white");
-  const [denoise, setDenoise] = useState<DenoiseStrength>("none");
-  const [lensDistort, setLensDistort] = useState(false);
-  const [levelCorrect, setLevelCorrect] = useState(false);
+  const [denoise, setDenoise] = useState<DenoiseStrength>("heavy");
+  const [lensDistort, setLensDistort] = useState(true);
+  const [levelCorrect, setLevelCorrect] = useState(true);
   const [aspect, setAspect] = useState<AspectRatio>("original");
 
   function handleSubmit() {
@@ -117,7 +117,7 @@ export function PipelinePanel({
           onClick={handleSubmit}
           disabled={busy || selectedCount === 0}
         >
-          {busy ? "處理中…" : "開始處理"}
+          {busy ? "產生中…" : "開始產生"}
         </button>
       </footer>
     </section>

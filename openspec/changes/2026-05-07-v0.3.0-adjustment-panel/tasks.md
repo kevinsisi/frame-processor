@@ -33,6 +33,12 @@
 - [x] Support per-photo independent overrides after apply-all.
 - [x] Keep top BeforeAfter in sync with active photo selection.
 - [x] Keep per-photo processed download visible after render.
+- [ ] Make photo-card version dropdown switch the tile image, active preview base, adjustment base, and download target.
+- [ ] Rename visible version labels to user-facing wording and hide raw internal state names.
+- [ ] Make top Before/After a large editing workspace on desktop and mobile.
+- [ ] Replace the geometry two-column modal with a full-screen single-photo editor with grid overlay and cancel/done controls.
+- [ ] Default pipeline settings to heavy denoise, lens correction on, level correction on, original crop ratio.
+- [ ] Move the primary batch start action below the manual adjustment section.
 - [ ] Validate mobile layout on iPhone Safari.
 
 ## Verification

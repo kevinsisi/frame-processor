@@ -8,8 +8,9 @@
   border-radius: 12px;
   cursor: ew-resize;
   width: 100%;
-  aspect-ratio: 3 / 2;
+  height: min(72vh, 760px);
   max-width: 100%;
+  min-height: 520px;
 }
 
 .before-after__layer {
@@ -79,4 +80,18 @@
 
 .before-after__tag--after {
   right: 12px;
+}
+
+@media (max-width: 720px) {
+  .before-after {
+    height: 66svh;
+    min-height: 500px;
+  }
+}
+
+@media (max-width: 430px) {
+  .before-after {
+    height: 62svh;
+    min-height: 430px;
+  }
 }

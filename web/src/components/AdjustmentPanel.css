@@ -49,19 +49,18 @@
   position: fixed;
   inset: 0;
   z-index: 60;
-  display: grid;
-  place-items: center;
-  padding: var(--space-4);
-  background: rgba(0, 0, 0, 0.78);
+  display: flex;
+  background: rgba(0, 0, 0, 0.92);
 }
 
 .geometry-editor__panel {
-  width: min(1120px, 100%);
-  max-height: min(92vh, 920px);
-  overflow: auto;
-  border: 1px solid var(--ink-line-strong);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  overflow: hidden;
   background: var(--ink-base);
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
   padding: var(--space-4);
 }
 
@@ -71,6 +70,13 @@
   justify-content: space-between;
   gap: var(--space-3);
   margin-bottom: var(--space-4);
+}
+
+.geometry-editor__head-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .geometry-editor__head div {
@@ -85,36 +91,82 @@
 }
 
 .geometry-editor__stage {
+  min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: var(--space-4);
-}
-
-.geometry-editor__figure {
-  margin: 0;
-  min-width: 0;
-}
-
-.geometry-editor__figure figcaption {
-  margin-bottom: var(--space-2);
-  color: var(--text-secondary);
+  place-items: center;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(201, 168, 107, 0.08), transparent 32%),
+    #020202;
+  border: 1px solid var(--ink-line-strong);
 }
 
 .geometry-editor__image-shell {
   position: relative;
-  min-height: 280px;
-  max-height: 58vh;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
-  border: 1px solid var(--ink-line);
-  background: #000;
   display: grid;
   place-items: center;
+  touch-action: none;
+  cursor: grab;
+}
+
+.geometry-editor__image-shell:active {
+  cursor: grabbing;
 }
 
 .geometry-editor__image-shell img {
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+
+.geometry-editor__grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.geometry-editor__grid span {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.geometry-editor__grid span:nth-child(1),
+.geometry-editor__grid span:nth-child(2),
+.geometry-editor__grid span:nth-child(3),
+.geometry-editor__grid span:nth-child(4) {
+  left: 0;
+  right: 0;
+  height: 1px;
+}
+
+.geometry-editor__grid span:nth-child(1) { top: 20%; }
+.geometry-editor__grid span:nth-child(2) { top: 40%; }
+.geometry-editor__grid span:nth-child(3) { top: 60%; }
+.geometry-editor__grid span:nth-child(4) { top: 80%; }
+
+.geometry-editor__grid span:nth-child(5),
+.geometry-editor__grid span:nth-child(6),
+.geometry-editor__grid span:nth-child(7),
+.geometry-editor__grid span:nth-child(8) {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+
+.geometry-editor__grid span:nth-child(5) { left: 20%; }
+.geometry-editor__grid span:nth-child(6) { left: 40%; }
+.geometry-editor__grid span:nth-child(7) { left: 60%; }
+.geometry-editor__grid span:nth-child(8) { left: 80%; }
+
+.geometry-editor__grid span:nth-child(9) {
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  background: rgba(201, 168, 107, 0.72);
 }
 
 .geometry-editor__crop {
@@ -155,9 +207,11 @@
 
 .geometry-editor__controls {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: var(--space-3) var(--space-5);
   margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--ink-line);
 }
 
 .adjustment-panel__grid {
@@ -234,7 +288,6 @@
   .adjustment-panel__presets .cta {
     flex: 1 1 150px;
   }
-  .geometry-editor__stage,
   .geometry-editor__controls {
     grid-template-columns: 1fr;
   }
@@ -259,15 +312,14 @@
   .adjustment-panel__hsl-row {
     grid-template-columns: 1fr;
   }
-  .geometry-editor {
-    padding: var(--space-2);
-  }
   .geometry-editor__panel {
-    max-height: 94vh;
     padding: var(--space-3);
   }
-  .geometry-editor__image-shell {
-    min-height: 220px;
+  .geometry-editor__head {
+    align-items: flex-start;
+  }
+  .geometry-editor__head-actions .cta {
+    flex: 1 1 96px;
   }
   .adjustment-panel__hsl-row strong {
     color: var(--gold);

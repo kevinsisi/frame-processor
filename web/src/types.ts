@@ -147,6 +147,12 @@ export type AdjustmentParams = {
   crop_y: number;
   distortion: number;
   hsl: Record<HslColor, HslAdjustment>;
+  source?: AdjustmentSource | null;
+};
+
+export type AdjustmentSource = {
+  kind: "auto" | "original" | "preset" | "manual";
+  value?: string | null;
 };
 
 export type AdjustmentApplyResult = {

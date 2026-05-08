@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import { api } from "@/api/client";
-import type { ColorGradePreset, Photo } from "@/types";
+import type { AdjustmentSource, ColorGradePreset, Photo } from "@/types";
 
 import "./PhotoGrid.css";
 
@@ -17,19 +17,30 @@ export interface PhotoGridProps {
   selectable?: boolean;
   selectedIds?: Set<string>;
   activeId?: string | null;
+  versionValues?: Record<string, string>;
   onToggleSelect?: (photoId: string) => void;
   onOpenPreview?: (photoId: string) => void;
+  onVersionChange?: (photoId: string, value: string, option: PhotoVersionOption) => void;
 }
+
+export type PhotoVersionOption = {
+  value: string;
+  label: string;
+  url: string;
+  source: AdjustmentSource;
+};
 
 export function PhotoGrid({
   photos,
   selectable = false,
   selectedIds,
   activeId,
+  versionValues,
   onToggleSelect,
   onOpenPreview,
+  onVersionChange,
 }: PhotoGridProps) {
-  const [downloadVersions, setDownloadVersions] = useState<Record<string, string>>({});
+  const [internalVersions, setInternalVersions] = useState<Record<string, string>>({});
   if (photos.length === 0) {
     return (
       <div className="photo-grid__empty">
@@ -42,9 +53,9 @@ export function PhotoGrid({
       {photos.map((photo) => {
         const selected = selectedIds?.has(photo.id) ?? false;
         const active = activeId === photo.id;
-        const processedPresets = Object.keys(photo.processed_paths ?? {});
-        const versionOptions = buildVersionOptions(photo, processedPresets);
-        const selectedDownloadVersion = downloadVersions[photo.id] ?? versionOptions[0].value;
+        const versionOptions = buildPhotoVersionOptions(photo);
+        const selectedDownloadVersion =
+          versionValues?.[photo.id] ?? internalVersions[photo.id] ?? versionOptions[0].value;
         const selectedOption =
           versionOptions.find((option) => option.value === selectedDownloadVersion) ??
           versionOptions[0];
@@ -64,7 +75,7 @@ export function PhotoGrid({
           >
             <div className="photo-tile__frame">
               <img
-                src={api.photoFileUrl(photo.id)}
+                src={selectedOption.url}
                 alt={photo.original_filename}
                 loading="lazy"
                 className="photo-tile__img"
@@ -109,11 +120,15 @@ export function PhotoGrid({
                 value={selectedOption.value}
                 onClick={(e) => e.stopPropagation()}
                 onChange={(event) => {
+                  const option =
+                    versionOptions.find((item) => item.value === event.target.value) ??
+                    versionOptions[0];
                   event.stopPropagation();
-                  setDownloadVersions((prev) => ({
+                  setInternalVersions((prev) => ({
                     ...prev,
                     [photo.id]: event.target.value,
                   }));
+                  onVersionChange?.(photo.id, event.target.value, option);
                 }}
               >
                 {versionOptions.map((option) => (
@@ -138,41 +153,37 @@ export function PhotoGrid({
   );
 }
 
-function buildVersionOptions(photo: Photo, processedPresets: string[]) {
-  const options: { value: string; label: string; url: string }[] = [];
+export function buildPhotoVersionOptions(photo: Photo): PhotoVersionOption[] {
+  const options: PhotoVersionOption[] = [];
   for (const version of photo.adjustment_versions ?? []) {
     options.push({
       value: `manual:${version.id}`,
-      label: `手動 v${version.version_number}`,
+      label: `手動版本 v${version.version_number}`,
       url: api.adjustmentVersionUrl(photo.id, version.id),
+      source: { kind: "manual", value: version.id },
     });
   }
-  for (const preset of processedPresets) {
+  for (const preset of Object.keys(photo.processed_paths ?? {})) {
     if (preset === "adjusted") continue;
     options.push({
       value: `preset:${preset}`,
-      label: presetLabel(preset),
+      label: `批次：${presetLabel(preset)}`,
       url: api.processedPhotoUrl(photo.id, preset as ColorGradePreset),
-    });
-  }
-  if ((photo.processed_paths ?? {}).adjusted && (photo.adjustment_versions ?? []).length === 0) {
-    options.push({
-      value: "preset:adjusted",
-      label: "手動 latest",
-      url: api.processedPhotoUrl(photo.id, "adjusted"),
+      source: { kind: "preset", value: preset },
     });
   }
   options.push({
     value: "original",
     label: "原圖",
     url: api.photoFileUrl(photo.id),
+    source: { kind: "original", value: null },
   });
   return options;
 }
 
 function presetLabel(preset: string): string {
-  if (preset === "showroom_white") return "展間白";
-  if (preset === "outdoor_warm") return "戶外暖";
-  if (preset === "night_cold") return "夜拍冷";
+  if (preset === "showroom_white") return "展示間白";
+  if (preset === "outdoor_warm") return "戶外暖調";
+  if (preset === "night_cold") return "夜拍冷調";
   return preset;
 }

@@ -1,2 +1,2 @@
-// v0.2.2 — runtime Gemini key management via settings page.
-export const APP_VERSION = "0.2.2";
+// v0.3.0 — manual adjustment drafts, generated versions, and visual geometry editor.
+export const APP_VERSION = "0.3.0";

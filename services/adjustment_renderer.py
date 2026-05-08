@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+from uuid import UUID
 
 from PIL import Image, ImageOps
 from sqlalchemy import func, select
@@ -14,7 +15,35 @@ from models.photo_adjustment import PhotoAdjustment
 from services import adjustments, storage
 
 
-def source_relative_path(photo: Photo) -> str:
+def source_relative_path(
+    photo: Photo,
+    source: dict[str, Any] | None = None,
+    *,
+    db: Session | None = None,
+) -> str:
+    if source:
+        kind = source.get("kind")
+        value = source.get("value")
+        paths = dict(photo.processed_paths or {})
+        if kind == "original":
+            return photo.stored_path
+        if kind == "preset" and value:
+            relative = paths.get(str(value))
+            if relative:
+                return relative
+            raise FileNotFoundError("selected processed version missing")
+        if kind == "manual" and value:
+            if db is None:
+                raise FileNotFoundError("manual version lookup unavailable")
+            try:
+                version_id = UUID(str(value))
+            except ValueError as exc:
+                raise FileNotFoundError("selected manual version is invalid") from exc
+            version = db.get(AdjustmentVersion, version_id)
+            if version is None or version.photo_id != photo.id:
+                raise FileNotFoundError("selected manual version missing")
+            return version.path
+
     paths = dict(photo.processed_paths or {})
     for key, value in paths.items():
         if key != "adjusted" and value:
@@ -22,8 +51,14 @@ def source_relative_path(photo: Photo) -> str:
     return photo.stored_path
 
 
-def render_adjusted(photo: Photo, params: dict[str, Any], *, version_number: int | None = None) -> str:
-    src = settings.storage_root / source_relative_path(photo)
+def render_adjusted(
+    db: Session,
+    photo: Photo,
+    params: dict[str, Any],
+    *,
+    version_number: int | None = None,
+) -> str:
+    src = settings.storage_root / source_relative_path(photo, params.get("source"), db=db)
     if not src.exists():
         raise FileNotFoundError("source image missing on disk")
     with Image.open(src) as raw:
@@ -41,8 +76,10 @@ def render_adjusted(photo: Photo, params: dict[str, Any], *, version_number: int
 
 def apply_to_photo(db: Session, photo: Photo, params: dict[str, Any]) -> str:
     normalized = adjustments.normalize_params(params)
+    if isinstance(params.get("source"), dict):
+        normalized["source"] = dict(params["source"])
     next_version = _next_version_number(db, photo)
-    relative = render_adjusted(photo, normalized, version_number=next_version)
+    relative = render_adjusted(db, photo, normalized, version_number=next_version)
     db.add(
         AdjustmentVersion(
             photo_id=photo.id,
@@ -66,6 +103,8 @@ def apply_to_photo(db: Session, photo: Photo, params: dict[str, Any]) -> str:
 
 def save_draft(db: Session, photo: Photo, params: dict[str, Any]) -> None:
     normalized = adjustments.normalize_params(params)
+    if isinstance(params.get("source"), dict):
+        normalized["source"] = dict(params["source"])
     adjustment = db.get(PhotoAdjustment, photo.id)
     if adjustment is None:
         db.add(PhotoAdjustment(photo_id=photo.id, params=normalized))

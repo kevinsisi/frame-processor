@@ -4,6 +4,7 @@ import type {
   AdjustmentJob,
   AdjustmentParams,
   AdjustmentPreset,
+  AdjustmentSource,
   Export,
   Photo,
   ProcessingJob,
@@ -145,11 +146,16 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
-  createAdjustmentJob: (projectId: string, payload: AdjustmentParams, photoIds: string[]) =>
+  createAdjustmentJob: (
+    projectId: string,
+    payload: AdjustmentParams,
+    photoIds: string[],
+    sources?: Record<string, AdjustmentSource>,
+  ) =>
     request<AdjustmentJob>(`/projects/${projectId}/adjustments/apply`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ params: payload, photo_ids: photoIds }),
+      body: JSON.stringify({ params: payload, photo_ids: photoIds, sources: sources ?? {} }),
     }),
 
   getAdjustmentJob: (jobId: string) =>
