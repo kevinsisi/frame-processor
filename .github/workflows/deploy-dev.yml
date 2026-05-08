@@ -35,13 +35,11 @@ jobs:
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          SETTINGS_ADMIN_TOKEN: ${{ secrets.SETTINGS_ADMIN_TOKEN }}
           TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           TS_OAUTH_SECRET: ${{ secrets.TS_OAUTH_SECRET }}
         run: |
           missing=0
-          for name in DEPLOY_SSH_KEY DEPLOY_USER GEMINI_API_KEY SETTINGS_ADMIN_TOKEN TS_OAUTH_CLIENT_ID TS_OAUTH_SECRET; do
+          for name in DEPLOY_SSH_KEY DEPLOY_USER TS_OAUTH_CLIENT_ID TS_OAUTH_SECRET; do
             if [ -z "${!name}" ]; then
               echo "::error::Missing ${name}"
               missing=1
@@ -97,11 +95,49 @@ jobs:
             printf 'DOCKERHUB_USERNAME=%s\n' "${DOCKERHUB_USERNAME}"
             printf 'IMAGE_TAG=%s\n' "${IMAGE_TAG}"
             printf 'GEMINI_MODEL=%s\n' "${GEMINI_MODEL}"
-            printf 'GEMINI_API_KEY=%s\n' "${GEMINI_API_KEY}"
-            printf 'SETTINGS_ADMIN_TOKEN=%s\n' "${SETTINGS_ADMIN_TOKEN}"
-            printf 'KEY_MANAGER_URL=%s\n' "${KEY_MANAGER_URL}"
+            if [ -n "${GEMINI_API_KEY}" ]; then
+              printf 'GEMINI_API_KEY=%s\n' "${GEMINI_API_KEY}"
+            fi
+            if [ -n "${SETTINGS_ADMIN_TOKEN}" ]; then
+              printf 'SETTINGS_ADMIN_TOKEN=%s\n' "${SETTINGS_ADMIN_TOKEN}"
+            fi
+            if [ -n "${KEY_MANAGER_URL}" ]; then
+              printf 'KEY_MANAGER_URL=%s\n' "${KEY_MANAGER_URL}"
+            fi
           } > frame-processor.env
-          scp -i ~/.ssh/deploy_key frame-processor.env "${DEPLOY_USER}@${DEPLOY_SERVER_IP}:${DEPLOY_PATH}/.env"
+          scp -i ~/.ssh/deploy_key frame-processor.env "${DEPLOY_USER}@${DEPLOY_SERVER_IP}:${DEPLOY_PATH}/.env.ci"
+          ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_SERVER_IP}" "powershell -NoProfile -ExecutionPolicy Bypass -Command \"
+            \$ErrorActionPreference = 'Stop'
+            \$deployPath = '${DEPLOY_PATH}'
+            \$envPath = Join-Path \$deployPath '.env'
+            \$incomingPath = Join-Path \$deployPath '.env.ci'
+
+            if (!(Test-Path -LiteralPath \$envPath)) { New-Item -ItemType File -Path \$envPath | Out-Null }
+
+            function Read-EnvNames([string]\$Path) {
+              if (!(Test-Path -LiteralPath \$Path)) { return @() }
+              @(Get-Content -LiteralPath \$Path | Where-Object { \$_ -match '^[A-Za-z_][A-Za-z0-9_]*=' } | ForEach-Object { (\$_ -split '=', 2)[0] })
+            }
+
+            function Read-EnvValue([string]\$Path, [string]\$Name) {
+              if (!(Test-Path -LiteralPath \$Path)) { return \$null }
+              \$line = Get-Content -LiteralPath \$Path | Where-Object { \$_ -match ('^' + [regex]::Escape(\$Name) + '=') } | Select-Object -Last 1
+              if (-not \$line) { return \$null }
+              return (\$line -replace ('^' + [regex]::Escape(\$Name) + '='), '').Trim().Trim('\"')
+            }
+
+            \$incomingNames = Read-EnvNames \$incomingPath
+            \$existingLines = @(Get-Content -LiteralPath \$envPath | Where-Object {
+              \$line = \$_
+              -not (\$incomingNames | Where-Object { \$line -match ('^' + [regex]::Escape(\$_) + '=') })
+            })
+            \$incomingLines = @(Get-Content -LiteralPath \$incomingPath)
+            @(\$existingLines + \$incomingLines) | Set-Content -LiteralPath \$envPath -Encoding utf8
+            Remove-Item -LiteralPath \$incomingPath -Force
+
+            if (-not (Read-EnvValue \$envPath 'GEMINI_API_KEY')) { throw 'Missing GEMINI_API_KEY in deploy .env after merge.' }
+            if (-not (Read-EnvValue \$envPath 'SETTINGS_ADMIN_TOKEN')) { throw 'Missing SETTINGS_ADMIN_TOKEN in deploy .env after merge.' }
+          \""
 
       - name: Validate G drive volume mapping
         env:
