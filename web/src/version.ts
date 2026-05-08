@@ -1,2 +1,2 @@
-// v0.3.10 - make desktop env merge deterministic.
-export const APP_VERSION = "0.3.10";
+// v0.3.11 - execute desktop env merge through PowerShell command parsing.
+export const APP_VERSION = "0.3.11";
