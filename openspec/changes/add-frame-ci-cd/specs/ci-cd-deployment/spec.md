@@ -29,13 +29,17 @@ The system SHALL run backend lint, backend import smoke checks, alembic offline 
 ### Requirement: Desktop deployment copies compose before applying changes
 The system SHALL deploy to the Windows desktop at `100.83.112.20` by copying the repository `deploy/docker-compose.yml` to the desktop deploy directory before running Docker Compose.
 
+#### Scenario: Windows OpenSSH Server accepts deploy SSH
+- **WHEN** the deploy workflow connects to `100.83.112.20`
+- **THEN** the Windows desktop exposes OpenSSH Server on TCP port 22 over Tailscale and accepts `DEPLOY_SSH_KEY` for `DEPLOY_USER`
+
 #### Scenario: Deploy workflow syncs compose
 - **WHEN** the deploy workflow starts after a successful Docker publish or manual dispatch
 - **THEN** it creates `D:/GitClone/_HomeProject/frame-processor/deploy` if needed and copies `deploy/docker-compose.yml` to `D:/GitClone/_HomeProject/frame-processor/deploy/docker-compose.yml`
 
-#### Scenario: Desktop SSH uses Tailscale-only host config
+#### Scenario: SSH host-key scan is retried and fails closed
 - **WHEN** the deploy workflow prepares SSH access to the desktop
-- **THEN** it configures SSH for the desktop Tailscale IP so host-key prompts do not block non-interactive deploy commands
+- **THEN** it retries `ssh-keyscan` for transient Tailscale readiness and fails before copying files if the desktop host key cannot be collected
 
 #### Scenario: Deploy workflow applies published images
 - **WHEN** compose has been copied and pre-deploy guards pass
