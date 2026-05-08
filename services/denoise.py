@@ -40,14 +40,14 @@ STRENGTH_BLEND: dict[DenoiseStrength, float] = {
     DenoiseStrength.NONE: 0.0,
     DenoiseStrength.LIGHT: 0.35,
     DenoiseStrength.MEDIUM: 0.65,
-    DenoiseStrength.HEAVY: 0.9,
+    DenoiseStrength.HEAVY: 1.0,
 }
 
 CLASSICAL_POST_BLEND: dict[DenoiseStrength, float] = {
     DenoiseStrength.NONE: 0.0,
     DenoiseStrength.LIGHT: 0.0,
     DenoiseStrength.MEDIUM: 0.35,
-    DenoiseStrength.HEAVY: 0.8,
+    DenoiseStrength.HEAVY: 1.0,
 }
 
 DETAIL_PROTECTION: dict[DenoiseStrength, float] = {
@@ -106,7 +106,7 @@ def _run_opencv_denoise(rgb: np.ndarray, strength: DenoiseStrength) -> np.ndarra
     h_value = {
         DenoiseStrength.LIGHT: 6,
         DenoiseStrength.MEDIUM: 13,
-        DenoiseStrength.HEAVY: 22,
+        DenoiseStrength.HEAVY: 32,
     }.get(strength, 0)
     if h_value <= 0:
         return rgb
@@ -118,7 +118,7 @@ def _run_opencv_denoise(rgb: np.ndarray, strength: DenoiseStrength) -> np.ndarra
         h=h_value,
         hColor=max(int(h_value * 1.2), 4),
         templateWindowSize=7,
-        searchWindowSize=25 if strength is DenoiseStrength.HEAVY else 21,
+        searchWindowSize=35 if strength is DenoiseStrength.HEAVY else 21,
     )
     return cv2.cvtColor(denoised, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
 

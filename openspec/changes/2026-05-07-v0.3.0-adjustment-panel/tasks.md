@@ -44,6 +44,7 @@
 - [x] Warn when Before/After is showing manual preview before AI denoise has been generated.
 - [x] Strengthen heavy denoise when NAFNet is conservative or unavailable.
 - [x] Make heavy denoise edge-aware so flat regions stay clean without erasing architecture detail.
+- [x] Add a low-light portrait regression for clean dark backgrounds without oil-painting face/hair/clothing detail.
 - [x] Auto-start default batch generation for missing preset outputs while keeping Before as the original.
 - [x] Add post-denoise detail restoration for medium/heavy outputs.
 - [x] Add automatic vertical perspective correction to the lens correction toggle.
