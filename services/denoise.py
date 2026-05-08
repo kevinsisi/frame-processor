@@ -70,9 +70,9 @@ def _run_opencv_denoise(rgb: np.ndarray, strength: DenoiseStrength) -> np.ndarra
     import cv2
 
     h_value = {
-        DenoiseStrength.LIGHT: 3,
-        DenoiseStrength.MEDIUM: 6,
-        DenoiseStrength.HEAVY: 9,
+        DenoiseStrength.LIGHT: 7,
+        DenoiseStrength.MEDIUM: 14,
+        DenoiseStrength.HEAVY: 24,
     }.get(strength, 0)
     if h_value <= 0:
         return rgb

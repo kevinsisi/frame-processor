@@ -61,8 +61,8 @@ docs/        Architecture、ADR、設計筆記
 - 未明確選版本時，Manual adjustment 從非 `adjusted` 的基準圖重新計算，不得把內部 latest adjusted 當來源累加；若使用者在照片卡片版本下拉明確選擇原圖、批次版本或手動 vN，該版本就是後續 preview/apply/download 的來源。
 - 手動水平、裁切、變形修正路徑不得呼叫 Gemini AI；AI level correction 只屬於原本 batch pipeline。
 - 使用者 preset 存在 `adjustment_presets`；單張調整參數存在 `photo_adjustments`。
-- 手動產生版本存在 `photo_adjustment_versions`；照片卡片版本下拉必須可選原圖、pipeline preset、各手動版本，並同步切換卡片圖、上方 Before/After 基準、手動調整來源與下載目標。UI 不可暴露 `adjusted`、`latest`、raw preset key 等內部狀態名稱。
-- PipelinePanel 預設值：AI 降噪重度、廣角畸變矯正開啟、Gemini Vision 水平校正開啟、自動裁剪原圖比例；主要「開始產生」動作放在手動微調區塊下方。
+- 手動產生版本存在 `photo_adjustment_versions`；照片卡片版本下拉必須可選原圖、pipeline preset、各手動版本，並同步切換卡片圖、上方 Before/After 基準、手動調整來源與下載目標。未手動指定版本時，live preview 預設從原圖套用目前 pipeline 色調選擇；批次處理完成後才自動切到剛產生的 preset 版本。UI 不可暴露 `adjusted`、`latest`、raw preset key 等內部狀態名稱。
+- PipelinePanel 預設值：AI 降噪重度、廣角畸變矯正開啟、Gemini Vision 水平校正開啟、自動裁剪原圖比例；主要「開始產生」動作放在手動微調區塊下方。色調 preset 必須有可見差異，OpenCV fallback 降噪不得弱到使用者在重度模式看不出效果。
 - 匯出 zip 順序必須是 `adjusted` → 任一 pipeline processed preset → original。
 - 「套用到已選照片」走 `adjustment_jobs` worker job 與輪詢進度。
 

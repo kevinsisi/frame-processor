@@ -55,7 +55,7 @@ export function PhotoGrid({
         const active = activeId === photo.id;
         const versionOptions = buildPhotoVersionOptions(photo);
         const selectedDownloadVersion =
-          versionValues?.[photo.id] ?? internalVersions[photo.id] ?? versionOptions[0].value;
+          versionValues?.[photo.id] ?? internalVersions[photo.id] ?? defaultPhotoVersionOption(versionOptions).value;
         const selectedOption =
           versionOptions.find((option) => option.value === selectedDownloadVersion) ??
           versionOptions[0];
@@ -179,6 +179,10 @@ export function buildPhotoVersionOptions(photo: Photo): PhotoVersionOption[] {
     source: { kind: "original", value: null },
   });
   return options;
+}
+
+export function defaultPhotoVersionOption(options: PhotoVersionOption[]): PhotoVersionOption {
+  return options.find((option) => option.value === "original") ?? options[0];
 }
 
 function presetLabel(preset: string): string {

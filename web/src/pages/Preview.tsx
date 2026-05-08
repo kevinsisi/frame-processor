@@ -9,6 +9,7 @@ import {
 import { BeforeAfter } from "@/components/BeforeAfter";
 import {
   buildPhotoVersionOptions,
+  defaultPhotoVersionOption,
   PhotoGrid,
   type PhotoVersionOption,
 } from "@/components/PhotoGrid";
@@ -106,8 +107,8 @@ export default function PreviewPage() {
   function selectedPhotoVersion(photo: ProjectDetail["photos"][number]): PhotoVersionOption {
     const options = buildPhotoVersionOptions(photo);
     const draftValue = sourceToVersionValue(photo.adjustment_params?.source);
-    const value = photoVersionValues[photo.id] ?? draftValue ?? options[0].value;
-    return options.find((option) => option.value === value) ?? options[0];
+    const value = photoVersionValues[photo.id] ?? draftValue ?? defaultPhotoVersionOption(options).value;
+    return options.find((option) => option.value === value) ?? defaultPhotoVersionOption(options);
   }
 
   useEffect(() => {
@@ -273,11 +274,13 @@ export default function PreviewPage() {
 
   async function handleSubmit(payload: ProcessingJobCreate) {
     if (!projectId || !project) return;
+    const submittedPreset = payload.preset;
+    const submittedPhotoIds = Array.from(selected);
     setPipelineBusy(true);
     try {
       const created = await api.createProcessingJob(projectId, {
         ...payload,
-        photo_ids: Array.from(selected),
+        photo_ids: submittedPhotoIds,
       });
       setJob(created);
       toast(`已開始處理，共 ${created.total} 張`, "info");
@@ -294,6 +297,12 @@ export default function PreviewPage() {
             setPipelineBusy(false);
             if (next.status === "done") {
               toast("處理完成", "success");
+              setPhotoVersionValues((prev) => ({
+                ...prev,
+                ...Object.fromEntries(
+                  submittedPhotoIds.map((photoId) => [photoId, `preset:${submittedPreset}`]),
+                ),
+              }));
               reload();
             } else {
               toast(`處理失敗：${next.error ?? "unknown error"}`, "error");

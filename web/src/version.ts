@@ -1,2 +1,2 @@
-// v0.3.16 - pull desktop images with temporary Docker auth config.
-export const APP_VERSION = "0.3.16";
+// v0.3.17 - make crop, grade, and denoise changes visible in preview.
+export const APP_VERSION = "0.3.17";

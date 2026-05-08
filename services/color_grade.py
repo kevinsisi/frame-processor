@@ -28,25 +28,25 @@ def apply_grade(image: Image.Image, preset: ColorGradePreset) -> Image.Image:
 
 def _showroom_white(image: Image.Image) -> Image.Image:
     balanced = _gray_world_white_balance(image)
-    neutral = _channel_shift(balanced, r_delta=-4, g_delta=0, b_delta=7)
-    brighter = ImageEnhance.Brightness(neutral).enhance(1.03)
-    contrasted = ImageEnhance.Contrast(brighter).enhance(1.03)
-    desaturated = ImageEnhance.Color(contrasted).enhance(0.78)
+    neutral = _channel_shift(balanced, r_delta=-8, g_delta=0, b_delta=12)
+    brighter = ImageEnhance.Brightness(neutral).enhance(1.08)
+    contrasted = ImageEnhance.Contrast(brighter).enhance(1.08)
+    desaturated = ImageEnhance.Color(contrasted).enhance(0.72)
     return desaturated
 
 
 def _outdoor_warm(image: Image.Image) -> Image.Image:
-    warmed = _channel_shift(image, r_delta=18, g_delta=3, b_delta=-14)
-    contrasted = ImageEnhance.Contrast(warmed).enhance(1.14)
-    saturated = ImageEnhance.Color(contrasted).enhance(1.14)
+    warmed = _channel_shift(image, r_delta=30, g_delta=8, b_delta=-24)
+    contrasted = ImageEnhance.Contrast(warmed).enhance(1.2)
+    saturated = ImageEnhance.Color(contrasted).enhance(1.24)
     return saturated
 
 
 def _night_cold(image: Image.Image) -> Image.Image:
-    cooled = _channel_shift(image, r_delta=-6, g_delta=0, b_delta=10)
-    lifted = _gamma_lift_shadows(cooled, gamma=0.9)
-    contrasted = ImageEnhance.Contrast(lifted).enhance(1.05)
-    return contrasted
+    cooled = _channel_shift(image, r_delta=-18, g_delta=-2, b_delta=28)
+    lifted = _gamma_lift_shadows(cooled, gamma=0.82)
+    contrasted = ImageEnhance.Contrast(lifted).enhance(1.14)
+    return ImageEnhance.Color(contrasted).enhance(0.92)
 
 
 def _gray_world_white_balance(image: Image.Image) -> Image.Image:

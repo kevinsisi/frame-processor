@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 
 import type { AdjustmentParams, AdjustmentPreset, HslColor } from "@/types";
@@ -246,8 +246,24 @@ function GeometryEditor({
 }) {
   const [draft, setDraft] = useState(params);
   const shellRef = useRef<HTMLDivElement | null>(null);
+  const [imageSize, setImageSize] = useState({ width: 1, height: 1 });
+  const [shellSize, setShellSize] = useState({ width: 1, height: 1 });
   const draggingRef = useRef(false);
-  const crop = cropFrame(draft.crop_zoom, draft.crop_x, draft.crop_y);
+  const imageFrame = containedImageFrame(shellSize, imageSize);
+  const crop = cropFrame(draft.crop_zoom, draft.crop_x, draft.crop_y, imageFrame, shellSize);
+  const frameStyle = frameToStyle(imageFrame, shellSize);
+  useEffect(() => {
+    const shell = shellRef.current;
+    if (!shell) return;
+    const update = () => {
+      const rect = shell.getBoundingClientRect();
+      setShellSize({ width: Math.max(1, rect.width), height: Math.max(1, rect.height) });
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(shell);
+    return () => observer.disconnect();
+  }, []);
   const setValue = (key: NumericAdjustmentKey, value: number) => {
     setDraft((current) => ({ ...current, [key]: value }));
   };
@@ -264,8 +280,8 @@ function GeometryEditor({
     const maxLeft = 100 - cropWidth;
     const maxTop = 100 - cropHeight;
     if (maxLeft <= 0 && maxTop <= 0) return;
-    const pointerX = ((clientX - rect.left) / rect.width) * 100;
-    const pointerY = ((clientY - rect.top) / rect.height) * 100;
+    const pointerX = ((clientX - rect.left - imageFrame.left) / imageFrame.width) * 100;
+    const pointerY = ((clientY - rect.top - imageFrame.top) / imageFrame.height) * 100;
     const left = Math.max(0, Math.min(maxLeft, pointerX - cropWidth / 2));
     const top = Math.max(0, Math.min(maxTop, pointerY - cropHeight / 2));
     const cropX = maxLeft > 0 ? ((left - maxLeft / 2) / (maxLeft / 2)) * 100 : 0;
@@ -310,8 +326,17 @@ function GeometryEditor({
               draggingRef.current = false;
             }}
           >
-            <img src={baseUrl} alt="構圖基準" />
-            <div className="geometry-editor__grid" aria-hidden>
+            <img
+              src={baseUrl}
+              alt="構圖基準"
+              onLoad={(event) => {
+                setImageSize({
+                  width: Math.max(1, event.currentTarget.naturalWidth),
+                  height: Math.max(1, event.currentTarget.naturalHeight),
+                });
+              }}
+            />
+            <div className="geometry-editor__grid" style={frameStyle} aria-hidden>
               {Array.from({ length: 9 }).map((_, index) => (
                 <span key={index} />
               ))}
@@ -338,18 +363,53 @@ function GeometryEditor({
   );
 }
 
-function cropFrame(zoom: number, x: number, y: number): CSSProperties {
+type Frame = { left: number; top: number; width: number; height: number };
+
+function containedImageFrame(
+  shell: { width: number; height: number },
+  image: { width: number; height: number },
+): Frame {
+  const shellRatio = shell.width / shell.height;
+  const imageRatio = image.width / image.height;
+  if (imageRatio > shellRatio) {
+    const height = shell.width / imageRatio;
+    return { left: 0, top: (shell.height - height) / 2, width: shell.width, height };
+  }
+  const width = shell.height * imageRatio;
+  return { left: (shell.width - width) / 2, top: 0, width, height: shell.height };
+}
+
+function frameToStyle(frame: Frame, shell: { width: number; height: number }): CSSProperties {
+  return {
+    left: `${(frame.left / shell.width) * 100}%`,
+    top: `${(frame.top / shell.height) * 100}%`,
+    width: `${(frame.width / shell.width) * 100}%`,
+    height: `${(frame.height / shell.height) * 100}%`,
+  };
+}
+
+function cropFrame(
+  zoom: number,
+  x: number,
+  y: number,
+  imageFrame: Frame,
+  shell: { width: number; height: number },
+): CSSProperties {
   const width = 100 / Math.max(1, zoom);
   const height = 100 / Math.max(1, zoom);
   const maxLeft = 100 - width;
   const maxTop = 100 - height;
   const left = maxLeft / 2 + (x / 100) * (maxLeft / 2);
   const top = maxTop / 2 + (y / 100) * (maxTop / 2);
+  const cropLeft = imageFrame.left + imageFrame.width * (Math.max(0, Math.min(maxLeft, left)) / 100);
+  const cropTop = imageFrame.top + imageFrame.height * (Math.max(0, Math.min(maxTop, top)) / 100);
+  const cropWidth = imageFrame.width * (width / 100);
+  const cropHeight = imageFrame.height * (height / 100);
   return {
-    left: `${Math.max(0, Math.min(maxLeft, left))}%`,
-    top: `${Math.max(0, Math.min(maxTop, top))}%`,
-    width: `${width}%`,
-    height: `${height}%`,
+    left: `${(cropLeft / shell.width) * 100}%`,
+    top: `${(cropTop / shell.height) * 100}%`,
+    width: `${(cropWidth / shell.width) * 100}%`,
+    height: `${(cropHeight / shell.height) * 100}%`,
   };
 }
 
