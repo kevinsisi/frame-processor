@@ -69,6 +69,9 @@ export const api = {
   processedPhotoUrl: (photoId: string, preset: ColorGradePreset | "adjusted") =>
     `${BASE}/photos/${photoId}/file?variant=processed&preset=${preset}`,
 
+  adjustmentVersionUrl: (photoId: string, versionId: string) =>
+    `${BASE}/photos/${photoId}/file?version_id=${versionId}`,
+
   createProcessingJob: (projectId: string, payload: ProcessingJobCreate) =>
     request<ProcessingJob>(`/projects/${projectId}/process`, {
       method: "POST",
@@ -131,6 +134,13 @@ export const api = {
   applyAdjustment: (photoId: string, payload: AdjustmentParams) =>
     request<AdjustmentApplyResult>(`/photos/${photoId}/adjustments`, {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+
+  saveAdjustmentDraft: (photoId: string, payload: AdjustmentParams) =>
+    request<AdjustmentApplyResult>(`/photos/${photoId}/adjustments/draft`, {
+      method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     }),

@@ -1,0 +1,25 @@
+import uuid
+from datetime import datetime
+
+from sqlalchemy import DateTime, ForeignKey, Integer, String, func
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from models.database import Base
+
+
+class AdjustmentVersion(Base):
+    __tablename__ = "photo_adjustment_versions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    photo_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("photos.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    params: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    path: Mapped[str] = mapped_column(String(512), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    photo: Mapped["Photo"] = relationship(back_populates="adjustment_versions")  # noqa: F821

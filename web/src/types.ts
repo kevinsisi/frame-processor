@@ -16,6 +16,16 @@ export type Photo = {
   uploaded_at: string;
   processed_paths: Record<string, string>;
   adjustment_params: AdjustmentParams | null;
+  adjustment_versions: AdjustmentVersion[];
+};
+
+export type AdjustmentVersion = {
+  id: string;
+  photo_id: string;
+  version_number: number;
+  params: AdjustmentParams;
+  path: string;
+  created_at: string;
 };
 
 export type ProjectDetail = Project & {

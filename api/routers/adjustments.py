@@ -121,6 +121,23 @@ def apply_photo_adjustment(
     return AdjustmentApplyOut(photo_id=photo.id, processed_path=relative, params=params)
 
 
+@router.put("/photos/{photo_id}/adjustments/draft", response_model=AdjustmentApplyOut)
+def save_photo_adjustment_draft(
+    photo_id: UUID,
+    payload: AdjustmentParams,
+    db: Session = Depends(get_db),
+) -> AdjustmentApplyOut:
+    photo = _get_photo(db, photo_id)
+    params = payload.normalized()
+    adjustment_renderer.save_draft(db, photo, params)
+    db.commit()
+    return AdjustmentApplyOut(
+        photo_id=photo.id,
+        processed_path=(photo.processed_paths or {}).get("adjusted", ""),
+        params=params,
+    )
+
+
 @router.post(
     "/projects/{project_id}/adjustments/apply",
     response_model=AdjustmentJobOut,

@@ -18,6 +18,10 @@
 - [x] Add vibrance, clarity, and sharpness controls.
 - [x] Add manual level, crop zoom/offset, and distortion controls.
 - [x] Add per-photo one-click left/right 90-degree rotation with immediate preview update.
+- [x] Persist per-photo draft adjustment state separately from generated versions.
+- [x] Create downloadable manual versions only when the user presses generate/apply.
+- [x] Add per-photo version download selection.
+- [x] Add visual geometry editor window with crop frame and live preview.
 - [x] Move apply-to-selected into worker progress for large batches.
 - [x] Keep manual geometry/crop corrections on non-AI path.
 

@@ -21,6 +21,145 @@
   padding: 0 var(--space-3);
 }
 
+.geometry-launch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 64px;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--gold);
+  color: var(--text-primary);
+  background: rgba(201, 168, 107, 0.08);
+  text-align: left;
+}
+
+.geometry-launch span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.geometry-launch small {
+  color: var(--text-tertiary);
+}
+
+.geometry-editor {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background: rgba(0, 0, 0, 0.78);
+}
+
+.geometry-editor__panel {
+  width: min(1120px, 100%);
+  max-height: min(92vh, 920px);
+  overflow: auto;
+  border: 1px solid var(--ink-line-strong);
+  background: var(--ink-base);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+  padding: var(--space-4);
+}
+
+.geometry-editor__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.geometry-editor__head div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.geometry-editor__head span,
+.geometry-editor__busy {
+  color: var(--text-tertiary);
+}
+
+.geometry-editor__stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-4);
+}
+
+.geometry-editor__figure {
+  margin: 0;
+  min-width: 0;
+}
+
+.geometry-editor__figure figcaption {
+  margin-bottom: var(--space-2);
+  color: var(--text-secondary);
+}
+
+.geometry-editor__image-shell {
+  position: relative;
+  min-height: 280px;
+  max-height: 58vh;
+  overflow: hidden;
+  border: 1px solid var(--ink-line);
+  background: #000;
+  display: grid;
+  place-items: center;
+}
+
+.geometry-editor__image-shell img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.geometry-editor__crop {
+  position: absolute;
+  border: 2px solid var(--gold);
+  box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.48);
+  pointer-events: none;
+}
+
+.geometry-editor__crop span {
+  position: absolute;
+  background: rgba(201, 168, 107, 0.72);
+}
+
+.geometry-editor__crop span:nth-child(1),
+.geometry-editor__crop span:nth-child(2) {
+  top: 33.333%;
+  left: 0;
+  right: 0;
+  height: 1px;
+}
+
+.geometry-editor__crop span:nth-child(2) {
+  top: 66.666%;
+}
+
+.geometry-editor__crop span:nth-child(3),
+.geometry-editor__crop span:nth-child(4) {
+  top: 0;
+  bottom: 0;
+  left: 33.333%;
+  width: 1px;
+}
+
+.geometry-editor__crop span:nth-child(4) {
+  left: 66.666%;
+}
+
+.geometry-editor__controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3) var(--space-5);
+  margin-top: var(--space-4);
+}
+
 .adjustment-panel__grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -29,7 +168,7 @@
 
 .adjustment-slider {
   display: grid;
-  grid-template-columns: 74px minmax(0, 1fr) 54px;
+  grid-template-columns: 74px minmax(0, 1fr) 54px 52px;
   align-items: center;
   gap: var(--space-3);
   color: var(--text-secondary);
@@ -45,6 +184,19 @@
 .adjustment-slider output {
   text-align: right;
   color: var(--text-primary);
+}
+
+.adjustment-slider__reset {
+  min-height: 28px;
+  border: 1px solid var(--ink-line);
+  color: var(--text-tertiary);
+  background: transparent;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.adjustment-slider__reset:disabled {
+  opacity: 0.28;
 }
 
 .adjustment-panel__hsl {
@@ -68,7 +220,7 @@
 }
 
 .adjustment-panel__hsl-row .adjustment-slider {
-  grid-template-columns: 22px minmax(0, 1fr) 42px;
+  grid-template-columns: 22px minmax(0, 1fr) 42px 44px;
 }
 
 @media (max-width: 720px) {
@@ -76,11 +228,15 @@
     grid-template-columns: 1fr;
   }
   .adjustment-slider {
-    grid-template-columns: 64px minmax(0, 1fr) 48px;
+    grid-template-columns: 64px minmax(0, 1fr) 48px 48px;
   }
   .adjustment-panel__actions .cta,
   .adjustment-panel__presets .cta {
     flex: 1 1 150px;
+  }
+  .geometry-editor__stage,
+  .geometry-editor__controls {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -93,7 +249,7 @@
     min-width: 0;
   }
   .adjustment-slider {
-    grid-template-columns: 58px minmax(0, 1fr) 42px;
+    grid-template-columns: 58px minmax(0, 1fr) 42px 44px;
     gap: var(--space-2);
     font-size: var(--t-xs);
   }
@@ -102,6 +258,16 @@
   }
   .adjustment-panel__hsl-row {
     grid-template-columns: 1fr;
+  }
+  .geometry-editor {
+    padding: var(--space-2);
+  }
+  .geometry-editor__panel {
+    max-height: 94vh;
+    padding: var(--space-3);
+  }
+  .geometry-editor__image-shell {
+    min-height: 220px;
   }
   .adjustment-panel__hsl-row strong {
     color: var(--gold);

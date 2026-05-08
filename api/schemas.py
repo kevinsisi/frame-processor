@@ -25,6 +25,17 @@ class ProjectOut(BaseModel):
     photo_count: int = 0
 
 
+class AdjustmentVersionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    photo_id: UUID
+    version_number: int
+    params: dict
+    path: str
+    created_at: datetime
+
+
 class PhotoOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -38,6 +49,7 @@ class PhotoOut(BaseModel):
     uploaded_at: datetime
     processed_paths: dict[str, str] = {}
     adjustment_params: dict | None = None
+    adjustment_versions: list[AdjustmentVersionOut] = []
 
 
 class ProjectDetail(ProjectOut):

@@ -104,3 +104,7 @@ def processed_path(
 
 def adjusted_path(project_id: uuid.UUID, photo_id: uuid.UUID) -> Path:
     return _project_processed_dir(project_id) / f"{photo_id}.adjusted.jpg"
+
+
+def adjustment_version_path(project_id: uuid.UUID, photo_id: uuid.UUID, version: int) -> Path:
+    return _project_processed_dir(project_id) / f"{photo_id}.manual-v{version}.jpg"

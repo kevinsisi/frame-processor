@@ -37,6 +37,11 @@ class Photo(Base):
     adjustment: Mapped["PhotoAdjustment | None"] = relationship(  # noqa: F821
         back_populates="photo", cascade="all, delete-orphan"
     )
+    adjustment_versions: Mapped[list["AdjustmentVersion"]] = relationship(  # noqa: F821
+        back_populates="photo",
+        cascade="all, delete-orphan",
+        order_by="AdjustmentVersion.version_number.desc()",
+    )
 
     @property
     def adjustment_params(self) -> dict | None:

@@ -1,3 +1,6 @@
+import { useState } from "react";
+import type { CSSProperties } from "react";
+
 import type { AdjustmentParams, AdjustmentPreset, HslColor } from "@/types";
 
 import "./AdjustmentPanel.css";
@@ -42,6 +45,8 @@ export const DEFAULT_ADJUSTMENT_PARAMS: AdjustmentParams = {
 type Props = {
   params: AdjustmentParams;
   presets: AdjustmentPreset[];
+  geometryBaseUrl: string;
+  geometryPreviewUrl: string;
   busy: boolean;
   onChange: (params: AdjustmentParams) => void;
   onApplyCurrent: () => void;
@@ -57,6 +62,8 @@ type Props = {
 export function AdjustmentPanel({
   params,
   presets,
+  geometryBaseUrl,
+  geometryPreviewUrl,
   busy,
   onChange,
   onApplyCurrent,
@@ -68,8 +75,12 @@ export function AdjustmentPanel({
   onRotateLeft,
   onRotateRight,
 }: Props) {
+  const [geometryOpen, setGeometryOpen] = useState(false);
   const setValue = (key: keyof Omit<AdjustmentParams, "hsl">, value: number) => {
     onChange({ ...params, [key]: value });
+  };
+  const resetValue = (key: keyof Omit<AdjustmentParams, "hsl">) => {
+    onChange({ ...params, [key]: DEFAULT_ADJUSTMENT_PARAMS[key] });
   };
   const setHsl = (
     color: HslColor,
@@ -143,27 +154,52 @@ export function AdjustmentPanel({
           ↺ 向左旋轉
         </button>
         <span className="section__meta mono">{orientationLabel(params.orientation)}</span>
+        <button type="button" className="cta cta--quiet" onClick={() => resetValue("orientation")} disabled={busy || params.orientation === 0}>
+          重設旋轉
+        </button>
         <button type="button" className="cta cta--quiet" onClick={onRotateRight} disabled={busy}>
           向右旋轉 ↻
         </button>
       </div>
 
+      <button
+        type="button"
+        className="geometry-launch"
+        onClick={() => setGeometryOpen(true)}
+        disabled={busy}
+      >
+        <span>
+          構圖 / 幾何調整
+          <small className="mono">
+            水平 {params.rotation} · 裁切 {params.crop_zoom} · 變形 {params.distortion}
+          </small>
+        </span>
+        <strong>開啟視窗</strong>
+      </button>
+
+      {geometryOpen && (
+        <GeometryEditor
+          params={params}
+          baseUrl={geometryBaseUrl}
+          previewUrl={geometryPreviewUrl}
+          busy={busy}
+          onClose={() => setGeometryOpen(false)}
+          onSetValue={setValue}
+          onResetValue={resetValue}
+        />
+      )}
+
       <div className="adjustment-panel__grid">
-        <Slider label="水平" value={params.rotation} min={-45} max={45} step={0.1} onChange={(v) => setValue("rotation", v)} />
-        <Slider label="裁切" value={params.crop_zoom} min={1} max={3} step={0.01} onChange={(v) => setValue("crop_zoom", v)} />
-        <Slider label="裁切 X" value={params.crop_x} onChange={(v) => setValue("crop_x", v)} />
-        <Slider label="裁切 Y" value={params.crop_y} onChange={(v) => setValue("crop_y", v)} />
-        <Slider label="變形修正" value={params.distortion} onChange={(v) => setValue("distortion", v)} />
-        <Slider label="曝光" value={params.exposure} min={-5} max={5} step={0.1} onChange={(v) => setValue("exposure", v)} />
-        <Slider label="對比" value={params.contrast} onChange={(v) => setValue("contrast", v)} />
-        <Slider label="亮部" value={params.highlights} onChange={(v) => setValue("highlights", v)} />
-        <Slider label="暗部" value={params.shadows} onChange={(v) => setValue("shadows", v)} />
-        <Slider label="色溫" value={params.temperature} onChange={(v) => setValue("temperature", v)} />
-        <Slider label="色偏" value={params.tint} onChange={(v) => setValue("tint", v)} />
-        <Slider label="飽和" value={params.saturation} onChange={(v) => setValue("saturation", v)} />
-        <Slider label="自然飽和" value={params.vibrance} onChange={(v) => setValue("vibrance", v)} />
-        <Slider label="清晰度" value={params.clarity} onChange={(v) => setValue("clarity", v)} />
-        <Slider label="銳利化" value={params.sharpness} onChange={(v) => setValue("sharpness", v)} />
+        <Slider label="曝光" value={params.exposure} defaultValue={DEFAULT_ADJUSTMENT_PARAMS.exposure} min={-5} max={5} step={0.1} onChange={(v) => setValue("exposure", v)} onReset={() => resetValue("exposure")} />
+        <Slider label="對比" value={params.contrast} defaultValue={DEFAULT_ADJUSTMENT_PARAMS.contrast} onChange={(v) => setValue("contrast", v)} onReset={() => resetValue("contrast")} />
+        <Slider label="亮部" value={params.highlights} defaultValue={DEFAULT_ADJUSTMENT_PARAMS.highlights} onChange={(v) => setValue("highlights", v)} onReset={() => resetValue("highlights")} />
+        <Slider label="暗部" value={params.shadows} defaultValue={DEFAULT_ADJUSTMENT_PARAMS.shadows} onChange={(v) => setValue("shadows", v)} onReset={() => resetValue("shadows")} />
+        <Slider label="色溫" value={params.temperature} defaultValue={DEFAULT_ADJUSTMENT_PARAMS.temperature} onChange={(v) => setValue("temperature", v)} onReset={() => resetValue("temperature")} />
+        <Slider label="色偏" value={params.tint} defaultValue={DEFAULT_ADJUSTMENT_PARAMS.tint} onChange={(v) => setValue("tint", v)} onReset={() => resetValue("tint")} />
+        <Slider label="飽和" value={params.saturation} defaultValue={DEFAULT_ADJUSTMENT_PARAMS.saturation} onChange={(v) => setValue("saturation", v)} onReset={() => resetValue("saturation")} />
+        <Slider label="自然飽和" value={params.vibrance} defaultValue={DEFAULT_ADJUSTMENT_PARAMS.vibrance} onChange={(v) => setValue("vibrance", v)} onReset={() => resetValue("vibrance")} />
+        <Slider label="清晰度" value={params.clarity} defaultValue={DEFAULT_ADJUSTMENT_PARAMS.clarity} onChange={(v) => setValue("clarity", v)} onReset={() => resetValue("clarity")} />
+        <Slider label="銳利化" value={params.sharpness} defaultValue={DEFAULT_ADJUSTMENT_PARAMS.sharpness} onChange={(v) => setValue("sharpness", v)} onReset={() => resetValue("sharpness")} />
       </div>
 
       <details className="adjustment-panel__hsl">
@@ -171,19 +207,19 @@ export function AdjustmentPanel({
         {HSL_COLORS.map((color) => (
           <div key={color} className="adjustment-panel__hsl-row">
             <strong className="mono">{color}</strong>
-            <Slider label="H" value={params.hsl[color].hue} onChange={(v) => setHsl(color, "hue", v)} />
-            <Slider label="S" value={params.hsl[color].saturation} onChange={(v) => setHsl(color, "saturation", v)} />
-            <Slider label="L" value={params.hsl[color].luminance} onChange={(v) => setHsl(color, "luminance", v)} />
+            <Slider label="H" value={params.hsl[color].hue} defaultValue={DEFAULT_ADJUSTMENT_PARAMS.hsl[color].hue} onChange={(v) => setHsl(color, "hue", v)} onReset={() => setHsl(color, "hue", DEFAULT_ADJUSTMENT_PARAMS.hsl[color].hue)} />
+            <Slider label="S" value={params.hsl[color].saturation} defaultValue={DEFAULT_ADJUSTMENT_PARAMS.hsl[color].saturation} onChange={(v) => setHsl(color, "saturation", v)} onReset={() => setHsl(color, "saturation", DEFAULT_ADJUSTMENT_PARAMS.hsl[color].saturation)} />
+            <Slider label="L" value={params.hsl[color].luminance} defaultValue={DEFAULT_ADJUSTMENT_PARAMS.hsl[color].luminance} onChange={(v) => setHsl(color, "luminance", v)} onReset={() => setHsl(color, "luminance", DEFAULT_ADJUSTMENT_PARAMS.hsl[color].luminance)} />
           </div>
         ))}
       </details>
 
       <div className="adjustment-panel__actions">
         <button type="button" className="cta cta--primary" onClick={onApplyCurrent} disabled={busy}>
-          套用目前照片
+          產生目前版本
         </button>
         <button type="button" className="cta" onClick={onApplySelected} disabled={busy}>
-          套用到已選照片
+          產生已選版本
         </button>
         <button type="button" className="cta cta--quiet" onClick={onReset} disabled={busy}>
           重設
@@ -193,20 +229,102 @@ export function AdjustmentPanel({
   );
 }
 
+function GeometryEditor({
+  params,
+  baseUrl,
+  previewUrl,
+  busy,
+  onClose,
+  onSetValue,
+  onResetValue,
+}: {
+  params: AdjustmentParams;
+  baseUrl: string;
+  previewUrl: string;
+  busy: boolean;
+  onClose: () => void;
+  onSetValue: (key: keyof Omit<AdjustmentParams, "hsl">, value: number) => void;
+  onResetValue: (key: keyof Omit<AdjustmentParams, "hsl">) => void;
+}) {
+  const crop = cropFrame(params.crop_zoom, params.crop_x, params.crop_y);
+  return (
+    <div className="geometry-editor" role="dialog" aria-modal="true" aria-label="構圖與幾何調整">
+      <div className="geometry-editor__panel">
+        <header className="geometry-editor__head">
+          <div>
+            <strong>構圖 / 幾何調整</strong>
+            <span className="mono">即時裁切框與處理預覽</span>
+          </div>
+          <button type="button" className="cta cta--quiet" onClick={onClose}>關閉</button>
+        </header>
+
+        <div className="geometry-editor__stage">
+          <figure className="geometry-editor__figure">
+            <figcaption className="mono">裁切範圍</figcaption>
+            <div className="geometry-editor__image-shell">
+              <img src={baseUrl} alt="裁切基準" />
+              <div className="geometry-editor__crop" style={crop}>
+                <span />
+                <span />
+                <span />
+                <span />
+              </div>
+            </div>
+          </figure>
+          <figure className="geometry-editor__figure">
+            <figcaption className="mono">Live preview</figcaption>
+            <div className="geometry-editor__image-shell">
+              <img src={previewUrl} alt="幾何調整預覽" />
+            </div>
+          </figure>
+        </div>
+
+        <div className="geometry-editor__controls">
+          <Slider label="水平" value={params.rotation} defaultValue={DEFAULT_ADJUSTMENT_PARAMS.rotation} min={-45} max={45} step={0.1} onChange={(v) => onSetValue("rotation", v)} onReset={() => onResetValue("rotation")} />
+          <Slider label="裁切" value={params.crop_zoom} defaultValue={DEFAULT_ADJUSTMENT_PARAMS.crop_zoom} min={1} max={3} step={0.01} onChange={(v) => onSetValue("crop_zoom", v)} onReset={() => onResetValue("crop_zoom")} />
+          <Slider label="裁切 X" value={params.crop_x} defaultValue={DEFAULT_ADJUSTMENT_PARAMS.crop_x} onChange={(v) => onSetValue("crop_x", v)} onReset={() => onResetValue("crop_x")} />
+          <Slider label="裁切 Y" value={params.crop_y} defaultValue={DEFAULT_ADJUSTMENT_PARAMS.crop_y} onChange={(v) => onSetValue("crop_y", v)} onReset={() => onResetValue("crop_y")} />
+          <Slider label="變形修正" value={params.distortion} defaultValue={DEFAULT_ADJUSTMENT_PARAMS.distortion} onChange={(v) => onSetValue("distortion", v)} onReset={() => onResetValue("distortion")} />
+        </div>
+        {busy && <p className="geometry-editor__busy mono">正在產生版本...</p>}
+      </div>
+    </div>
+  );
+}
+
+function cropFrame(zoom: number, x: number, y: number): CSSProperties {
+  const width = 100 / Math.max(1, zoom);
+  const height = 100 / Math.max(1, zoom);
+  const maxLeft = 100 - width;
+  const maxTop = 100 - height;
+  const left = maxLeft / 2 + (x / 100) * (maxLeft / 2);
+  const top = maxTop / 2 + (y / 100) * (maxTop / 2);
+  return {
+    left: `${Math.max(0, Math.min(maxLeft, left))}%`,
+    top: `${Math.max(0, Math.min(maxTop, top))}%`,
+    width: `${width}%`,
+    height: `${height}%`,
+  };
+}
+
 function Slider({
   label,
   value,
+  defaultValue,
   min = -100,
   max = 100,
   step = 1,
   onChange,
+  onReset,
 }: {
   label: string;
   value: number;
+  defaultValue: number;
   min?: number;
   max?: number;
   step?: number;
   onChange: (value: number) => void;
+  onReset: () => void;
 }) {
   return (
     <label className="adjustment-slider">
@@ -220,6 +338,15 @@ function Slider({
         onChange={(event) => onChange(Number(event.target.value))}
       />
       <output className="mono">{value}</output>
+      <button
+        type="button"
+        className="adjustment-slider__reset mono"
+        onClick={onReset}
+        disabled={value === defaultValue}
+        aria-label={`重設${label}`}
+      >
+        歸零
+      </button>
     </label>
   );
 }

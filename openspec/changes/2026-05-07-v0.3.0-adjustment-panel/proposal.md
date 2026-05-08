@@ -38,6 +38,10 @@ v0.2.0 ship 後晴晴實際使用發現：preset + auto-pipeline 出來的結果
 - `POST /photos/{id}/adjustments` body 全套 14+ 參數 → 同步 render → 寫到 `processed/{photo_id}.adjusted.jpg`，回傳結果路徑
 - `POST /photos/{id}/preview` body 同上 → **同步**回傳 small JPEG (long-edge 800px) 給 live slider
 - `POST /projects/{id}/adjustments/apply` body params + photo_ids → 建立 `adjustment_jobs` worker job，逐張寫出 `adjusted` 並回報 progress
+- Slider/rotation changes autosave as per-photo draft params in `photo_adjustments`; this does not create output versions.
+- Generate/apply creates immutable manual versions in `photo_adjustment_versions` (`manual-vN.jpg`) and updates `processed_paths.adjusted` to the newest generated version.
+- Photo cards expose version download selection: original, pipeline preset outputs, and manual vN outputs.
+- Geometry controls use a dedicated visual editor window with a crop frame and live preview.
 - `POST /adjustment-presets` 儲存 / `GET /adjustment-presets` 列出 / `DELETE /adjustment-presets/{id}`
 
 ### Frontend

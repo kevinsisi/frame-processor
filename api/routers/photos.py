@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from api.config import settings
 from api.database import get_db
+from models.adjustment_version import AdjustmentVersion
 from models.enums import ColorGradePreset
 from models.photo import Photo
 
@@ -18,13 +19,22 @@ def download_photo(
     photo_id: UUID,
     variant: Literal["original", "processed"] = Query(default="original"),
     preset: ColorGradePreset | Literal["adjusted"] | None = Query(default=None),
+    version_id: UUID | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> FileResponse:
     photo = db.get(Photo, photo_id)
     if photo is None:
         raise HTTPException(status_code=404, detail="photo not found")
 
-    if variant == "processed":
+    if version_id is not None:
+        version = db.get(AdjustmentVersion, version_id)
+        if version is None or version.photo_id != photo.id:
+            raise HTTPException(status_code=404, detail="adjustment version not found")
+        abs_path = settings.storage_root / version.path
+        media_type = "image/jpeg"
+        stem = photo.original_filename.rsplit(".", 1)[0]
+        download_name = f"{stem}.manual-v{version.version_number}.jpg"
+    elif variant == "processed":
         if preset is None:
             raise HTTPException(
                 status_code=400,

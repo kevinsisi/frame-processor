@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import { api } from "@/api/client";
 import type { ColorGradePreset, Photo } from "@/types";
 
@@ -27,6 +29,7 @@ export function PhotoGrid({
   onToggleSelect,
   onOpenPreview,
 }: PhotoGridProps) {
+  const [downloadVersions, setDownloadVersions] = useState<Record<string, string>>({});
   if (photos.length === 0) {
     return (
       <div className="photo-grid__empty">
@@ -40,10 +43,11 @@ export function PhotoGrid({
         const selected = selectedIds?.has(photo.id) ?? false;
         const active = activeId === photo.id;
         const processedPresets = Object.keys(photo.processed_paths ?? {});
-        const firstProcessedPreset = processedPresets[0] as
-          | ColorGradePreset
-          | "adjusted"
-          | undefined;
+        const versionOptions = buildVersionOptions(photo, processedPresets);
+        const selectedDownloadVersion = downloadVersions[photo.id] ?? versionOptions[0].value;
+        const selectedOption =
+          versionOptions.find((option) => option.value === selectedDownloadVersion) ??
+          versionOptions[0];
         const Tag: "li" = "li";
         const handleClick = () => {
           onOpenPreview?.(photo.id);
@@ -100,20 +104,75 @@ export function PhotoGrid({
               >
                 開原檔 ↗
               </a>
-              {firstProcessedPreset && (
-                <a
-                  href={api.processedPhotoUrl(photo.id, firstProcessedPreset)}
-                  download
-                  className="photo-tile__open mono"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  下載處理後 ↓
-                </a>
-              )}
+              <select
+                className="photo-tile__version mono"
+                value={selectedOption.value}
+                onClick={(e) => e.stopPropagation()}
+                onChange={(event) => {
+                  event.stopPropagation();
+                  setDownloadVersions((prev) => ({
+                    ...prev,
+                    [photo.id]: event.target.value,
+                  }));
+                }}
+              >
+                {versionOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <a
+                href={selectedOption.url}
+                download
+                className="photo-tile__open mono"
+                onClick={(e) => e.stopPropagation()}
+              >
+                下載版本 ↓
+              </a>
             </div>
           </Tag>
         );
       })}
     </ul>
   );
+}
+
+function buildVersionOptions(photo: Photo, processedPresets: string[]) {
+  const options: { value: string; label: string; url: string }[] = [];
+  for (const version of photo.adjustment_versions ?? []) {
+    options.push({
+      value: `manual:${version.id}`,
+      label: `手動 v${version.version_number}`,
+      url: api.adjustmentVersionUrl(photo.id, version.id),
+    });
+  }
+  for (const preset of processedPresets) {
+    if (preset === "adjusted") continue;
+    options.push({
+      value: `preset:${preset}`,
+      label: presetLabel(preset),
+      url: api.processedPhotoUrl(photo.id, preset as ColorGradePreset),
+    });
+  }
+  if ((photo.processed_paths ?? {}).adjusted && (photo.adjustment_versions ?? []).length === 0) {
+    options.push({
+      value: "preset:adjusted",
+      label: "手動 latest",
+      url: api.processedPhotoUrl(photo.id, "adjusted"),
+    });
+  }
+  options.push({
+    value: "original",
+    label: "原圖",
+    url: api.photoFileUrl(photo.id),
+  });
+  return options;
+}
+
+function presetLabel(preset: string): string {
+  if (preset === "showroom_white") return "展間白";
+  if (preset === "outdoor_warm") return "戶外暖";
+  if (preset === "night_cold") return "夜拍冷";
+  return preset;
 }

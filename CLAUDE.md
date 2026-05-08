@@ -51,10 +51,13 @@ docs/        Architecture、ADR、設計筆記
 - `/preview` 支援點選照片同步上方 Before/After；不要再固定第一張 processed sample。
 - 手動調整目前走同步 preview/apply API：`POST /photos/{id}/preview` 回小張 JPEG，`POST /photos/{id}/adjustments` 寫出 `processed_paths.adjusted`。
 - 可對每張照片獨立點按向左/向右 90 度旋轉，並可調整手動水平、裁切縮放/偏移、手動變形修正、曝光、對比、亮部、暗部、色溫、色偏、飽和、自然飽和、清晰度、銳利化與 HSL 六色區。
-- 90 度 orientation 旋轉存在該照片的 `photo_adjustments.params.orientation`，點按後需立即更新 Before/After 原圖側與 live preview 側。
+- 90 度 orientation 旋轉與所有 slider 調整先存在該照片的 `photo_adjustments.params` 草稿，點按/拖曳後需立即更新 Before/After 原圖側與 live preview 側，且重開網頁要載回草稿。
+- 只有使用者按「產生目前版本」或「產生已選版本」時才建立 `photo_adjustment_versions` 與 `manual-vN.jpg`；單純操作 slider/旋轉不得建立版本。
+- 幾何類操作（水平、裁切、裁切 X/Y、變形修正）需集中在可視化構圖視窗，讓使用者看到裁切框與 live preview，不要只散落在一般色彩 slider。
 - Manual adjustment 永遠從非 `adjusted` 的基準圖重新計算，不得把上一版 adjusted 當來源累加。
 - 手動水平、裁切、變形修正路徑不得呼叫 Gemini AI；AI level correction 只屬於原本 batch pipeline。
 - 使用者 preset 存在 `adjustment_presets`；單張調整參數存在 `photo_adjustments`。
+- 手動產生版本存在 `photo_adjustment_versions`；照片卡片下載必須可選原圖、pipeline preset、各手動版本。
 - 匯出 zip 順序必須是 `adjusted` → 任一 pipeline processed preset → original。
 - 「套用到已選照片」走 `adjustment_jobs` worker job 與輪詢進度。
 

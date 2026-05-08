@@ -32,6 +32,13 @@ function blobToDataUrl(blob: Blob): Promise<string> {
   });
 }
 
+function defaultSelectedPhotoIds(project: ProjectDetail): Set<string> {
+  const adjusted = project.photos
+    .filter((photo) => photo.adjustment_params || (photo.adjustment_versions ?? []).length > 0)
+    .map((photo) => photo.id);
+  return new Set(adjusted.length > 0 ? adjusted : project.photos.map((photo) => photo.id));
+}
+
 export default function PreviewPage() {
   const { projectId } = useParams();
   const { push: toast } = useToast();
@@ -49,16 +56,21 @@ export default function PreviewPage() {
   const [adjustmentJob, setAdjustmentJob] = useState<AdjustmentJob | null>(null);
   const [pipelineBusy, setPipelineBusy] = useState(false);
   const [adjustmentBusy, setAdjustmentBusy] = useState(false);
-  const [rotationBusy, setRotationBusy] = useState(false);
+  const [draftDirty, setDraftDirty] = useState(false);
   const pollRef = useRef<number | null>(null);
   const adjustmentPollRef = useRef<number | null>(null);
   const previewRequestRef = useRef(0);
   const basePreviewRequestRef = useRef(0);
+  const draftRequestRef = useRef(0);
   const adjustmentParamsRef = useRef(adjustmentParams);
 
-  function updateAdjustmentParams(params: AdjustmentParams) {
+  function updateAdjustmentParams(
+    params: AdjustmentParams,
+    options: { persist?: boolean } = {},
+  ) {
     adjustmentParamsRef.current = params;
     setAdjustmentParams(params);
+    if (options.persist !== false) setDraftDirty(true);
   }
 
   function reload() {
@@ -88,7 +100,7 @@ export default function PreviewPage() {
       .getProject(projectId)
       .then((p) => {
         setProject(p);
-        setSelected(new Set(p.photos.map((ph) => ph.id)));
+        setSelected(defaultSelectedPhotoIds(p));
         setActivePhotoId(
           p.photos.find((ph) => Object.keys(ph.processed_paths ?? {}).length > 0)?.id ??
             p.photos[0]?.id ??
@@ -110,8 +122,24 @@ export default function PreviewPage() {
       active?.adjustment_params
         ? { ...structuredClone(DEFAULT_ADJUSTMENT_PARAMS), ...active.adjustment_params }
         : structuredClone(DEFAULT_ADJUSTMENT_PARAMS),
+      { persist: false },
     );
+    setDraftDirty(false);
   }, [activePhotoId, project]);
+
+  useEffect(() => {
+    if (!activePhotoId || !draftDirty) return;
+    const requestId = ++draftRequestRef.current;
+    const handle = window.setTimeout(async () => {
+      try {
+        await api.saveAdjustmentDraft(activePhotoId, adjustmentParams);
+        if (draftRequestRef.current === requestId) setDraftDirty(false);
+      } catch (err) {
+        console.warn("save adjustment draft failed", err);
+      }
+    }, 500);
+    return () => window.clearTimeout(handle);
+  }, [activePhotoId, adjustmentParams, draftDirty]);
 
   useEffect(() => {
     if (!activePhotoId) {
@@ -185,6 +213,11 @@ export default function PreviewPage() {
   function selectAll() {
     if (!project) return;
     setSelected(new Set(project.photos.map((p) => p.id)));
+  }
+
+  function selectAdjusted() {
+    if (!project) return;
+    setSelected(defaultSelectedPhotoIds(project));
   }
 
   function selectNone() {
@@ -278,7 +311,7 @@ export default function PreviewPage() {
     }
   }
 
-  async function rotateActivePhoto(direction: "left" | "right") {
+  function rotateActivePhoto(direction: "left" | "right") {
     if (!activePhotoId) return;
     const current = adjustmentParamsRef.current;
     const delta = direction === "right" ? 90 : 270;
@@ -287,15 +320,6 @@ export default function PreviewPage() {
       orientation: (current.orientation + delta) % 360,
     };
     updateAdjustmentParams(next);
-    setRotationBusy(true);
-    try {
-      await api.applyAdjustment(activePhotoId, next);
-      reload();
-    } catch (err) {
-      toast(`旋轉失敗：${String(err)}`, "error");
-    } finally {
-      setRotationBusy(false);
-    }
   }
 
   async function savePreset(name: string) {
@@ -500,7 +524,9 @@ export default function PreviewPage() {
         <AdjustmentPanel
           params={adjustmentParams}
           presets={presets}
-          busy={adjustmentBusy || rotationBusy}
+          geometryBaseUrl={activeBasePreviewUrl ?? baseDisplayUrl}
+          geometryPreviewUrl={activePreviewUrl ?? activeBasePreviewUrl ?? baseDisplayUrl}
+          busy={adjustmentBusy}
           onChange={updateAdjustmentParams}
           onApplyCurrent={() => void applyAdjustment([activePhotoId])}
           onApplySelected={() => void applyAdjustment(Array.from(selected))}
@@ -508,8 +534,8 @@ export default function PreviewPage() {
           onSavePreset={(name) => void savePreset(name)}
           onLoadPreset={(preset) => updateAdjustmentParams(preset.params)}
           onDeletePreset={(preset) => void deletePreset(preset)}
-          onRotateLeft={() => void rotateActivePhoto("left")}
-          onRotateRight={() => void rotateActivePhoto("right")}
+          onRotateLeft={() => rotateActivePhoto("left")}
+          onRotateRight={() => rotateActivePhoto("right")}
         />
       )}
 
@@ -530,6 +556,13 @@ export default function PreviewPage() {
               disabled={selected.size === project.photos.length}
             >
               全選
+            </button>
+            <button
+              type="button"
+              className="bulk-bar__btn"
+              onClick={selectAdjusted}
+            >
+              只選已調整
             </button>
             <button
               type="button"
