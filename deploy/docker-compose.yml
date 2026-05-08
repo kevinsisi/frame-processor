@@ -31,9 +31,6 @@ services:
 
   api:
     image: ${DOCKERHUB_USERNAME:-kevin950805}/frame-processor-api:${IMAGE_TAG:-latest}
-    build:
-      context: ..
-      dockerfile: deploy/api.Dockerfile
     environment:
       DATABASE_URL: postgresql+psycopg://frame:frame@postgres:5432/frame_processor
       REDIS_URL: redis://redis:6379/0
@@ -60,9 +57,6 @@ services:
 
   worker:
     image: ${DOCKERHUB_USERNAME:-kevin950805}/frame-processor-api:${IMAGE_TAG:-latest}
-    build:
-      context: ..
-      dockerfile: deploy/api.Dockerfile
     environment:
       DATABASE_URL: postgresql+psycopg://frame:frame@postgres:5432/frame_processor
       REDIS_URL: redis://redis:6379/0
@@ -87,13 +81,7 @@ services:
 
   web:
     image: ${DOCKERHUB_USERNAME:-kevin950805}/frame-processor-web:${IMAGE_TAG:-latest}
-    build:
-      context: ..
-      dockerfile: deploy/web.Dockerfile
-      args:
-        VITE_API_BASE_URL: /api
     ports:
       - "100.83.112.20:8533:80"
     depends_on:
       - api
-

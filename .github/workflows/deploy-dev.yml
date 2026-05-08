@@ -14,6 +14,7 @@ env:
   IMAGE_TAG: latest
   GEMINI_MODEL: gemini-2.5-flash
   HEALTH_URL: http://100.83.112.20:8533/api/health
+  EXPECTED_APP_VERSION: "0.3.8"
   EXPECTED_POSTGRES_DIR: G:/frame-processor/postgres-data
   EXPECTED_STORAGE_DIR: G:/frame-processor/storage-data
   EXPECTED_REDIS_DIR: G:/frame-processor/redis-data
@@ -210,9 +211,9 @@ jobs:
           ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_SERVER_IP}" "powershell -NoProfile -ExecutionPolicy Bypass -Command \"
             \$ErrorActionPreference = 'Stop'
             Set-Location -LiteralPath '${DEPLOY_PATH}'
-            docker compose --env-file .env -f docker-compose.yml pull postgres redis api worker web
+            docker compose --env-file .env -f docker-compose.yml pull --policy always postgres redis api worker web
             if (\$LASTEXITCODE -ne 0) { throw 'docker compose pull failed.' }
-            docker compose --env-file .env -f docker-compose.yml up -d --remove-orphans postgres redis api worker web
+            docker compose --env-file .env -f docker-compose.yml up -d --pull always --force-recreate --no-build --remove-orphans postgres redis api worker web
             if (\$LASTEXITCODE -ne 0) { throw 'docker compose up failed.' }
             docker compose --env-file .env -f docker-compose.yml ps
           \""
@@ -262,7 +263,21 @@ jobs:
       - name: Health check through web proxy
         run: |
           for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
-            if curl -fsS "${HEALTH_URL}"; then
+            response="$(curl -fsS "${HEALTH_URL}" || true)"
+            if [ -n "${response}" ]; then
+              printf '%s\n' "${response}"
+            fi
+            actual_version="$(RESPONSE="${response}" python3 - <<'PY'
+          import json
+          import os
+
+          try:
+              print(json.loads(os.environ.get("RESPONSE", "{}") or "{}").get("version", ""))
+          except json.JSONDecodeError:
+              print("")
+          PY
+            )"
+            if [ "${actual_version}" = "${EXPECTED_APP_VERSION}" ]; then
               exit 0
             fi
             sleep 10

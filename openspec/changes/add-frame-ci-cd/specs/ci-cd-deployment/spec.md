@@ -43,7 +43,7 @@ The system SHALL deploy to the Windows desktop at `100.83.112.20` by copying the
 
 #### Scenario: Deploy workflow applies published images
 - **WHEN** compose has been copied and pre-deploy guards pass
-- **THEN** the workflow runs `docker compose pull` and `docker compose up -d` on the desktop using the published image tag
+- **THEN** the workflow pulls published images and force-recreates api, worker, and web without local builds
 
 ### Requirement: Deployment fails closed when G drive data paths are unsafe
 The system SHALL refuse to deploy before `docker compose up` if required G drive persistent data directories are missing or if compose does not resolve postgres, redis, api, and worker storage as G drive bind mounts.
@@ -69,7 +69,7 @@ The system SHALL verify running container mounts and the web-proxied health endp
 
 #### Scenario: Health check succeeds
 - **WHEN** runtime mount verification passes
-- **THEN** the workflow polls `http://100.83.112.20:8533/api/health` until it returns success or the retry budget is exhausted
+- **THEN** the workflow polls `http://100.83.112.20:8533/api/health` until it returns the expected app version or the retry budget is exhausted
 
 ### Requirement: Runtime secrets and optional integrations remain constrained
 The system SHALL keep Gemini model selection, settings admin protection, and key-manager integration aligned with production rules.
