@@ -26,5 +26,5 @@
 
 - [x] 5.1 Run frontend typecheck/build, backend lint/tests/compile, and Docker build validation locally where feasible.
 - [x] 5.2 Run Gemini pre-commit review and fix any findings.
-- [ ] 5.3 Commit with the required co-author line and push to `main`.
+- [x] 5.3 Commit with the required co-author line and push to `main`.
 - [ ] 5.4 Track GitHub Actions publish/deploy results and verify the deployed health endpoint.

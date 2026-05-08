@@ -8,8 +8,9 @@ Create Date: 2026-05-08
 from collections.abc import Sequence
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision: str = "0005_adjustment_jobs"
 down_revision: str | None = "0004_adjustment_panel"

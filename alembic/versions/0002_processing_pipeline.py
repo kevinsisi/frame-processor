@@ -10,8 +10,9 @@ from __future__ import annotations
 from typing import Sequence, Union
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision: str = "0002_processing_pipeline"
 down_revision: Union[str, Sequence[str], None] = "0001_initial"

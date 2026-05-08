@@ -1,2 +1,2 @@
-// v0.3.1 — faster live previews with visible color-temperature feedback.
-export const APP_VERSION = "0.3.1";
+// v0.3.2 - desktop CI/CD pipeline with G drive deployment guards.
+export const APP_VERSION = "0.3.2";
