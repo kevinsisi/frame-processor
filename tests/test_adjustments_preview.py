@@ -1,10 +1,10 @@
 from io import BytesIO
 
 import numpy as np
-from PIL import Image, ImageChops, ImageDraw, ImageStat
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageStat
 
 from models.enums import ColorGradePreset, DenoiseStrength
-from services import adjustments, color_grade, denoise
+from services import adjustments, color_grade, denoise, lens_distort, photo_processor
 
 
 def _mean_channel_delta(image: Image.Image, left: int, right: int) -> float:
@@ -14,6 +14,10 @@ def _mean_channel_delta(image: Image.Image, left: int, right: int) -> float:
 
 def _difference_sum(left: Image.Image, right: Image.Image) -> float:
     return sum(ImageStat.Stat(ImageChops.difference(left, right)).sum)
+
+
+def _edge_mean(image: Image.Image) -> float:
+    return ImageStat.Stat(image.convert("L").filter(ImageFilter.FIND_EDGES)).mean[0]
 
 
 def test_preview_jpeg_downsizes_before_adjustments() -> None:
@@ -162,3 +166,69 @@ def test_medium_and_heavy_denoise_blend_nafnet_with_classical_pass(monkeypatch) 
     assert calls == [DenoiseStrength.MEDIUM, DenoiseStrength.HEAVY]
     assert 0.34 < float(medium.mean()) < 0.36
     assert 0.19 < float(heavy.mean()) < 0.21
+
+
+def test_denoise_detail_restore_adds_sharpness_after_heavy_denoise() -> None:
+    image = Image.new("RGB", (80, 80), (32, 32, 32))
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((28, 12, 52, 68), fill=(210, 210, 210))
+    blurred = image.filter(ImageFilter.GaussianBlur(radius=1.5))
+
+    restored = photo_processor._restore_detail_after_denoise(blurred, DenoiseStrength.HEAVY)
+
+    assert _edge_mean(restored) > _edge_mean(blurred) * 1.25
+
+
+def test_denoise_detail_restore_respects_medium_and_none_strengths() -> None:
+    image = Image.new("RGB", (80, 80), (32, 32, 32))
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((28, 12, 52, 68), fill=(210, 210, 210))
+    blurred = image.filter(ImageFilter.GaussianBlur(radius=1.5))
+
+    medium = photo_processor._restore_detail_after_denoise(blurred, DenoiseStrength.MEDIUM)
+    none = photo_processor._restore_detail_after_denoise(blurred, DenoiseStrength.NONE)
+
+    assert _edge_mean(medium) > _edge_mean(blurred)
+    assert _difference_sum(blurred, none) == 0
+
+
+def test_vertical_perspective_estimator_detects_converging_architecture_lines() -> None:
+    image = Image.new("RGB", (220, 180), (10, 10, 10))
+    draw = ImageDraw.Draw(image)
+    for offset in (0, 16, 32):
+        draw.line((40 + offset, 170, 82 + offset, 12), fill=(245, 245, 245), width=3)
+        draw.line((180 - offset, 170, 138 - offset, 12), fill=(245, 245, 245), width=3)
+
+    inset = lens_distort._estimate_vertical_perspective_inset(np.asarray(image))
+
+    assert inset > 8
+
+
+def test_vertical_perspective_estimator_ignores_straight_vertical_lines() -> None:
+    image = Image.new("RGB", (220, 180), (10, 10, 10))
+    draw = ImageDraw.Draw(image)
+    for x in (42, 74, 146, 178):
+        draw.line((x, 12, x, 170), fill=(245, 245, 245), width=3)
+
+    inset = lens_distort._estimate_vertical_perspective_inset(np.asarray(image))
+
+    assert inset == 0
+
+
+def test_vertical_perspective_correction_preserves_size_and_changes_pixels() -> None:
+    image = Image.new("RGB", (120, 90), (20, 20, 20))
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((30, 12, 90, 82), outline=(240, 240, 240), width=3)
+
+    corrected = lens_distort._correct_vertical_perspective(np.asarray(image), inset=14)
+
+    assert corrected.shape == (90, 120, 3)
+    assert _difference_sum(image, Image.fromarray(corrected)) > 1000
+
+
+def test_vertical_perspective_correction_noops_for_zero_inset() -> None:
+    rgb = np.asarray(Image.new("RGB", (32, 24), (20, 40, 60)))
+
+    corrected = lens_distort._correct_vertical_perspective(rgb, inset=0)
+
+    assert np.array_equal(corrected, rgb)

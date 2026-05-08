@@ -1,4 +1,4 @@
-import { needsPipelineRunNote } from "../src/utils/pipelinePreview.js";
+import { missingPipelineOutputPhotoIds, needsPipelineRunNote } from "../src/utils/pipelinePreview.js";
 
 function assertEqual(actual: boolean, expected: boolean, label: string): void {
   if (actual !== expected) {
@@ -49,3 +49,16 @@ assertEqual(
   false,
   "preview not loaded hides note",
 );
+
+const missing = missingPipelineOutputPhotoIds(
+  [
+    { id: "a", processed_paths: {} },
+    { id: "b", processed_paths: { showroom_white: "b.jpg" } },
+    { id: "c", processed_paths: { night_cold: "c.jpg" } },
+  ],
+  "showroom_white",
+);
+
+if (missing.join(",") !== "a,c") {
+  throw new Error(`missingPipelineOutputPhotoIds: expected a,c, got ${missing.join(",")}`);
+}

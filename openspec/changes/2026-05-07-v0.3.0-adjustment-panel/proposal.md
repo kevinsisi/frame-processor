@@ -66,6 +66,9 @@ v0.2.0 ship 後晴晴實際使用發現：preset + auto-pipeline 出來的結果
 - Batch pipeline defaults are: AI denoise = heavy, wide-angle distortion correction checked, Gemini level correction checked, auto-crop aspect = original unless changed.
 - New uploads shown in Before/After before batch generation must be labeled as manual preview, not denoised output. If the active original has no generated preset output yet, show a clear CTA to run the batch pipeline.
 - Heavy denoise must remain visible on extreme high-ISO/color-grain images even when NAFNet is unavailable or too conservative; medium/heavy denoise may combine NAFNet with OpenCV denoising.
+- If the current preset has no generated output for uploaded photos, Preview auto-starts the default batch job in the background. The Before side remains the undenoised original so denoise impact stays visible; the After side switches to generated output when the job completes.
+- Batch detail restore applies thresholded unsharp mask after medium/heavy denoise and geometry, before color grade, to recover edges without re-amplifying flat-area noise.
+- The lens correction toggle covers both radial barrel correction and automatic vertical perspective correction when Hough-detected side verticals converge upward.
 - The batch "開始處理" action belongs below the manual adjustment section, so the workflow reads: choose/edit photo versions → fine tune → then generate/process, instead of burying the primary action inside the upper pipeline settings.
 
 ### DB migration `0004_adjustment_panel.py`
@@ -95,6 +98,8 @@ v0.2.0 ship 後晴晴實際使用發現：preset + auto-pipeline 出來的結果
 - Photo card version dropdown changes the visible card image and active editing/download base for that photo.
 - Pipeline defaults are heavy denoise, lens distortion correction on, and level correction on.
 - Before/After warns when the active original has no generated pipeline output yet, because AI denoise only runs after "開始產生".
+- Before/After auto-generates missing preset outputs while preserving the original as the comparison baseline.
+- Heavy denoise restores visible detail, and wide-angle correction visibly handles vertical perspective convergence in addition to barrel distortion.
 - Primary batch start button is visually placed after the manual adjustment controls.
 - Geometry editing opens as a full-screen single-image workspace with grid overlay guides, draggable/resizable crop frame, horizontal/vertical perspective controls, live transform preview, and cancel/done semantics.
 

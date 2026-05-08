@@ -43,6 +43,9 @@
 - [x] Default pipeline settings to heavy denoise, lens correction on, level correction on, original crop ratio.
 - [x] Warn when Before/After is showing manual preview before AI denoise has been generated.
 - [x] Strengthen heavy denoise when NAFNet is conservative or unavailable.
+- [x] Auto-start default batch generation for missing preset outputs while keeping Before as the original.
+- [x] Add post-denoise detail restoration for medium/heavy outputs.
+- [x] Add automatic vertical perspective correction to the lens correction toggle.
 - [x] Move the primary batch start action below the manual adjustment section.
 - [ ] Validate mobile layout on iPhone Safari.
 

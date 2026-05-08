@@ -25,7 +25,7 @@ import type {
   ProcessingJobCreate,
   ProjectDetail,
 } from "@/types";
-import { needsPipelineRunNote } from "@/utils/pipelinePreview";
+import { missingPipelineOutputPhotoIds, needsPipelineRunNote } from "@/utils/pipelinePreview";
 
 import "./Preview.css";
 
@@ -79,6 +79,7 @@ export default function PreviewPage() {
   const basePreviewRequestRef = useRef(0);
   const draftRequestRef = useRef(0);
   const adjustmentParamsRef = useRef(adjustmentParams);
+  const autoProcessRef = useRef<Set<string>>(new Set());
 
   function updateAdjustmentParams(
     params: AdjustmentParams,
@@ -247,6 +248,27 @@ export default function PreviewPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!project || !projectId || pipelineBusy) return;
+    if (job && (job.status === "pending" || job.status === "running")) return;
+    const missingPhotoIds = missingPipelineOutputPhotoIds(project.photos, pipelinePreset);
+    if (missingPhotoIds.length === 0) return;
+    const key = `${project.id}:${pipelinePreset}:${missingPhotoIds.join(",")}`;
+    if (autoProcessRef.current.has(key)) return;
+    autoProcessRef.current.add(key);
+    void startProcessing(
+      {
+        preset: pipelinePreset,
+        denoise_strength: "heavy",
+        lens_distort_correct: true,
+        level_correct: true,
+        auto_crop_aspect: null,
+      },
+      missingPhotoIds,
+      { automatic: true },
+    );
+  }, [project, projectId, pipelineBusy, pipelinePreset, job?.status]);
+
   function toggle(photoId: string) {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -274,9 +296,18 @@ export default function PreviewPage() {
   }
 
   async function handleSubmit(payload: ProcessingJobCreate) {
+    await startProcessing(payload, Array.from(selected), { automatic: false });
+  }
+
+  async function startProcessing(
+    payload: ProcessingJobCreate,
+    photoIds: string[],
+    options: { automatic: boolean },
+  ) {
     if (!projectId || !project) return;
+    if (photoIds.length === 0) return;
     const submittedPreset = payload.preset;
-    const submittedPhotoIds = Array.from(selected);
+    const submittedPhotoIds = photoIds;
     setPipelineBusy(true);
     try {
       const created = await api.createProcessingJob(projectId, {
@@ -284,7 +315,12 @@ export default function PreviewPage() {
         photo_ids: submittedPhotoIds,
       });
       setJob(created);
-      toast(`已開始處理，共 ${created.total} 張`, "info");
+      toast(
+        options.automatic
+          ? `已自動開始產生 AI 版本，共 ${created.total} 張`
+          : `已開始處理，共 ${created.total} 張`,
+        "info",
+      );
       if (pollRef.current !== null) window.clearInterval(pollRef.current);
       pollRef.current = window.setInterval(async () => {
         try {
@@ -297,7 +333,7 @@ export default function PreviewPage() {
             }
             setPipelineBusy(false);
             if (next.status === "done") {
-              toast("處理完成", "success");
+              toast(options.automatic ? "AI 版本已產生" : "處理完成", "success");
               setPhotoVersionValues((prev) => ({
                 ...prev,
                 ...Object.fromEntries(
@@ -476,6 +512,7 @@ export default function PreviewPage() {
   const activeBasePreviewUrl =
     basePreview && basePreview.photoId === samplePhoto?.id ? basePreview.url : null;
   const baseDisplayUrl = sampleVersion?.url ?? "";
+  const originalDisplayUrl = samplePhoto ? api.photoFileUrl(samplePhoto.id) : "";
   const needsPipelineRun = needsPipelineRunNote({
     sourceKind: sampleVersion?.source.kind,
     processedPaths: samplePhoto?.processed_paths,
@@ -552,7 +589,7 @@ export default function PreviewPage() {
           </header>
           <BeforeAfter
             key={`${samplePhoto.id}:${adjustmentParams.orientation}:${sampleVersion?.value ?? "original"}`}
-            beforeUrl={activeBasePreviewUrl ?? baseDisplayUrl}
+            beforeUrl={originalDisplayUrl}
             afterUrl={
               activePreviewUrl ??
               (sampleVersion?.url ?? api.photoFileUrl(samplePhoto.id))
@@ -562,8 +599,8 @@ export default function PreviewPage() {
           {needsPipelineRun && (
             <div className="preview__pipeline-note">
               <div>
-                <strong>右側目前只是微調預覽，尚未執行 AI 降噪。</strong>
-                <span>這張照片還沒有批次處理版本；按下「開始產生」後才會套用重度降噪、廣角與水平校正。</span>
+                <strong>原圖會保留未降噪，AI 版本會在背景產生。</strong>
+                <span>這張照片還沒有批次處理版本；系統會自動產生重度降噪、廣角與水平校正版本，完成後右側會切到處理後。</span>
               </div>
               <a className="cta cta--primary" href="#pipeline-settings">前往開始產生</a>
             </div>

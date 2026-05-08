@@ -23,8 +23,8 @@ class Settings(BaseSettings):
 
     # Pipeline tuning
     nafnet_tile_size: int = 512  # CPU 推理時切 tile 避免 OOM
-    lens_distort_k1: float = -0.08  # 預設輕度桶形矯正
-    lens_distort_k2: float = 0.02
+    lens_distort_k1: float = -0.16  # 通用手機廣角桶形矯正
+    lens_distort_k2: float = 0.04
 
     @property
     def cors_origins(self) -> list[str]:

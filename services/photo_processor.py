@@ -16,7 +16,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 
-from PIL import Image, ImageOps
+from PIL import Image, ImageFilter, ImageOps
 
 from models.enums import (
     AspectRatio,
@@ -64,6 +64,7 @@ def process_photo(
     if auto_crop_aspect is not None and auto_crop_aspect is not AspectRatio.ORIGINAL:
         img = auto_crop.auto_crop(img, auto_crop_aspect)
 
+    img = _restore_detail_after_denoise(img, denoise_strength)
     img = color_grade.apply_grade(img, preset)
 
     target_abs = storage.processed_path(project_id, photo_id, preset)
@@ -78,3 +79,11 @@ def process_photo(
         width=img.width,
         height=img.height,
     )
+
+
+def _restore_detail_after_denoise(image: Image.Image, strength: DenoiseStrength) -> Image.Image:
+    if strength is DenoiseStrength.HEAVY:
+        return image.filter(ImageFilter.UnsharpMask(radius=1.2, percent=120, threshold=4))
+    if strength is DenoiseStrength.MEDIUM:
+        return image.filter(ImageFilter.UnsharpMask(radius=1.0, percent=90, threshold=4))
+    return image
