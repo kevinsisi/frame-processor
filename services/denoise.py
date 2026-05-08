@@ -9,7 +9,8 @@
 - CPU 推理：對 > tile 的圖切 tile（預設 512x512 with 32px overlap），最後拼回去
 - GPU：``torch.cuda.is_available()`` 自動偵測
 - 強度（DenoiseStrength）：light/medium/heavy 用 ``alpha * denoised + (1-alpha) * original``
-  混合 (0.4 / 0.7 / 1.0)，避免「過度降噪導致細節糊掉」
+  混合 (0.4 / 0.7 / 1.0)，medium/heavy 會再疊一層 OpenCV 經典降噪，避免
+  NAFNet 對極端高 ISO / 彩色顆粒太保守而看起來沒效果。
 
 公開介面：``denoise(image: PIL.Image, strength: DenoiseStrength) -> PIL.Image``
 """
@@ -41,6 +42,13 @@ STRENGTH_BLEND: dict[DenoiseStrength, float] = {
     DenoiseStrength.HEAVY: 1.0,
 }
 
+CLASSICAL_POST_BLEND: dict[DenoiseStrength, float] = {
+    DenoiseStrength.NONE: 0.0,
+    DenoiseStrength.LIGHT: 0.0,
+    DenoiseStrength.MEDIUM: 0.55,
+    DenoiseStrength.HEAVY: 1.0,
+}
+
 _model = None
 _device = None
 _model_lock = Lock()
@@ -57,6 +65,10 @@ def denoise(image: Image.Image, strength: DenoiseStrength) -> Image.Image:
     rgb = np.array(image.convert("RGB"), dtype=np.float32) / 255.0
     try:
         denoised = _run_nafnet(rgb)
+        post_alpha = CLASSICAL_POST_BLEND[strength]
+        if post_alpha:
+            classical = _run_opencv_denoise(denoised, strength)
+            denoised = post_alpha * classical + (1.0 - post_alpha) * denoised
     except DenoiseError:
         denoised = _run_opencv_denoise(rgb, strength)
     blended = alpha * denoised + (1.0 - alpha) * rgb
@@ -70,9 +82,9 @@ def _run_opencv_denoise(rgb: np.ndarray, strength: DenoiseStrength) -> np.ndarra
     import cv2
 
     h_value = {
-        DenoiseStrength.LIGHT: 7,
-        DenoiseStrength.MEDIUM: 14,
-        DenoiseStrength.HEAVY: 24,
+        DenoiseStrength.LIGHT: 8,
+        DenoiseStrength.MEDIUM: 18,
+        DenoiseStrength.HEAVY: 32,
     }.get(strength, 0)
     if h_value <= 0:
         return rgb
@@ -82,9 +94,9 @@ def _run_opencv_denoise(rgb: np.ndarray, strength: DenoiseStrength) -> np.ndarra
         bgr,
         None,
         h=h_value,
-        hColor=max(h_value, 4),
+        hColor=max(int(h_value * 1.2), 4),
         templateWindowSize=7,
-        searchWindowSize=21,
+        searchWindowSize=35 if strength is DenoiseStrength.HEAVY else 21,
     )
     return cv2.cvtColor(denoised, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
 

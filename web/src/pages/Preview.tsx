@@ -25,6 +25,7 @@ import type {
   ProcessingJobCreate,
   ProjectDetail,
 } from "@/types";
+import { needsPipelineRunNote } from "@/utils/pipelinePreview";
 
 import "./Preview.css";
 
@@ -475,6 +476,12 @@ export default function PreviewPage() {
   const activeBasePreviewUrl =
     basePreview && basePreview.photoId === samplePhoto?.id ? basePreview.url : null;
   const baseDisplayUrl = sampleVersion?.url ?? "";
+  const needsPipelineRun = needsPipelineRunNote({
+    sourceKind: sampleVersion?.source.kind,
+    processedPaths: samplePhoto?.processed_paths,
+    pipelinePreset,
+    hasActivePreview: Boolean(activePreviewUrl),
+  });
   const progressPct =
     job && job.total > 0 ? Math.round((job.progress / job.total) * 100) : 0;
   const adjustmentProgressPct =
@@ -552,6 +559,15 @@ export default function PreviewPage() {
             }
             alt={samplePhoto.original_filename}
           />
+          {needsPipelineRun && (
+            <div className="preview__pipeline-note">
+              <div>
+                <strong>右側目前只是微調預覽，尚未執行 AI 降噪。</strong>
+                <span>這張照片還沒有批次處理版本；按下「開始產生」後才會套用重度降噪、廣角與水平校正。</span>
+              </div>
+              <a className="cta cta--primary" href="#pipeline-settings">前往開始產生</a>
+            </div>
+          )}
         </section>
       )}
 
@@ -606,14 +622,16 @@ export default function PreviewPage() {
         />
       )}
 
-      <PipelinePanel
-        selectedCount={selected.size}
-        totalCount={project.photos.length}
-        busy={pipelineBusy}
-        preset={pipelinePreset}
-        onPresetChange={handlePipelinePresetChange}
-        onSubmit={handleSubmit}
-      />
+      <div id="pipeline-settings">
+        <PipelinePanel
+          selectedCount={selected.size}
+          totalCount={project.photos.length}
+          busy={pipelineBusy}
+          preset={pipelinePreset}
+          onPresetChange={handlePipelinePresetChange}
+          onSubmit={handleSubmit}
+        />
+      </div>
 
       <section className="section">
         <header className="section__head">

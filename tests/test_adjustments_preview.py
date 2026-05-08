@@ -121,3 +121,44 @@ def test_opencv_denoise_fallback_reduces_noise(monkeypatch) -> None:
     before_std = float(np.asarray(image).std())
     after_std = float(np.asarray(result).std())
     assert after_std < before_std * 0.75
+
+
+def test_heavy_denoise_stays_visible_when_nafnet_is_conservative(monkeypatch) -> None:
+    rng = np.random.default_rng(7)
+    flat = np.full((96, 96, 3), 48, dtype=np.float32)
+    noisy = np.clip(flat + rng.normal(0, 34, flat.shape), 0, 255).astype(np.uint8)
+    image = Image.fromarray(noisy, "RGB")
+
+    def conservative_nafnet(rgb: np.ndarray) -> np.ndarray:
+        return rgb
+
+    monkeypatch.setattr(denoise, "_run_nafnet", conservative_nafnet)
+
+    result = denoise.denoise(image, DenoiseStrength.HEAVY)
+
+    before_std = float(np.asarray(image).std())
+    after_std = float(np.asarray(result).std())
+    assert after_std < before_std * 0.35
+
+
+def test_medium_and_heavy_denoise_blend_nafnet_with_classical_pass(monkeypatch) -> None:
+    image = Image.new("RGB", (16, 16), (128, 128, 128))
+    calls: list[DenoiseStrength] = []
+
+    def fake_nafnet(rgb: np.ndarray) -> np.ndarray:
+        return np.full_like(rgb, 0.4)
+
+    def fake_opencv(rgb: np.ndarray, strength: DenoiseStrength) -> np.ndarray:
+        calls.append(strength)
+        assert abs(float(rgb.mean()) - 0.4) < 1e-5
+        return np.full_like(rgb, 0.2)
+
+    monkeypatch.setattr(denoise, "_run_nafnet", fake_nafnet)
+    monkeypatch.setattr(denoise, "_run_opencv_denoise", fake_opencv)
+
+    medium = np.asarray(denoise.denoise(image, DenoiseStrength.MEDIUM), dtype=np.float32) / 255
+    heavy = np.asarray(denoise.denoise(image, DenoiseStrength.HEAVY), dtype=np.float32) / 255
+
+    assert calls == [DenoiseStrength.MEDIUM, DenoiseStrength.HEAVY]
+    assert 0.34 < float(medium.mean()) < 0.36
+    assert 0.19 < float(heavy.mean()) < 0.21

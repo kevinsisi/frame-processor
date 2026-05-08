@@ -55,6 +55,7 @@ docs/        Architecture、ADR、設計筆記
 - `/preview` 支援點選照片同步上方 Before/After；不要再固定第一張 processed sample。
 - 手動調整目前走同步 preview/apply API：`POST /photos/{id}/preview` 回小張 JPEG，`POST /photos/{id}/adjustments` 寫出 `processed_paths.adjusted`。
 - Preview API 必須先把來源縮成小圖再套用手動旋轉/色調/幾何，避免手機原圖每次 preview 卡數十秒；full-resolution render 只屬於按「產生」後的版本輸出。
+- AI 降噪、廣角矯正與 Gemini 水平校正只屬於 batch pipeline，尚未按「開始產生」的新上傳照片在 Before/After 右側只會是微調 preview；UI 必須明確提示尚未執行 AI 降噪並提供跳到「開始產生」入口，避免使用者誤以為重度降噪沒有效果。
 - 可對每張照片獨立點按向左/向右 90 度旋轉，並可調整手動水平、裁切縮放/偏移、手動水平/垂直透視修正、曝光、對比、亮部、暗部、色溫、色偏、飽和、自然飽和、清晰度、銳利化與 HSL 六色區。
 - 90 度 orientation 旋轉與所有 slider 調整先存在該照片的 `photo_adjustments.params` 草稿，點按/拖曳後需立即更新 Before/After 原圖側與 live preview 側，且重開網頁要載回草稿。
 - 只有使用者按「產生目前版本」或「產生已選版本」時才建立 `photo_adjustment_versions` 與 `manual-vN.jpg`；單純操作 slider/旋轉不得建立版本。
@@ -64,6 +65,7 @@ docs/        Architecture、ADR、設計筆記
 - 使用者 preset 存在 `adjustment_presets`；單張調整參數存在 `photo_adjustments`。
 - 手動產生版本存在 `photo_adjustment_versions`；照片卡片版本下拉必須可選原圖、pipeline preset、各手動版本，並同步切換卡片圖、上方 Before/After 基準、手動調整來源與下載目標。未手動指定版本時，live preview 預設從原圖套用目前 pipeline 色調選擇；批次處理完成後才自動切到剛產生的 preset 版本。UI 不可暴露 `adjusted`、`latest`、raw preset key 等內部狀態名稱。
 - PipelinePanel 預設值：AI 降噪重度、廣角畸變矯正開啟、Gemini Vision 水平校正開啟、自動裁剪原圖比例；主要「開始產生」動作放在手動微調區塊下方。色調 preset 必須有可見差異，OpenCV fallback 降噪不得弱到使用者在重度模式看不出效果。
+- 重度降噪不得只依賴 NAFNet 輸出；NAFNet 對高 ISO / 彩色顆粒太保守時，medium/heavy 需要疊 OpenCV 強化 pass，production 權重缺失 fallback 也必須有肉眼可見差異。
 - 匯出 zip 順序必須是 `adjusted` → 任一 pipeline processed preset → original。
 - 「套用到已選照片」走 `adjustment_jobs` worker job 與輪詢進度。
 

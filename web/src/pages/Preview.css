@@ -22,6 +22,32 @@
   margin-top: var(--space-4);
 }
 
+.preview__pipeline-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid rgba(201, 168, 107, 0.5);
+  background: rgba(201, 168, 107, 0.08);
+  color: var(--text-secondary);
+}
+
+.preview__pipeline-note div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.preview__pipeline-note strong {
+  color: var(--text-primary);
+}
+
+.preview__pipeline-note span {
+  font-size: var(--t-sm);
+}
+
 .bulk-bar {
   display: flex;
   justify-content: space-between;
@@ -215,6 +241,10 @@
   }
   .bulk-bar__btn {
     flex: 1 1 120px;
+  }
+  .preview__pipeline-note {
+    flex-direction: column;
+    align-items: stretch;
   }
   .job-status__head {
     align-items: flex-start;

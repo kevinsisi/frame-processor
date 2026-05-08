@@ -64,6 +64,8 @@ v0.2.0 ship 後晴晴實際使用發現：preset + auto-pipeline 出來的結果
 - Manual color-temperature and tint changes must be visually obvious in the live preview; do not use coefficients so subtle that a full slider move looks unchanged on a phone.
 - Manual geometry is a full-screen single-photo editor, not a cramped two-column modal. It should show one large image, visible crop/level grid guides, direct crop-frame manipulation with fixed-ratio resize handles, bottom controls, live rotation/perspective preview, and explicit cancel/done actions.
 - Batch pipeline defaults are: AI denoise = heavy, wide-angle distortion correction checked, Gemini level correction checked, auto-crop aspect = original unless changed.
+- New uploads shown in Before/After before batch generation must be labeled as manual preview, not denoised output. If the active original has no generated preset output yet, show a clear CTA to run the batch pipeline.
+- Heavy denoise must remain visible on extreme high-ISO/color-grain images even when NAFNet is unavailable or too conservative; medium/heavy denoise may combine NAFNet with OpenCV denoising.
 - The batch "開始處理" action belongs below the manual adjustment section, so the workflow reads: choose/edit photo versions → fine tune → then generate/process, instead of burying the primary action inside the upper pipeline settings.
 
 ### DB migration `0004_adjustment_panel.py`
@@ -92,6 +94,7 @@ v0.2.0 ship 後晴晴實際使用發現：preset + auto-pipeline 出來的結果
 - export zip 優先用 adjusted（若無）→ preset processed → 原圖
 - Photo card version dropdown changes the visible card image and active editing/download base for that photo.
 - Pipeline defaults are heavy denoise, lens distortion correction on, and level correction on.
+- Before/After warns when the active original has no generated pipeline output yet, because AI denoise only runs after "開始產生".
 - Primary batch start button is visually placed after the manual adjustment controls.
 - Geometry editing opens as a full-screen single-image workspace with grid overlay guides, draggable/resizable crop frame, horizontal/vertical perspective controls, live transform preview, and cancel/done semantics.
 
