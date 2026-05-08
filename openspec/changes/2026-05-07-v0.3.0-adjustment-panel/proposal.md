@@ -50,6 +50,7 @@ v0.2.0 ship 後晴晴實際使用發現：preset + auto-pipeline 出來的結果
 - HSL 先在 `AdjustmentPanel` 內以 6 色相區間 H/S/L 三軌 slider 呈現
 - `AdjustmentPanel` 提供儲存 / 載入 / 刪除自訂 preset
 - live preview：slider drag → debounced 300ms → POST /preview → 換掉 BeforeAfter 的 after image
+- live preview must render from a small preview image before expensive manual adjustments so rotation/color sliders feel immediate on mobile; full-resolution rendering is only for generated versions.
 - "套用到已選照片" 按鈕 → 第一版前端逐張 POST apply；worker 進度條是下一步
 - 單張選取 mode：在 PhotoGrid 上 click 一張 → 上方 BeforeAfter 立即載入該照片；AdjustmentPanel 編輯目前照片
 - 每張照片卡片提供「下載處理後」單張下載；批次 zip 仍保留
@@ -60,6 +61,7 @@ v0.2.0 ship 後晴晴實際使用發現：preset + auto-pipeline 出來的結果
 - Photo card version selector is not only a download selector. Selecting a version changes the displayed tile image, the top Before/After source, the manual adjustment base, and the single-photo download target for that photo.
 - Version labels must use user-facing wording, not internal pipeline/state names. Avoid labels such as `adjusted`, `latest`, or raw preset keys.
 - Top Before/After must behave as a large editing workspace. Desktop should prioritize a tall work area; mobile should keep the image area dominant and avoid shrinking into a small strip.
+- Manual color-temperature and tint changes must be visually obvious in the live preview; do not use coefficients so subtle that a full slider move looks unchanged on a phone.
 - Manual geometry is a full-screen single-photo editor, not a cramped two-column modal. It should show one large image, visible crop/level grid guides, direct crop-frame manipulation, bottom controls, and explicit cancel/done actions.
 - Batch pipeline defaults are: AI denoise = heavy, wide-angle distortion correction checked, Gemini level correction checked, auto-crop aspect = original unless changed.
 - The batch "開始處理" action belongs below the manual adjustment section, so the workflow reads: choose/edit photo versions → fine tune → then generate/process, instead of burying the primary action inside the upper pipeline settings.

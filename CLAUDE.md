@@ -50,6 +50,7 @@ docs/        Architecture、ADR、設計筆記
 
 - `/preview` 支援點選照片同步上方 Before/After；不要再固定第一張 processed sample。
 - 手動調整目前走同步 preview/apply API：`POST /photos/{id}/preview` 回小張 JPEG，`POST /photos/{id}/adjustments` 寫出 `processed_paths.adjusted`。
+- Preview API 必須先把來源縮成小圖再套用手動旋轉/色調/幾何，避免手機原圖每次 preview 卡數十秒；full-resolution render 只屬於按「產生」後的版本輸出。
 - 可對每張照片獨立點按向左/向右 90 度旋轉，並可調整手動水平、裁切縮放/偏移、手動變形修正、曝光、對比、亮部、暗部、色溫、色偏、飽和、自然飽和、清晰度、銳利化與 HSL 六色區。
 - 90 度 orientation 旋轉與所有 slider 調整先存在該照片的 `photo_adjustments.params` 草稿，點按/拖曳後需立即更新 Before/After 原圖側與 live preview 側，且重開網頁要載回草稿。
 - 只有使用者按「產生目前版本」或「產生已選版本」時才建立 `photo_adjustment_versions` 與 `manual-vN.jpg`；單純操作 slider/旋轉不得建立版本。

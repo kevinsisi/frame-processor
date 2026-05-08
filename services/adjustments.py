@@ -5,6 +5,9 @@ from typing import Any
 
 from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 
+from models.enums import ColorGradePreset
+from services import color_grade
+
 
 def normalize_params(params: dict[str, Any] | None) -> dict[str, Any]:
     params = params or {}
@@ -25,6 +28,7 @@ def normalize_params(params: dict[str, Any] | None) -> dict[str, Any]:
         "crop_x": _bounded_float(params.get("crop_x"), -100.0, 100.0),
         "crop_y": _bounded_float(params.get("crop_y"), -100.0, 100.0),
         "distortion": _bounded_float(params.get("distortion"), -100.0, 100.0),
+        "grade_preset": _normalized_grade_preset(params.get("grade_preset")),
         "hsl": _normalize_hsl(params.get("hsl")),
     }
 
@@ -34,6 +38,8 @@ def apply_adjustments(image: Image.Image, params: dict[str, Any]) -> Image.Image
     img = image.convert("RGB")
     img = _orientation(img, p["orientation"])
     img = _geometry(img, p)
+    if p["grade_preset"]:
+        img = color_grade.apply_grade(img, ColorGradePreset(p["grade_preset"]))
     img = _temperature_tint(img, p["temperature"], p["tint"])
     if p["exposure"]:
         img = ImageEnhance.Brightness(img).enhance(2 ** p["exposure"])
@@ -119,8 +125,13 @@ def _perspective_coeffs(source: list[tuple[float, float]], target: list[tuple[fl
     return np.linalg.solve(a, b).tolist()
 
 
-def preview_jpeg(image: Image.Image, params: dict[str, Any], *, long_edge: int = 900) -> bytes:
+def preview_jpeg(image: Image.Image, params: dict[str, Any], *, long_edge: int = 760) -> bytes:
+    try:
+        image.draft("RGB", (long_edge, long_edge))
+    except (AttributeError, OSError):
+        pass
     img = ImageOps.exif_transpose(image).convert("RGB")
+    img.thumbnail((long_edge, long_edge), Image.Resampling.LANCZOS)
     img = apply_adjustments(img, params)
     img.thumbnail((long_edge, long_edge), Image.Resampling.LANCZOS)
     out = BytesIO()
@@ -147,9 +158,9 @@ def _normalize_hsl(value: Any) -> dict[str, dict[str, float]]:
 
 def _temperature_tint(image: Image.Image, temperature: float, tint: float) -> Image.Image:
     r, g, b = image.split()
-    r_delta = temperature * 0.18 + tint * 0.08
-    g_delta = -tint * 0.14
-    b_delta = -temperature * 0.18 + tint * 0.08
+    r_delta = temperature * 0.42 + tint * 0.14
+    g_delta = -tint * 0.24
+    b_delta = -temperature * 0.42 + tint * 0.14
     return Image.merge(
         "RGB",
         (
@@ -248,6 +259,15 @@ def _normalized_orientation(value: Any) -> int:
     except (TypeError, ValueError):
         parsed = 0
     return parsed % 360 if parsed % 90 == 0 else 0
+
+
+def _normalized_grade_preset(value: Any) -> str | None:
+    if value is None:
+        return None
+    try:
+        return ColorGradePreset(str(value)).value
+    except ValueError:
+        return None
 
 
 def _clamp(v: float) -> int:

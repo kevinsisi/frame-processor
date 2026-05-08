@@ -36,9 +36,9 @@ def _showroom_white(image: Image.Image) -> Image.Image:
 
 
 def _outdoor_warm(image: Image.Image) -> Image.Image:
-    warmed = _channel_shift(image, r_delta=8, g_delta=0, b_delta=-6)
-    contrasted = ImageEnhance.Contrast(warmed).enhance(1.10)
-    saturated = ImageEnhance.Color(contrasted).enhance(1.10)
+    warmed = _channel_shift(image, r_delta=18, g_delta=3, b_delta=-14)
+    contrasted = ImageEnhance.Contrast(warmed).enhance(1.14)
+    saturated = ImageEnhance.Color(contrasted).enhance(1.14)
     return saturated
 
 

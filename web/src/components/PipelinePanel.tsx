@@ -14,6 +14,8 @@ export interface PipelinePanelProps {
   selectedCount: number;
   totalCount: number;
   busy: boolean;
+  preset?: StylePreset;
+  onPresetChange?: (preset: StylePreset) => void;
   onSubmit: (payload: ProcessingJobCreate) => void;
 }
 
@@ -28,13 +30,20 @@ export function PipelinePanel({
   selectedCount,
   totalCount,
   busy,
+  preset: controlledPreset,
+  onPresetChange,
   onSubmit,
 }: PipelinePanelProps) {
-  const [preset, setPreset] = useState<StylePreset>("showroom_white");
+  const [internalPreset, setInternalPreset] = useState<StylePreset>("showroom_white");
   const [denoise, setDenoise] = useState<DenoiseStrength>("heavy");
   const [lensDistort, setLensDistort] = useState(true);
   const [levelCorrect, setLevelCorrect] = useState(true);
   const [aspect, setAspect] = useState<AspectRatio>("original");
+  const preset = controlledPreset ?? internalPreset;
+  const setPreset = (next: StylePreset) => {
+    setInternalPreset(next);
+    onPresetChange?.(next);
+  };
 
   function handleSubmit() {
     onSubmit({

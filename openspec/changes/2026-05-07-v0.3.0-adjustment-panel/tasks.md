@@ -33,12 +33,14 @@
 - [x] Support per-photo independent overrides after apply-all.
 - [x] Keep top BeforeAfter in sync with active photo selection.
 - [x] Keep per-photo processed download visible after render.
-- [ ] Make photo-card version dropdown switch the tile image, active preview base, adjustment base, and download target.
-- [ ] Rename visible version labels to user-facing wording and hide raw internal state names.
-- [ ] Make top Before/After a large editing workspace on desktop and mobile.
-- [ ] Replace the geometry two-column modal with a full-screen single-photo editor with grid overlay and cancel/done controls.
-- [ ] Default pipeline settings to heavy denoise, lens correction on, level correction on, original crop ratio.
-- [ ] Move the primary batch start action below the manual adjustment section.
+- [x] Make photo-card version dropdown switch the tile image, active preview base, adjustment base, and download target.
+- [x] Rename visible version labels to user-facing wording and hide raw internal state names.
+- [x] Make top Before/After a large editing workspace on desktop and mobile.
+- [x] Make live preview render from a resized preview image before manual adjustments so rotation/color changes are immediate.
+- [x] Increase manual warmth/tint feedback enough to be visible in mobile preview.
+- [x] Replace the geometry two-column modal with a full-screen single-photo editor with grid overlay and cancel/done controls.
+- [x] Default pipeline settings to heavy denoise, lens correction on, level correction on, original crop ratio.
+- [x] Move the primary batch start action below the manual adjustment section.
 - [ ] Validate mobile layout on iPhone Safari.
 
 ## Verification
@@ -48,4 +50,4 @@
 - [ ] Verify individual processed downloads.
 - [x] Run frontend build/typecheck and backend lint/compile.
 - [x] Smoke test preview/apply/preset endpoints with vibrance, clarity, and sharpness payload.
-- [ ] Update docs, commit, and push.
+- [x] Update docs, commit, and push.

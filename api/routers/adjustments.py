@@ -14,7 +14,7 @@ from api.database import get_db
 from api.queue import default_queue
 from models.adjustment_job import AdjustmentJob
 from models.adjustment_preset import AdjustmentPreset
-from models.enums import ProcessingJobStatus
+from models.enums import ColorGradePreset, ProcessingJobStatus
 from models.photo import Photo
 from models.project import Project
 from services import adjustment_renderer, adjustments
@@ -56,11 +56,14 @@ class AdjustmentParams(BaseModel):
     distortion: float = Field(default=0, ge=-100, le=100)
     hsl: dict[str, dict[str, float]] = Field(default_factory=dict)
     source: AdjustmentSource | None = None
+    grade_preset: ColorGradePreset | None = None
 
     def normalized(self) -> dict[str, Any]:
         normalized = adjustments.normalize_params(self.model_dump())
         if self.source is not None:
             normalized["source"] = self.source.normalized()
+        if self.grade_preset is not None:
+            normalized["grade_preset"] = self.grade_preset.value
         return normalized
 
 

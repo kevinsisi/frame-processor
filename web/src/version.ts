@@ -1,2 +1,2 @@
-// v0.3.0 — manual adjustment drafts, generated versions, and visual geometry editor.
-export const APP_VERSION = "0.3.0";
+// v0.3.1 — faster live previews with visible color-temperature feedback.
+export const APP_VERSION = "0.3.1";

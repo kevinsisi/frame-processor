@@ -19,6 +19,7 @@ import type {
   AdjustmentParams,
   AdjustmentJob,
   AdjustmentPreset,
+  ColorGradePreset,
   ProcessingJob,
   ProcessingJobCreate,
   ProjectDetail,
@@ -63,6 +64,7 @@ export default function PreviewPage() {
   const [preview, setPreview] = useState<{ photoId: string; url: string } | null>(null);
   const [basePreview, setBasePreview] = useState<{ photoId: string; url: string } | null>(null);
   const [photoVersionValues, setPhotoVersionValues] = useState<Record<string, string>>({});
+  const [pipelinePreset, setPipelinePreset] = useState<ColorGradePreset>("showroom_white");
   const [presets, setPresets] = useState<AdjustmentPreset[]>([]);
   const [job, setJob] = useState<ProcessingJob | null>(null);
   const [adjustmentJob, setAdjustmentJob] = useState<AdjustmentJob | null>(null);
@@ -139,14 +141,15 @@ export default function PreviewPage() {
     const active = project.photos.find((photo) => photo.id === activePhotoId);
     if (!active) return;
     const source = selectedPhotoVersion(active).source;
+    const gradePreset = source.kind === "original" ? pipelinePreset : null;
     updateAdjustmentParams(
       active.adjustment_params
-        ? { ...structuredClone(DEFAULT_ADJUSTMENT_PARAMS), ...active.adjustment_params, source }
-        : { ...structuredClone(DEFAULT_ADJUSTMENT_PARAMS), source },
+        ? { ...structuredClone(DEFAULT_ADJUSTMENT_PARAMS), ...active.adjustment_params, source, grade_preset: gradePreset }
+        : { ...structuredClone(DEFAULT_ADJUSTMENT_PARAMS), source, grade_preset: gradePreset },
       { persist: false },
     );
     setDraftDirty(false);
-  }, [activePhotoId, project]);
+  }, [activePhotoId, project, pipelinePreset]);
 
   useEffect(() => {
     if (!activePhotoId || !draftDirty) return;
@@ -218,7 +221,18 @@ export default function PreviewPage() {
   ) {
     setPhotoVersionValues((prev) => ({ ...prev, [photoId]: value }));
     if (photoId === activePhotoId) {
-      updateAdjustmentParams({ ...adjustmentParamsRef.current, source: option.source });
+      updateAdjustmentParams({
+        ...adjustmentParamsRef.current,
+        source: option.source,
+        grade_preset: option.source.kind === "original" ? pipelinePreset : null,
+      });
+    }
+  }
+
+  function handlePipelinePresetChange(preset: ColorGradePreset) {
+    setPipelinePreset(preset);
+    if (adjustmentParamsRef.current.source?.kind === "original") {
+      updateAdjustmentParams({ ...adjustmentParamsRef.current, grade_preset: preset });
     }
   }
 
@@ -370,7 +384,8 @@ export default function PreviewPage() {
 
   async function savePreset(name: string) {
     try {
-      const { source: _source, ...presetParams } = adjustmentParams;
+      // Manual presets store slider edits only; pipeline color style remains a separate choice.
+      const { source: _source, grade_preset: _gradePreset, ...presetParams } = adjustmentParams;
       await api.createAdjustmentPreset(name, presetParams, projectId);
       toast("已儲存 preset", "success");
       reloadPresets();
@@ -565,6 +580,7 @@ export default function PreviewPage() {
             updateAdjustmentParams({
               ...structuredClone(DEFAULT_ADJUSTMENT_PARAMS),
               source: adjustmentParams.source,
+              grade_preset: adjustmentParams.grade_preset ?? null,
             })
           }
           onSavePreset={(name) => void savePreset(name)}
@@ -572,6 +588,7 @@ export default function PreviewPage() {
             updateAdjustmentParams({
               ...preset.params,
               source: adjustmentParamsRef.current.source,
+              grade_preset: adjustmentParamsRef.current.grade_preset ?? null,
             })
           }
           onDeletePreset={(preset) => void deletePreset(preset)}
@@ -584,6 +601,8 @@ export default function PreviewPage() {
         selectedCount={selected.size}
         totalCount={project.photos.length}
         busy={pipelineBusy}
+        preset={pipelinePreset}
+        onPresetChange={handlePipelinePresetChange}
         onSubmit={handleSubmit}
       />
 

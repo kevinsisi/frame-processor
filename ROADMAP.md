@@ -79,6 +79,7 @@
 - `models/adjustment_preset.py` + `models/photo_adjustment.py` + alembic `0004_adjustment_panel`
 - API：`POST /photos/{id}/adjustments`、`POST /photos/{id}/preview` (live 同步)、`POST /projects/{id}/adjustments/apply` worker batch、preset CRUD
 - FE：`AdjustmentPanel` + 即時 preview slider + preset save/load/delete + 點照片同步上方 Before/After + 單張 processed download
+- Preview：小圖先縮再套手動調整，旋轉/色溫在手機上需即時且肉眼可見；完整解析度只在產生版本時 render
 - Export zip 優先 `processed_paths.adjusted` → preset processed → original
 - 待辦：iPhone Safari mobile QA、降噪可視化/preview 比較強化、更多細節控制校準
 

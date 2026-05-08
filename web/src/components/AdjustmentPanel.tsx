@@ -32,6 +32,7 @@ export const DEFAULT_ADJUSTMENT_PARAMS: AdjustmentParams = {
   crop_x: 0,
   crop_y: 0,
   distortion: 0,
+  grade_preset: null,
   hsl: {
     red: { hue: 0, saturation: 0, luminance: 0 },
     orange: { hue: 0, saturation: 0, luminance: 0 },
@@ -58,7 +59,7 @@ type Props = {
   onRotateRight: () => void;
 };
 
-type NumericAdjustmentKey = keyof Omit<AdjustmentParams, "hsl" | "source">;
+type NumericAdjustmentKey = keyof Omit<AdjustmentParams, "hsl" | "source" | "grade_preset">;
 
 export function AdjustmentPanel({
   params,
