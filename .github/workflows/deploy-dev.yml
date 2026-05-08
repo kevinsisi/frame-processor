@@ -67,7 +67,18 @@ jobs:
           mkdir -p ~/.ssh
           printf '%s\n' "${DEPLOY_SSH_KEY}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "${DEPLOY_SERVER_IP}" >> ~/.ssh/known_hosts
+          host_key_ready=0
+          for attempt in 1 2 3 4 5 6; do
+            if ssh-keyscan -T 10 -H "${DEPLOY_SERVER_IP}" >> ~/.ssh/known_hosts; then
+              host_key_ready=1
+              break
+            fi
+            sleep 5
+          done
+          if [ "${host_key_ready}" -ne 1 ]; then
+            echo "::error::Unable to collect SSH host key for ${DEPLOY_SERVER_IP}"
+            exit 1
+          fi
 
       - name: Ensure deploy directory exists
         env:

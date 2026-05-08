@@ -2,7 +2,7 @@
 
 照片批次後製工具。上傳 N 張 → 選 preset + 處理選項 → 全部一鍵處理 → 下載 zip。
 
-目前狀態：**v0.3.4 shipped — bundled pipeline + settings key import + manual adjustment panel + desktop CI/CD**（NAFNet AI 降噪 / 廣角畸變矯正 / Gemini Vision 水平校正 / YOLOv8 自動裁剪 / Pillow 色調 preset / before-after 對比 / per-photo queue progress / Gemini key 設定頁 / 手動曝光、對比、亮暗部、色溫、色偏、飽和、自然飽和、清晰度、銳利化、HSL 微調與 preset 儲存載入）。已部署至 [frame.sisihome.org](https://frame.sisihome.org)。
+目前狀態：**v0.3.5 shipped — bundled pipeline + settings key import + manual adjustment panel + desktop CI/CD**（NAFNet AI 降噪 / 廣角畸變矯正 / Gemini Vision 水平校正 / YOLOv8 自動裁剪 / Pillow 色調 preset / before-after 對比 / per-photo queue progress / Gemini key 設定頁 / 手動曝光、對比、亮暗部、色溫、色偏、飽和、自然飽和、清晰度、銳利化、HSL 微調與 preset 儲存載入）。已部署至 [frame.sisihome.org](https://frame.sisihome.org)。
 
 ## Quick start
 
