@@ -38,6 +38,7 @@ docs/        Architecture、ADR、設計筆記
 - 唯一對外 port 是 web container 的 `100.83.112.20:8533`（nginx）— api/postgres/redis 不外露；api debug 用 `127.0.0.1:8633`
 - web container 的 nginx 把 `/api/*` reverse proxy 到 `api:8000/*`（剝掉 `/api`），所以前端走同源
 - 前端 build 時 `VITE_API_BASE_URL=/api`（在 `deploy/docker-compose.yml`）
+- 服務時間以 GMT+8 / `Asia/Taipei` 呈現；前端時間格式化必須固定 `Asia/Taipei`，不可依賴使用者瀏覽器所在地 timezone。
 - API 的 `ALLOWED_ORIGINS` 必須包含 `https://frame.sisihome.org`
 - RPi (`rpi-matrix`) Caddy 反向代理：`frame.sisihome.org` → `100.83.112.20:8533`，`request_body.max_size 500MB`，設定在 `/home/kevin/DockerCompose/caddy/Caddyfile` 的 `*.sisihome.org` block 裡
 - Caddy 改設定後一律 `docker restart caddy`（不是 reload）

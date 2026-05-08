@@ -4,6 +4,7 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
+      TZ: Asia/Taipei
       POSTGRES_USER: frame
       POSTGRES_PASSWORD: frame
       POSTGRES_DB: frame_processor
@@ -32,6 +33,7 @@ services:
   api:
     image: ${DOCKERHUB_USERNAME:-kevin950805}/frame-processor-api:${IMAGE_TAG:-latest}
     environment:
+      TZ: Asia/Taipei
       DATABASE_URL: postgresql+psycopg://frame:frame@postgres:5432/frame_processor
       REDIS_URL: redis://redis:6379/0
       STORAGE_ROOT: /data
@@ -58,6 +60,7 @@ services:
   worker:
     image: ${DOCKERHUB_USERNAME:-kevin950805}/frame-processor-api:${IMAGE_TAG:-latest}
     environment:
+      TZ: Asia/Taipei
       DATABASE_URL: postgresql+psycopg://frame:frame@postgres:5432/frame_processor
       REDIS_URL: redis://redis:6379/0
       STORAGE_ROOT: /data
@@ -81,6 +84,8 @@ services:
 
   web:
     image: ${DOCKERHUB_USERNAME:-kevin950805}/frame-processor-web:${IMAGE_TAG:-latest}
+    environment:
+      TZ: Asia/Taipei
     ports:
       - "100.83.112.20:8533:80"
     depends_on:

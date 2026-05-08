@@ -9,6 +9,7 @@ import { StylePicker } from "@/components/StylePicker";
 import type { StylePreset } from "@/components/StylePicker";
 import { useToast } from "@/components/Toast";
 import type { Project } from "@/types";
+import { formatServiceDateTime } from "@/utils/time";
 
 import "./Upload.css";
 
@@ -19,17 +20,6 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-}
-
-function formatCreatedAt(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mi = String(d.getMinutes()).padStart(2, "0");
-  return `${yyyy}/${mm}/${dd} ${hh}:${mi}`;
 }
 
 interface PendingPhoto {
@@ -278,7 +268,7 @@ export default function UploadPage() {
                 <div className="recent__main">
                   <h3 className="recent__name">{p.name}</h3>
                   <div className="recent__meta mono">
-                    {p.photo_count} 張 · {formatCreatedAt(p.created_at)}
+                    {p.photo_count} 張 · {formatServiceDateTime(p.created_at)}
                   </div>
                 </div>
                 <div className="recent__actions">

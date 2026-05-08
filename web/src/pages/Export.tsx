@@ -5,6 +5,7 @@ import { api } from "@/api/client";
 import { Spinner } from "@/components/Spinner";
 import { useToast } from "@/components/Toast";
 import type { Export, ExportStatus, ProjectDetail } from "@/types";
+import { formatServiceTime } from "@/utils/time";
 
 import "./Export.css";
 
@@ -14,16 +15,6 @@ const STATUS_LABEL: Record<ExportStatus, string> = {
   done: "已完成",
   failed: "失敗",
 };
-
-function formatTimestamp(iso: string | null): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mi = String(d.getMinutes()).padStart(2, "0");
-  const ss = String(d.getSeconds()).padStart(2, "0");
-  return `${hh}:${mi}:${ss}`;
-}
 
 export default function ExportPage() {
   const { projectId } = useParams();
@@ -165,11 +156,11 @@ export default function ExportPage() {
             <dl className="export-card__detail mono">
               <div>
                 <dt>建立時間</dt>
-                <dd>{formatTimestamp(exportRow.created_at)}</dd>
+                <dd>{formatServiceTime(exportRow.created_at)}</dd>
               </div>
               <div>
                 <dt>完成時間</dt>
-                <dd>{formatTimestamp(exportRow.completed_at)}</dd>
+                <dd>{formatServiceTime(exportRow.completed_at)}</dd>
               </div>
               <div>
                 <dt>狀態</dt>
