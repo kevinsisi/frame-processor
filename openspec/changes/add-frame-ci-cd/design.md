@@ -42,7 +42,7 @@ Alternative considered: publish a separate worker image from the same Dockerfile
 
 ### Compose image and build compatibility
 
-Each application service keeps both `image:` and `build:`. CD runs `docker compose pull` and `docker compose up -d` without `--build`, so it uses the published image. Local development can still run `cd deploy && docker compose up -d --build` from the repo checkout.
+Each application service keeps both `image:` and `build:`. CD pulls the required images individually, then runs `docker compose up -d --pull never --no-build`, so it uses the published image without falling back to a local build. Local development can still run `cd deploy && docker compose up -d --build` from the repo checkout.
 
 Alternative considered: remove `build:` from production compose. That would make CI/CD cleaner but would break the existing quick-start workflow that uses the same compose file from `deploy/`.
 
@@ -93,7 +93,7 @@ Alternative considered: string search the compose file only. That catches obviou
 - Docker Compose JSON output may vary by version -> keep validation focused on stable `services.*.volumes` fields and fail closed if parsing fails.
 - Windows/Docker Desktop may report bind mount sources as Linux VM paths -> normalize known Docker Desktop host mount prefixes before comparing.
 - Multiline remote shell parsing can skip intended Docker commands -> upload PowerShell scripts and execute script files instead of relying on inline multiline SSH strings.
-- Windows SSH sessions may not have an interactive Docker credential-helper logon session -> call `docker --config <temp-dir> compose ...` with an empty config for deploy pulls so public image pulls do not invoke the desktop credential helper.
+- Windows SSH sessions may not have an interactive Docker credential-helper logon session -> generate a temporary Docker auth config from GitHub `DOCKERHUB_TOKEN`, upload it to the desktop deploy directory, copy it into a temp Docker config directory for explicit `docker pull` calls, then run `docker compose up --pull never` and clean up local/remote auth config files.
 - The first api image build is heavy because it installs torch/ultralytics -> use GitHub Actions build cache and publish only amd64 for the desktop target.
 - Web image cannot receive runtime env after build -> do not bake `SETTINGS_ADMIN_TOKEN`; keep the Settings page manual-token path for admin mutations.
 

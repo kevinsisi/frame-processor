@@ -1,2 +1,2 @@
-// v0.3.15 - pass explicit Docker config to SSH deploy pulls.
-export const APP_VERSION = "0.3.15";
+// v0.3.16 - pull desktop images with temporary Docker auth config.
+export const APP_VERSION = "0.3.16";

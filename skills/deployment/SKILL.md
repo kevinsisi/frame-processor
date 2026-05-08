@@ -10,7 +10,7 @@ description: Use whenever a HomeProject service is being deployed, updated on Ra
 ```
 Code change → git push target branch
   → docker-publish.yml builds image (single-arch or multi-arch as needed) → Docker Hub
-  → deploy workflow: Tailscale OAuth / SSH → docker compose pull + up on target host
+  → deploy workflow: Tailscale OAuth / SSH → pull images + docker compose up on target host
   → service exposed either directly on target host or via RPi Caddy / Cloudflare Tunnel
 ```
 

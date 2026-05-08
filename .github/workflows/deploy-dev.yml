@@ -14,7 +14,7 @@ env:
   IMAGE_TAG: ${{ github.event.workflow_run.head_sha || github.sha }}
   GEMINI_MODEL: gemini-2.5-flash
   HEALTH_URL: http://100.83.112.20:8533/api/health
-  EXPECTED_APP_VERSION: "0.3.15"
+  EXPECTED_APP_VERSION: "0.3.16"
   EXPECTED_POSTGRES_DIR: G:/frame-processor/postgres-data
   EXPECTED_STORAGE_DIR: G:/frame-processor/storage-data
   EXPECTED_REDIS_DIR: G:/frame-processor/redis-data
@@ -36,11 +36,12 @@ jobs:
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
           TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           TS_OAUTH_SECRET: ${{ secrets.TS_OAUTH_SECRET }}
         run: |
           missing=0
-          for name in DEPLOY_SSH_KEY DEPLOY_USER TS_OAUTH_CLIENT_ID TS_OAUTH_SECRET; do
+          for name in DEPLOY_SSH_KEY DEPLOY_USER DOCKERHUB_TOKEN TS_OAUTH_CLIENT_ID TS_OAUTH_SECRET; do
             if [ -z "${!name}" ]; then
               echo "::error::Missing ${name}"
               missing=1
@@ -229,29 +230,62 @@ jobs:
       - name: Deploy via Docker Compose
         env:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
           umask 077
-          trap 'rm -f deploy-frame-compose.ps1' EXIT
+          trap 'rm -f deploy-frame-compose.ps1 docker-config.json' EXIT
+          auth="$(printf '%s:%s' "${DOCKERHUB_USERNAME}" "${DOCKERHUB_TOKEN}" | base64 -w 0)"
+          printf '{"auths":{"https://index.docker.io/v1/":{"auth":"%s"},"registry-1.docker.io":{"auth":"%s"}}}\n' "${auth}" "${auth}" > docker-config.json
           cat > deploy-frame-compose.ps1 <<'PS1'
           param(
-              [Parameter(Mandatory = $true)] [string]$DeployPath
+              [Parameter(Mandatory = $true)] [string]$DeployPath,
+              [Parameter(Mandatory = $true)] [string]$DockerhubUsername,
+              [Parameter(Mandatory = $true)] [string]$ImageTag
           )
 
           $ErrorActionPreference = 'Stop'
           Set-Location -LiteralPath $DeployPath
           $dockerConfig = Join-Path $env:TEMP 'frame-processor-docker-config'
           New-Item -ItemType Directory -Force -Path $dockerConfig | Out-Null
-          [System.IO.File]::WriteAllText((Join-Path $dockerConfig 'config.json'), '{}', [System.Text.UTF8Encoding]::new($false))
+          $sourceConfig = Join-Path $DeployPath 'docker-config.json'
+          Copy-Item -LiteralPath $sourceConfig -Destination (Join-Path $dockerConfig 'config.json') -Force
 
-          docker --config $dockerConfig compose --env-file .env -f docker-compose.yml pull --policy always postgres redis api worker web
-          if ($LASTEXITCODE -ne 0) { throw 'docker compose pull failed.' }
-          docker --config $dockerConfig compose --env-file .env -f docker-compose.yml up -d --pull always --force-recreate --no-build --remove-orphans postgres redis api worker web
-          if ($LASTEXITCODE -ne 0) { throw 'docker compose up failed.' }
-          docker --config $dockerConfig compose --env-file .env -f docker-compose.yml ps
+          try {
+              $images = @(
+                  'postgres:16-alpine',
+                  'redis:7-alpine',
+                  ('{0}/frame-processor-api:{1}' -f $DockerhubUsername, $ImageTag),
+                  ('{0}/frame-processor-web:{1}' -f $DockerhubUsername, $ImageTag)
+              )
+              foreach ($image in $images) {
+                  docker --config $dockerConfig pull $image
+                  if ($LASTEXITCODE -ne 0) { throw ('docker pull failed for ' + $image) }
+              }
+
+              docker --config $dockerConfig compose --env-file .env -f docker-compose.yml up -d --pull never --force-recreate --no-build --remove-orphans postgres redis api worker web
+              if ($LASTEXITCODE -ne 0) { throw 'docker compose up failed.' }
+              docker --config $dockerConfig compose --env-file .env -f docker-compose.yml ps
+          }
+          finally {
+              Remove-Item -LiteralPath $sourceConfig -Force -ErrorAction SilentlyContinue
+              Remove-Item -LiteralPath $dockerConfig -Recurse -Force -ErrorAction SilentlyContinue
+          }
           PS1
+          scp -i ~/.ssh/deploy_key docker-config.json "${DEPLOY_USER}@${DEPLOY_SERVER_IP}:${DEPLOY_PATH}/docker-config.json"
           scp -i ~/.ssh/deploy_key deploy-frame-compose.ps1 "${DEPLOY_USER}@${DEPLOY_SERVER_IP}:${DEPLOY_PATH}/deploy-frame-compose.ps1"
           ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_SERVER_IP}" \
-            "powershell -NoProfile -ExecutionPolicy Bypass -Command \"& '${DEPLOY_PATH}/deploy-frame-compose.ps1' -DeployPath '${DEPLOY_PATH}'\""
+            "powershell -NoProfile -ExecutionPolicy Bypass -Command \"& '${DEPLOY_PATH}/deploy-frame-compose.ps1' -DeployPath '${DEPLOY_PATH}' -DockerhubUsername '${DOCKERHUB_USERNAME}' -ImageTag '${IMAGE_TAG}'\""
+
+      - name: Cleanup remote Docker auth config
+        if: always()
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          if [ ! -f ~/.ssh/deploy_key ] || [ -z "${DEPLOY_USER}" ]; then
+            exit 0
+          fi
+          ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_SERVER_IP}" \
+            "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Remove-Item -LiteralPath '${DEPLOY_PATH}/docker-config.json' -Force -ErrorAction SilentlyContinue\"" || true
 
       - name: Verify running images and G drive mounts
         env:
