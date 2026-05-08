@@ -66,7 +66,7 @@ docs/        Architecture、ADR、設計筆記
 - 使用者 preset 存在 `adjustment_presets`；單張調整參數存在 `photo_adjustments`。
 - 手動產生版本存在 `photo_adjustment_versions`；照片卡片版本下拉必須可選原圖、pipeline preset、各手動版本，並同步切換卡片圖、上方 Before/After 基準、手動調整來源與下載目標。未手動指定版本時，live preview 預設從原圖套用目前 pipeline 色調選擇；批次處理完成後才自動切到剛產生的 preset 版本。UI 不可暴露 `adjusted`、`latest`、raw preset key 等內部狀態名稱。
 - PipelinePanel 預設值：AI 降噪重度、廣角畸變矯正開啟、Gemini Vision 水平校正開啟、自動裁剪原圖比例；主要「開始產生」動作放在手動微調區塊下方。色調 preset 必須有可見差異，OpenCV fallback 降噪不得弱到使用者在重度模式看不出效果。
-- 重度降噪不得只依賴 NAFNet 輸出；NAFNet 對高 ISO / 彩色顆粒太保守時，medium/heavy 需要疊 OpenCV 強化 pass，production 權重缺失 fallback 也必須有肉眼可見差異。
+- 重度降噪不得只依賴 NAFNet 輸出；NAFNet 對高 ISO / 彩色顆粒太保守時，medium/heavy 需要混合 OpenCV 強化 pass，production 權重缺失 fallback 也必須有肉眼可見差異。OpenCV 強化不得全圖全量抹平；必須用 edge-aware blend 讓平坦區域強力清噪，同時保護建築線條、窗框與車身邊緣。
 - 降噪後需要細節補償：medium/heavy pipeline 在降噪與幾何後、色調前做 thresholded unsharp mask，避免建築線條或車身細節糊掉。
 - 廣角矯正目前包含兩段：固定通用 Brown-Conrady 桶形係數，以及 Hough line 偵測左右側近垂直線向上收斂時的自動垂直透視修正。不要把「桶形畸變」與「建築垂直線透視」混為同一種問題；兩者都由 batch 的廣角矯正 toggle 觸發。
 - 匯出 zip 順序必須是 `adjusted` → 任一 pipeline processed preset → original。

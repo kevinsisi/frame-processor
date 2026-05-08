@@ -20,6 +20,21 @@ def _edge_mean(image: Image.Image) -> float:
     return ImageStat.Stat(image.convert("L").filter(ImageFilter.FIND_EDGES)).mean[0]
 
 
+def _luma_std(image: Image.Image, box: tuple[int, int, int, int]) -> float:
+    return float(np.asarray(image.convert("L").crop(box)).std())
+
+
+def _luma_contrast(
+    image: Image.Image,
+    dark_box: tuple[int, int, int, int],
+    light_box: tuple[int, int, int, int],
+) -> float:
+    gray = image.convert("L")
+    dark = ImageStat.Stat(gray.crop(dark_box)).mean[0]
+    light = ImageStat.Stat(gray.crop(light_box)).mean[0]
+    return light - dark
+
+
 def test_preview_jpeg_downsizes_before_adjustments() -> None:
     image = Image.new("RGB", (2400, 1600), (120, 120, 120))
 
@@ -154,7 +169,7 @@ def test_medium_and_heavy_denoise_blend_nafnet_with_classical_pass(monkeypatch) 
 
     def fake_opencv(rgb: np.ndarray, strength: DenoiseStrength) -> np.ndarray:
         calls.append(strength)
-        assert abs(float(rgb.mean()) - 0.4) < 1e-5
+        assert abs(float(rgb.mean()) - (128 / 255)) < 1e-5
         return np.full_like(rgb, 0.2)
 
     monkeypatch.setattr(denoise, "_run_nafnet", fake_nafnet)
@@ -164,8 +179,34 @@ def test_medium_and_heavy_denoise_blend_nafnet_with_classical_pass(monkeypatch) 
     heavy = np.asarray(denoise.denoise(image, DenoiseStrength.HEAVY), dtype=np.float32) / 255
 
     assert calls == [DenoiseStrength.MEDIUM, DenoiseStrength.HEAVY]
-    assert 0.34 < float(medium.mean()) < 0.36
-    assert 0.19 < float(heavy.mean()) < 0.21
+    assert 0.38 < float(medium.mean()) < 0.40
+    assert 0.25 < float(heavy.mean()) < 0.28
+
+
+def test_heavy_denoise_cleans_flat_noise_without_erasing_architecture_lines(monkeypatch) -> None:
+    rng = np.random.default_rng(12)
+    clean = Image.new("RGB", (160, 110), (38, 64, 102))
+    draw = ImageDraw.Draw(clean)
+    draw.rectangle((20, 42, 140, 100), fill=(215, 212, 198))
+    for x in range(34, 128, 12):
+        draw.line((x, 48, x, 96), fill=(42, 42, 42), width=2)
+    draw.rectangle((70, 58, 92, 100), outline=(40, 40, 40), width=3)
+    noisy = np.clip(
+        np.asarray(clean, dtype=np.float32) + rng.normal(0, 24, (110, 160, 3)),
+        0,
+        255,
+    ).astype(np.uint8)
+    image = Image.fromarray(noisy, "RGB")
+
+    def conservative_nafnet(rgb: np.ndarray) -> np.ndarray:
+        return rgb
+
+    monkeypatch.setattr(denoise, "_run_nafnet", conservative_nafnet)
+
+    result = denoise.denoise(image, DenoiseStrength.HEAVY)
+
+    assert _luma_std(result, (0, 0, 160, 35)) < _luma_std(image, (0, 0, 160, 35)) * 0.45
+    assert _luma_contrast(result, (34, 50, 36, 94), (40, 50, 48, 94)) > 80
 
 
 def test_denoise_detail_restore_adds_sharpness_after_heavy_denoise() -> None:

@@ -2,7 +2,7 @@
 
 照片批次後製工具。上傳 N 張 → 選 preset + 處理選項 → 全部一鍵處理 → 下載 zip。
 
-目前狀態：**v0.3.21 — bundled pipeline + settings key import + manual adjustment panel + desktop CI/CD**（NAFNet AI 降噪 + OpenCV 重度降噪強化 + 降噪後細節銳化 / 廣角桶形與自動垂直透視矯正 / Gemini Vision 水平校正 / YOLOv8 自動裁剪 / Pillow 色調 preset / before-after 對比 / per-photo queue progress / Gemini key 設定頁 / 手動曝光、對比、亮暗部、色溫、色偏、飽和、自然飽和、清晰度、銳利化、HSL 微調、可拖曳/縮放裁切框、水平/垂直透視修正與 preset 儲存載入 / GMT+8 時間顯示）。正式環境：[frame.sisihome.org](https://frame.sisihome.org)。
+目前狀態：**v0.3.22 — bundled pipeline + settings key import + manual adjustment panel + desktop CI/CD**（NAFNet AI 降噪 + edge-aware OpenCV 重度降噪強化 + 降噪後細節銳化 / 廣角桶形與自動垂直透視矯正 / Gemini Vision 水平校正 / YOLOv8 自動裁剪 / Pillow 色調 preset / before-after 對比 / per-photo queue progress / Gemini key 設定頁 / 手動曝光、對比、亮暗部、色溫、色偏、飽和、自然飽和、清晰度、銳利化、HSL 微調、可拖曳/縮放裁切框、水平/垂直透視修正與 preset 儲存載入 / GMT+8 時間顯示）。正式環境：[frame.sisihome.org](https://frame.sisihome.org)。
 
 ## Quick start
 
@@ -92,7 +92,7 @@ npm run dev
 
 `/preview` 目前支援點選任一照片後在上方 Before/After 載入該照片，並以同步 preview API 顯示手動調整結果。Preview API 會先縮成小圖再套用手動旋轉、幾何與色彩，避免手機大圖每次旋轉/色溫調整卡數十秒；AI 降噪、廣角矯正與 Gemini 水平校正屬於 batch pipeline，不會在尚未產生的微調 preview 內假裝完成。若目前照片仍是原圖且沒有批次處理版本，Preview 頁會自動背景建立預設 batch job；Before 永遠保持未降噪原圖，After 在完成後自動切到處理後版本，才能直接看出降噪差異。照片卡片的版本下拉會切換卡片圖片、上方 Before/After 後側來源、後續手動調整來源與單張下載目標；未手動指定版本時預設以原圖作為 live preview 來源，批次處理完成後會自動切到剛產生的 preset 版本，避免誤看舊 processed output。可對每張照片獨立點按向左/向右 90 度旋轉，並可調整曝光、對比、亮部、暗部、色溫、色偏、飽和、自然飽和、清晰度、銳利化與 HSL 六色區。水平旋轉、裁切縮放/偏移與手動水平/垂直透視修正集中在全螢幕單圖「構圖 / 幾何調整」工作區，裁切框與格線只覆蓋實際圖片而不是黑邊容器，使用者可拖曳裁切框本體、用邊角 handles 固定比例縮放，並在預覽圖上即時看到水平校正與透視變形；取消/完成控制是否套用。每次滑桿/旋轉只會自動儲存該照片草稿；只有按「產生目前版本」或「產生已選版本」才會建立可下載的 `manual-vN` 版本，並更新 `processed_paths.adjusted` 指向最新版本。匯出 zip 時優先使用最新 `adjusted`，再 fallback 到 pipeline preset output，最後才用原圖。
 
-已處理的單張照片可從照片卡片選擇不同版本：原圖、批次處理版本、手動 v1/v2/...。使用者 preset 存在 `adjustment_presets`，單張草稿參數存在 `photo_adjustments`，產生出的手動版本存在 `photo_adjustment_versions`。未明確選版本時，manual adjustment 避免使用內部 `adjusted latest` 當來源；若使用者明確在下拉選單選手動版本，該版本會成為後續微調來源。手動水平、裁切、水平/垂直透視修正不會呼叫 Gemini AI。批次 pipeline 預設為重度 AI 降噪、廣角畸變矯正開啟、Gemini Vision 水平校正開啟、自動裁剪維持原圖比例；重度降噪在 NAFNet 太保守或權重不可用時會用 OpenCV 強化 pass，並在 medium/heavy 後做 thresholded unsharp mask 細節補償，避免高 ISO 彩色顆粒處理後細節全部糊掉。廣角矯正不再只做固定弱桶形係數，也會偵測左右側近垂直線是否向上收斂，若有則套用自動垂直透視矯正。
+已處理的單張照片可從照片卡片選擇不同版本：原圖、批次處理版本、手動 v1/v2/...。使用者 preset 存在 `adjustment_presets`，單張草稿參數存在 `photo_adjustments`，產生出的手動版本存在 `photo_adjustment_versions`。未明確選版本時，manual adjustment 避免使用內部 `adjusted latest` 當來源；若使用者明確在下拉選單選手動版本，該版本會成為後續微調來源。手動水平、裁切、水平/垂直透視修正不會呼叫 Gemini AI。批次 pipeline 預設為重度 AI 降噪、廣角畸變矯正開啟、Gemini Vision 水平校正開啟、自動裁剪維持原圖比例；重度降噪在 NAFNet 太保守或權重不可用時會用 OpenCV 強化 pass，並用 edge-aware blend 讓天空、牆面、暗部等平坦區域維持乾淨，同時保護建築線條、窗框與車身邊緣，medium/heavy 後再做 thresholded unsharp mask 細節補償。廣角矯正不再只做固定弱桶形係數，也會偵測左右側近垂直線是否向上收斂，若有則套用自動垂直透視矯正。
 
 ## 對象使用者
 

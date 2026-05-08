@@ -14,7 +14,7 @@ env:
   IMAGE_TAG: ${{ github.event.workflow_run.head_sha || github.sha }}
   GEMINI_MODEL: gemini-2.5-flash
   HEALTH_URL: http://100.83.112.20:8533/api/health
-  EXPECTED_APP_VERSION: "0.3.21"
+  EXPECTED_APP_VERSION: "0.3.22"
   EXPECTED_POSTGRES_DIR: G:/frame-processor/postgres-data
   EXPECTED_STORAGE_DIR: G:/frame-processor/storage-data
   EXPECTED_REDIS_DIR: G:/frame-processor/redis-data

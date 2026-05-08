@@ -8,9 +8,10 @@
 - 權重 lazy download：第一次呼叫時從 HuggingFace mirror 下載到 NAFNET_DIR
 - CPU 推理：對 > tile 的圖切 tile（預設 512x512 with 32px overlap），最後拼回去
 - GPU：``torch.cuda.is_available()`` 自動偵測
-- 強度（DenoiseStrength）：light/medium/heavy 用 ``alpha * denoised + (1-alpha) * original``
-  混合 (0.4 / 0.7 / 1.0)，medium/heavy 會再疊一層 OpenCV 經典降噪，避免
-  NAFNet 對極端高 ISO / 彩色顆粒太保守而看起來沒效果。
+- 強度（DenoiseStrength）：light/medium/heavy 先產生降噪候選圖，再用 edge-aware
+  blend 合回原圖。平坦區域強力清噪；建築線條、窗框、車身邊緣保留更多亮度細節。
+- medium/heavy 會把 NAFNet 與 OpenCV 經典降噪混合，避免 NAFNet 對極端高 ISO /
+  彩色顆粒太保守而看起來沒效果，但不再對 NAFNet 結果做第二次全量平滑。
 
 公開介面：``denoise(image: PIL.Image, strength: DenoiseStrength) -> PIL.Image``
 """
@@ -37,17 +38,39 @@ NAFNET_WEIGHTS_FILENAME = "NAFNet-SIDD-width32.pth"
 
 STRENGTH_BLEND: dict[DenoiseStrength, float] = {
     DenoiseStrength.NONE: 0.0,
-    DenoiseStrength.LIGHT: 0.4,
-    DenoiseStrength.MEDIUM: 0.7,
-    DenoiseStrength.HEAVY: 1.0,
+    DenoiseStrength.LIGHT: 0.35,
+    DenoiseStrength.MEDIUM: 0.65,
+    DenoiseStrength.HEAVY: 0.9,
 }
 
 CLASSICAL_POST_BLEND: dict[DenoiseStrength, float] = {
     DenoiseStrength.NONE: 0.0,
     DenoiseStrength.LIGHT: 0.0,
-    DenoiseStrength.MEDIUM: 0.55,
-    DenoiseStrength.HEAVY: 1.0,
+    DenoiseStrength.MEDIUM: 0.35,
+    DenoiseStrength.HEAVY: 0.8,
 }
+
+DETAIL_PROTECTION: dict[DenoiseStrength, float] = {
+    DenoiseStrength.NONE: 0.0,
+    DenoiseStrength.LIGHT: 0.25,
+    DenoiseStrength.MEDIUM: 0.55,
+    DenoiseStrength.HEAVY: 0.72,
+}
+
+CHROMA_EXTRA_BLEND: dict[DenoiseStrength, float] = {
+    DenoiseStrength.NONE: 0.0,
+    DenoiseStrength.LIGHT: 0.1,
+    DenoiseStrength.MEDIUM: 0.18,
+    DenoiseStrength.HEAVY: 0.1,
+}
+
+DETAIL_STRUCTURE_BLUR_SIGMA = 1.8
+DETAIL_CANNY_LOW = 55
+DETAIL_CANNY_HIGH = 140
+DETAIL_EDGE_BLUR_SIGMA = 1.6
+DETAIL_LOCAL_WINDOW = 7
+DETAIL_LOCAL_STD_FLOOR = 0.06
+DETAIL_LOCAL_STD_RANGE = 0.12
 
 _model = None
 _device = None
@@ -61,17 +84,16 @@ class DenoiseError(RuntimeError):
 def denoise(image: Image.Image, strength: DenoiseStrength) -> Image.Image:
     if strength is DenoiseStrength.NONE:
         return image
-    alpha = STRENGTH_BLEND[strength]
     rgb = np.array(image.convert("RGB"), dtype=np.float32) / 255.0
     try:
         denoised = _run_nafnet(rgb)
         post_alpha = CLASSICAL_POST_BLEND[strength]
         if post_alpha:
-            classical = _run_opencv_denoise(denoised, strength)
+            classical = _run_opencv_denoise(rgb, strength)
             denoised = post_alpha * classical + (1.0 - post_alpha) * denoised
     except DenoiseError:
         denoised = _run_opencv_denoise(rgb, strength)
-    blended = alpha * denoised + (1.0 - alpha) * rgb
+    blended = _blend_preserving_detail(rgb, denoised, strength)
     blended = np.clip(blended * 255.0, 0, 255).astype(np.uint8)
     return Image.fromarray(blended)
 
@@ -82,9 +104,9 @@ def _run_opencv_denoise(rgb: np.ndarray, strength: DenoiseStrength) -> np.ndarra
     import cv2
 
     h_value = {
-        DenoiseStrength.LIGHT: 8,
-        DenoiseStrength.MEDIUM: 18,
-        DenoiseStrength.HEAVY: 32,
+        DenoiseStrength.LIGHT: 6,
+        DenoiseStrength.MEDIUM: 13,
+        DenoiseStrength.HEAVY: 22,
     }.get(strength, 0)
     if h_value <= 0:
         return rgb
@@ -96,9 +118,75 @@ def _run_opencv_denoise(rgb: np.ndarray, strength: DenoiseStrength) -> np.ndarra
         h=h_value,
         hColor=max(int(h_value * 1.2), 4),
         templateWindowSize=7,
-        searchWindowSize=35 if strength is DenoiseStrength.HEAVY else 21,
+        searchWindowSize=25 if strength is DenoiseStrength.HEAVY else 21,
     )
     return cv2.cvtColor(denoised, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
+
+
+def _blend_preserving_detail(
+    original: np.ndarray,
+    denoised: np.ndarray,
+    strength: DenoiseStrength,
+) -> np.ndarray:
+    import cv2
+
+    base_alpha = STRENGTH_BLEND[strength]
+    if base_alpha <= 0:
+        return original
+
+    detail_mask = _detail_protection_mask(original)
+    protection = DETAIL_PROTECTION[strength]
+    luma_alpha = np.clip(base_alpha * (1.0 - protection * detail_mask), 0.0, 1.0)
+    chroma_alpha = np.clip(
+        min(base_alpha + CHROMA_EXTRA_BLEND[strength], 1.0)
+        * (1.0 - protection * 0.2 * detail_mask),
+        0.0,
+        1.0,
+    )
+
+    original_ycc = cv2.cvtColor(original.astype(np.float32), cv2.COLOR_RGB2YCrCb)
+    denoised_ycc = cv2.cvtColor(denoised.astype(np.float32), cv2.COLOR_RGB2YCrCb)
+    blended_ycc = original_ycc.copy()
+    blended_ycc[..., :1] = (
+        luma_alpha * denoised_ycc[..., :1] + (1.0 - luma_alpha) * original_ycc[..., :1]
+    )
+    blended_ycc[..., 1:] = (
+        chroma_alpha * denoised_ycc[..., 1:] + (1.0 - chroma_alpha) * original_ycc[..., 1:]
+    )
+    return np.clip(cv2.cvtColor(blended_ycc, cv2.COLOR_YCrCb2RGB), 0.0, 1.0)
+
+
+def _detail_protection_mask(rgb: np.ndarray) -> np.ndarray:
+    import cv2
+
+    rgb_u8 = np.clip(rgb * 255.0, 0, 255).astype(np.uint8)
+    gray = cv2.cvtColor(rgb_u8, cv2.COLOR_RGB2GRAY)
+    structure = cv2.GaussianBlur(gray, (0, 0), DETAIL_STRUCTURE_BLUR_SIGMA)
+
+    edges = cv2.Canny(structure, DETAIL_CANNY_LOW, DETAIL_CANNY_HIGH)
+    edges = cv2.dilate(edges, np.ones((3, 3), dtype=np.uint8), iterations=1)
+    edge_mask = cv2.GaussianBlur(
+        edges.astype(np.float32) / 255.0,
+        (0, 0),
+        DETAIL_EDGE_BLUR_SIGMA,
+    )
+
+    structure_f = structure.astype(np.float32) / 255.0
+    local_mean = cv2.blur(structure_f, (DETAIL_LOCAL_WINDOW, DETAIL_LOCAL_WINDOW))
+    local_mean_sq = cv2.blur(
+        structure_f * structure_f,
+        (DETAIL_LOCAL_WINDOW, DETAIL_LOCAL_WINDOW),
+    )
+    local_std = np.sqrt(np.maximum(local_mean_sq - local_mean * local_mean, 0.0))
+    texture_mask = np.clip(
+        (local_std - DETAIL_LOCAL_STD_FLOOR) / DETAIL_LOCAL_STD_RANGE,
+        0.0,
+        1.0,
+    )
+
+    detail_mask = np.maximum(edge_mask, texture_mask)
+    detail_mask = cv2.GaussianBlur(detail_mask, (0, 0), 0.8)
+    return np.clip(detail_mask[..., np.newaxis], 0.0, 1.0)
 
 
 def _run_nafnet(rgb: np.ndarray) -> np.ndarray:
