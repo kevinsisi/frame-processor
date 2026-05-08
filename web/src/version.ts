@@ -1,2 +1,2 @@
-// v0.3.3 - preserve desktop deploy secrets during CI/CD env merge.
-export const APP_VERSION = "0.3.3";
+// v0.3.4 - run CI tests through the Python module path.
+export const APP_VERSION = "0.3.4";

@@ -238,9 +238,9 @@ FE ──GET /photos/{id}/file?variant=processed&preset=...──▶ API ── 
 
 prod 多接一層 reverse proxy（Cloudflare Tunnel 或 Caddy），參見部署 ADR（v1.0 寫）。
 
-## CI/CD（v0.3.3+）
+## CI/CD（v0.3.4+）
 
-`.github/workflows/ci.yml`：backend ruff + `pytest tests` + import smoke + alembic offline check、frontend typecheck/build、api/web Docker build validation。
+`.github/workflows/ci.yml`：backend ruff + `python -m pytest tests` + import smoke + alembic offline check、frontend typecheck/build、api/web Docker build validation。
 
 `.github/workflows/docker-publish.yml`：push `main` 或手動 dispatch 時 build/push `kevin950805/frame-processor-api:latest` 與 `kevin950805/frame-processor-web:latest`。worker 服務重用 api image，僅用不同 command 啟動 RQ worker。
 

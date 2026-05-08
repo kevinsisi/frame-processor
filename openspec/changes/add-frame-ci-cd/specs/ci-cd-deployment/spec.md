@@ -16,7 +16,7 @@ The system SHALL run backend lint, backend import smoke checks, alembic offline 
 
 #### Scenario: Python tests are executed
 - **WHEN** CI runs for a push or pull request
-- **THEN** `pytest tests` runs after dependencies are installed
+- **THEN** `python -m pytest tests` runs after dependencies are installed so repository packages are importable
 
 #### Scenario: Docker build validation is executed
 - **WHEN** CI runs for a push or pull request

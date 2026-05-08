@@ -23,7 +23,7 @@ jobs:
       - name: Ruff lint
         run: ruff check .
       - name: Python tests
-        run: pytest tests
+        run: python -m pytest tests
       - name: Import smoke test
         run: |
           python -c "from api.main import app; print('api ok')"
