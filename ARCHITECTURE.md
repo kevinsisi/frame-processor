@@ -24,7 +24,7 @@
 - **worker**：RQ Python worker。負責 zip 打包、之後的 AI 處理 pipeline。
 - **postgres**：Project / Photo / Export 三張表（v0.2+ 加 ProcessingJob）。
 - **redis**：RQ broker + result store。
-- **storage**：Docker bind mount（dev `./data/`，prod `/mnt/usb/frame-processor/`）。原圖、預覽圖、處理後檔案、zip 都在這裡。
+- **storage**：Docker bind mount（prod `G:/frame-processor/storage-data`）。原圖、預覽圖、處理後檔案、zip 都在這裡。
 
 ## 資料流（v0.1 walking skeleton）
 
@@ -238,10 +238,13 @@ FE ──GET /photos/{id}/file?variant=processed&preset=...──▶ API ── 
 
 prod 多接一層 reverse proxy（Cloudflare Tunnel 或 Caddy），參見部署 ADR（v1.0 寫）。
 
-## CI/CD（v0.1）
+## CI/CD（v0.3.1+）
 
-`.github/workflows/ci.yml`：lint + 型別檢查 + 簡單 import smoke test。
-`.github/workflows/deploy-dev.yml`：scaffold（v1.0 之前不接真實部署）。
+`.github/workflows/ci.yml`：backend ruff + `pytest tests` + import smoke + alembic offline check、frontend typecheck/build、api/web Docker build validation。
+
+`.github/workflows/docker-publish.yml`：push `main` 或手動 dispatch 時 build/push `kevin950805/frame-processor-api:latest` 與 `kevin950805/frame-processor-web:latest`。worker 服務重用 api image，僅用不同 command 啟動 RQ worker。
+
+`.github/workflows/deploy-dev.yml`：Docker publish 成功後透過 Tailscale SSH 部署到 Windows desktop `100.83.112.20`。Workflow 會複製 `deploy/docker-compose.yml` 到 `D:/GitClone/_HomeProject/frame-processor/deploy/docker-compose.yml`，寫 host-side `deploy/.env`，驗證 `G:/frame-processor/{postgres-data,storage-data,redis-data}` 皆存在且 compose/runtime mounts 都是 G 槽 bind mounts，再執行 `docker compose pull && docker compose up -d` 並檢查 `http://100.83.112.20:8533/api/health`。
 
 ## 後續演進指引
 

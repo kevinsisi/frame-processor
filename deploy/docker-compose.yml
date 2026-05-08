@@ -30,6 +30,7 @@ services:
       retries: 10
 
   api:
+    image: ${DOCKERHUB_USERNAME:-kevin950805}/frame-processor-api:${IMAGE_TAG:-latest}
     build:
       context: ..
       dockerfile: deploy/api.Dockerfile
@@ -58,6 +59,7 @@ services:
     command: ["sh", "-c", "alembic upgrade head && uvicorn api.main:app --host 0.0.0.0 --port 8000"]
 
   worker:
+    image: ${DOCKERHUB_USERNAME:-kevin950805}/frame-processor-api:${IMAGE_TAG:-latest}
     build:
       context: ..
       dockerfile: deploy/api.Dockerfile
@@ -84,12 +86,12 @@ services:
     command: ["python", "-m", "worker.main"]
 
   web:
+    image: ${DOCKERHUB_USERNAME:-kevin950805}/frame-processor-web:${IMAGE_TAG:-latest}
     build:
       context: ..
       dockerfile: deploy/web.Dockerfile
       args:
         VITE_API_BASE_URL: /api
-        VITE_SETTINGS_ADMIN_TOKEN: ${SETTINGS_ADMIN_TOKEN:-}
     ports:
       - "100.83.112.20:8533:80"
     depends_on:

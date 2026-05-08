@@ -2,7 +2,7 @@
 
 照片批次後製工具。上傳 N 張 → 選 preset + 處理選項 → 全部一鍵處理 → 下載 zip。
 
-目前狀態：**v0.3.0 in progress — bundled pipeline + settings key import + manual adjustment panel**（NAFNet AI 降噪 / 廣角畸變矯正 / Gemini Vision 水平校正 / YOLOv8 自動裁剪 / Pillow 色調 preset / before-after 對比 / per-photo queue progress / Gemini key 設定頁 / 手動曝光、對比、亮暗部、色溫、色偏、飽和、自然飽和、清晰度、銳利化、HSL 微調與 preset 儲存載入）。已部署至 [frame.sisihome.org](https://frame.sisihome.org)。
+目前狀態：**v0.3.1 shipped — bundled pipeline + settings key import + manual adjustment panel**（NAFNet AI 降噪 / 廣角畸變矯正 / Gemini Vision 水平校正 / YOLOv8 自動裁剪 / Pillow 色調 preset / before-after 對比 / per-photo queue progress / Gemini key 設定頁 / 手動曝光、對比、亮暗部、色溫、色偏、飽和、自然飽和、清晰度、銳利化、HSL 微調與 preset 儲存載入）。已部署至 [frame.sisihome.org](https://frame.sisihome.org)。
 
 ## Quick start
 
@@ -35,6 +35,17 @@ NAFNET_DIR=/data/models-weights/nafnet            # NAFNet 權重 cache
 ```
 
 模型權重（YOLOv8n 6MB + NAFNet-SIDD-width32 ~67MB）首次處理時 lazy download 到對應 volume 路徑，之後跨 container restart 共用。
+
+## CI/CD Deployment
+
+GitHub Actions 使用 HomeProject two-workflow pattern：
+
+- `.github/workflows/docker-publish.yml`：push `main` 或手動 dispatch 時 build/push `kevin950805/frame-processor-api:latest` 與 `kevin950805/frame-processor-web:latest`；worker 直接重用 api image。
+- `.github/workflows/deploy-dev.yml`：Docker publish 成功後用 Tailscale SSH 部署到 Windows desktop `100.83.112.20`，複製 `deploy/docker-compose.yml` 到 `D:/GitClone/_HomeProject/frame-processor/deploy/docker-compose.yml`，寫入 host-side `deploy/.env`，再執行 `docker compose pull && docker compose up -d`。
+
+部署前 workflow 會拒絕缺少 `G:/frame-processor/postgres-data`、`G:/frame-processor/storage-data`、`G:/frame-processor/redis-data` 的主機，也會用 `docker compose config` 確認 postgres/storage/redis 都是 G 槽 bind mounts。部署後會用 `docker inspect` 再確認 runtime mounts 沒有回到 Docker Desktop C 槽 named volumes，最後檢查 `http://100.83.112.20:8533/api/health`。
+
+必要 GitHub secrets：`DOCKERHUB_TOKEN`、`DEPLOY_SSH_KEY`、`DEPLOY_USER`、`TS_OAUTH_CLIENT_ID`、`TS_OAUTH_SECRET`、`GEMINI_API_KEY`、`SETTINGS_ADMIN_TOKEN`。`DOCKERHUB_USERNAME` 可省略，預設 `kevin950805`。`KEY_MANAGER_URL` 是 optional；空白代表不啟用 key-manager sync。`GEMINI_MODEL` 由 workflow 固定為 `gemini-2.5-flash`。`SETTINGS_ADMIN_TOKEN` 只進 api/worker runtime env，不 bake 進 static web image；Settings 頁需要修改金鑰時可手動輸入 token。
 
 ## 開發
 

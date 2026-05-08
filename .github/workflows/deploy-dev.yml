@@ -1,16 +1,236 @@
-name: Deploy (dev) — scaffold
-
-# v1.0 之前不接真實部署。此 workflow 只是 scaffold，未來填入：
-# - Docker buildx + push 到 registry
-# - SSH / Tailscale 進 dev server pull + restart compose
-# - Smoke test deployed endpoint
+name: Deploy Desktop
 
 on:
+  workflow_run:
+    workflows: ["Build and Push Docker Images"]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
 
+env:
+  DEPLOY_SERVER_IP: 100.83.112.20
+  DEPLOY_PATH: D:/GitClone/_HomeProject/frame-processor/deploy
+  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME || 'kevin950805' }}
+  IMAGE_TAG: latest
+  GEMINI_MODEL: gemini-2.5-flash
+  HEALTH_URL: http://100.83.112.20:8533/api/health
+  EXPECTED_POSTGRES_DIR: G:/frame-processor/postgres-data
+  EXPECTED_STORAGE_DIR: G:/frame-processor/storage-data
+  EXPECTED_REDIS_DIR: G:/frame-processor/redis-data
+
 jobs:
-  scaffold:
+  deploy-desktop:
     runs-on: ubuntu-latest
+    if: >
+      (github.event_name == 'workflow_dispatch') ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+
     steps:
-      - name: placeholder
-        run: echo "TODO v1.0：部署到 frame.sisihome.org（domain 待定）"
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Validate required secrets
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SETTINGS_ADMIN_TOKEN: ${{ secrets.SETTINGS_ADMIN_TOKEN }}
+          TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          TS_OAUTH_SECRET: ${{ secrets.TS_OAUTH_SECRET }}
+        run: |
+          missing=0
+          for name in DEPLOY_SSH_KEY DEPLOY_USER GEMINI_API_KEY SETTINGS_ADMIN_TOKEN TS_OAUTH_CLIENT_ID TS_OAUTH_SECRET; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing ${name}"
+              missing=1
+            fi
+          done
+          if [ -z "${DOCKERHUB_USERNAME}" ]; then
+            echo "::error::Missing DOCKERHUB_USERNAME"
+            missing=1
+          fi
+          if [ "${missing}" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:github-actions
+
+      - name: Setup SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${DEPLOY_SSH_KEY}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${DEPLOY_SERVER_IP}" >> ~/.ssh/known_hosts
+
+      - name: Ensure deploy directory exists
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_SERVER_IP}" \
+            "powershell -NoProfile -ExecutionPolicy Bypass -Command \"New-Item -ItemType Directory -Force -Path '${DEPLOY_PATH}' | Out-Null\""
+
+      - name: Sync docker-compose.yml to desktop
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          scp -i ~/.ssh/deploy_key deploy/docker-compose.yml "${DEPLOY_USER}@${DEPLOY_SERVER_IP}:${DEPLOY_PATH}/docker-compose.yml"
+
+      - name: Write deploy environment to desktop
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SETTINGS_ADMIN_TOKEN: ${{ secrets.SETTINGS_ADMIN_TOKEN }}
+          KEY_MANAGER_URL: ${{ secrets.KEY_MANAGER_URL }}
+        run: |
+          umask 077
+          trap 'rm -f frame-processor.env' EXIT
+          {
+            printf 'DOCKERHUB_USERNAME=%s\n' "${DOCKERHUB_USERNAME}"
+            printf 'IMAGE_TAG=%s\n' "${IMAGE_TAG}"
+            printf 'GEMINI_MODEL=%s\n' "${GEMINI_MODEL}"
+            printf 'GEMINI_API_KEY=%s\n' "${GEMINI_API_KEY}"
+            printf 'SETTINGS_ADMIN_TOKEN=%s\n' "${SETTINGS_ADMIN_TOKEN}"
+            printf 'KEY_MANAGER_URL=%s\n' "${KEY_MANAGER_URL}"
+          } > frame-processor.env
+          scp -i ~/.ssh/deploy_key frame-processor.env "${DEPLOY_USER}@${DEPLOY_SERVER_IP}:${DEPLOY_PATH}/.env"
+
+      - name: Validate G drive volume mapping
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_SERVER_IP}" "powershell -NoProfile -ExecutionPolicy Bypass -Command \"
+            \$ErrorActionPreference = 'Stop'
+
+            function Normalize-PathValue([string]\$Value) {
+              if (-not \$Value) { return \$null }
+              \$path = \$Value.Replace('\', '/').TrimEnd('/')
+              if (\$path -match '^/run/desktop/mnt/host/([a-zA-Z])/(.+)') {
+                return (\$Matches[1].ToUpper() + ':/' + \$Matches[2]).TrimEnd('/')
+              }
+              if (\$path -match '^/host_mnt/([a-zA-Z])/(.+)') {
+                return (\$Matches[1].ToUpper() + ':/' + \$Matches[2]).TrimEnd('/')
+              }
+              return \$path
+            }
+
+            function Assert-PathExists([string]\$Path) {
+              if (!(Test-Path -LiteralPath \$Path)) { throw ('Missing required deploy data path: ' + \$Path) }
+            }
+
+            function Assert-ComposeBind([object]\$Config, [string]\$Service, [string]\$Target, [string]\$ExpectedSource) {
+              \$serviceProperty = \$Config.services.PSObject.Properties[\$Service]
+              if (\$null -eq \$serviceProperty) { throw ('Missing compose service: ' + \$Service) }
+              \$serviceConfig = \$serviceProperty.Value
+              \$foundVolumes = @(\$serviceConfig.volumes | Where-Object { \$_.target -eq \$Target })
+              if (\$foundVolumes.Count -ne 1) { throw ('Service ' + \$Service + ' must have exactly one volume for ' + \$Target) }
+
+              \$volume = \$foundVolumes[0]
+              \$actualType = [string]\$volume.type
+              \$actualSource = Normalize-PathValue ([string]\$volume.source)
+              \$expectedSource = Normalize-PathValue \$ExpectedSource
+              if (\$actualType -ne 'bind') { throw ('Service ' + \$Service + ' volume ' + \$Target + ' must be bind, got ' + \$actualType) }
+              if (\$actualSource -ne \$expectedSource) { throw ('Service ' + \$Service + ' volume ' + \$Target + ' must use ' + \$expectedSource + ', got ' + \$actualSource) }
+            }
+
+            Set-Location -LiteralPath '${DEPLOY_PATH}'
+            Assert-PathExists '${EXPECTED_POSTGRES_DIR}'
+            Assert-PathExists '${EXPECTED_STORAGE_DIR}'
+            Assert-PathExists '${EXPECTED_REDIS_DIR}'
+
+            \$configJson = docker compose --env-file .env -f docker-compose.yml config --format json
+            if (\$LASTEXITCODE -ne 0) { throw 'docker compose config failed.' }
+            \$config = (\$configJson -join [Environment]::NewLine) | ConvertFrom-Json
+
+            Assert-ComposeBind \$config 'postgres' '/var/lib/postgresql/data' '${EXPECTED_POSTGRES_DIR}'
+            Assert-ComposeBind \$config 'redis' '/data' '${EXPECTED_REDIS_DIR}'
+            Assert-ComposeBind \$config 'api' '/data' '${EXPECTED_STORAGE_DIR}'
+            Assert-ComposeBind \$config 'worker' '/data' '${EXPECTED_STORAGE_DIR}'
+          \""
+
+      - name: Deploy via Docker Compose
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_SERVER_IP}" "powershell -NoProfile -ExecutionPolicy Bypass -Command \"
+            \$ErrorActionPreference = 'Stop'
+            Set-Location -LiteralPath '${DEPLOY_PATH}'
+            docker compose --env-file .env -f docker-compose.yml pull postgres redis api worker web
+            if (\$LASTEXITCODE -ne 0) { throw 'docker compose pull failed.' }
+            docker compose --env-file .env -f docker-compose.yml up -d --remove-orphans postgres redis api worker web
+            if (\$LASTEXITCODE -ne 0) { throw 'docker compose up failed.' }
+            docker compose --env-file .env -f docker-compose.yml ps
+          \""
+
+      - name: Verify running G drive mounts
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_SERVER_IP}" "powershell -NoProfile -ExecutionPolicy Bypass -Command \"
+            \$ErrorActionPreference = 'Stop'
+
+            function Normalize-PathValue([string]\$Value) {
+              if (-not \$Value) { return \$null }
+              \$path = \$Value.Replace('\', '/').TrimEnd('/')
+              if (\$path -match '^/run/desktop/mnt/host/([a-zA-Z])/(.+)') {
+                return (\$Matches[1].ToUpper() + ':/' + \$Matches[2]).TrimEnd('/')
+              }
+              if (\$path -match '^/host_mnt/([a-zA-Z])/(.+)') {
+                return (\$Matches[1].ToUpper() + ':/' + \$Matches[2]).TrimEnd('/')
+              }
+              return \$path
+            }
+
+            function Assert-ContainerBind([string]\$Container, [string]\$Destination, [string]\$ExpectedSource) {
+              \$inspectJson = docker inspect \$Container
+              if (\$LASTEXITCODE -ne 0) { throw ('docker inspect failed for ' + \$Container) }
+              \$inspect = (\$inspectJson -join [Environment]::NewLine) | ConvertFrom-Json
+              \$containerInfo = @(\$inspect)[0]
+              \$foundMounts = @(\$containerInfo.Mounts | Where-Object { \$_.Destination -eq \$Destination })
+              if (\$foundMounts.Count -ne 1) { throw ('Container ' + \$Container + ' must have exactly one mount for ' + \$Destination) }
+
+              \$mount = \$foundMounts[0]
+              \$actualType = [string]\$mount.Type
+              \$actualSource = Normalize-PathValue ([string]\$mount.Source)
+              \$expectedSource = Normalize-PathValue \$ExpectedSource
+              if (\$actualType -ne 'bind') { throw ('Container ' + \$Container + ' mount ' + \$Destination + ' must be bind, got ' + \$actualType) }
+              if (\$actualSource -like '*/var/lib/docker/volumes/*') { throw ('Container ' + \$Container + ' uses Docker named volume storage: ' + \$actualSource) }
+              if (\$actualSource -ne \$expectedSource) { throw ('Container ' + \$Container + ' mount ' + \$Destination + ' must use ' + \$expectedSource + ', got ' + \$actualSource) }
+            }
+
+            Assert-ContainerBind 'frame-processor-postgres-1' '/var/lib/postgresql/data' '${EXPECTED_POSTGRES_DIR}'
+            Assert-ContainerBind 'frame-processor-redis-1' '/data' '${EXPECTED_REDIS_DIR}'
+            Assert-ContainerBind 'frame-processor-api-1' '/data' '${EXPECTED_STORAGE_DIR}'
+            Assert-ContainerBind 'frame-processor-worker-1' '/data' '${EXPECTED_STORAGE_DIR}'
+          \""
+
+      - name: Health check through web proxy
+        run: |
+          for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            if curl -fsS "${HEALTH_URL}"; then
+              exit 0
+            fi
+            sleep 10
+          done
+          exit 1
+
+      - name: Deployment Summary
+        if: always()
+        run: |
+          echo "## Desktop Deployment Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Status: ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Server: ${DEPLOY_SERVER_IP}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Deploy path: ${DEPLOY_PATH}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Image tag: ${IMAGE_TAG}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Postgres data: ${EXPECTED_POSTGRES_DIR}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Storage data: ${EXPECTED_STORAGE_DIR}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Redis data: ${EXPECTED_REDIS_DIR}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Health: ${HEALTH_URL}" >> "$GITHUB_STEP_SUMMARY"

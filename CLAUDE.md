@@ -33,6 +33,8 @@ docs/        Architecture、ADR、設計筆記
 
 - 桌機（Tailscale `100.83.112.20`）跑 Docker Compose stack：`docker compose -f deploy/docker-compose.yml up -d`
 - 持久資料已從 Docker Desktop named volumes 遷到 `G:\frame-processor\` bind mounts：`postgres-data`、`storage-data`、`redis-data`。不要改回 named volumes；C 槽空間不足。舊 C 上的 frame-processor named volumes 與舊 Redis anonymous volume 已於 2026-05-08 遷移後移除。若重建或換機，必須先建立這三個目錄並把既有資料複製進去再啟動；空目錄會啟動成空 DB/storage。
+- CI/CD：`.github/workflows/docker-publish.yml` push `main` 時 build/push `kevin950805/frame-processor-api:latest` 與 `kevin950805/frame-processor-web:latest`；`.github/workflows/deploy-dev.yml` 在 publish 成功後用 Tailscale SSH 到 `100.83.112.20`，複製 `deploy/docker-compose.yml` 到 `D:/GitClone/_HomeProject/frame-processor/deploy/docker-compose.yml`，寫 `deploy/.env`，再 `docker compose pull && docker compose up -d`。CD 必須在 up 前驗證三個 G 槽資料目錄存在且 compose 解析為 G 槽 bind mounts，up 後用 `docker inspect` 確認 runtime mounts 仍是 G 槽 bind，不可回到 Docker Desktop C 槽 named volumes。
+- CI/CD secrets：`DOCKERHUB_TOKEN`、`DEPLOY_SSH_KEY`、`DEPLOY_USER`、`TS_OAUTH_CLIENT_ID`、`TS_OAUTH_SECRET`、`GEMINI_API_KEY`、`SETTINGS_ADMIN_TOKEN`；`DOCKERHUB_USERNAME` 預設 `kevin950805`；`KEY_MANAGER_URL` optional。CD 固定 `GEMINI_MODEL=gemini-2.5-flash`。`SETTINGS_ADMIN_TOKEN` 只進 api/worker runtime env，不可 bake 進 static web image。
 - 唯一對外 port 是 web container 的 `100.83.112.20:8533`（nginx）— api/postgres/redis 不外露；api debug 用 `127.0.0.1:8633`
 - web container 的 nginx 把 `/api/*` reverse proxy 到 `api:8000/*`（剝掉 `/api`），所以前端走同源
 - 前端 build 時 `VITE_API_BASE_URL=/api`（在 `deploy/docker-compose.yml`）

@@ -48,5 +48,8 @@ Thumbs.db
 *.log
 logs/
 
+# Local AI review artifacts
+.ai-review/
+
 # Alembic
 # (versions/ is committed; only env-specific stuff excluded)

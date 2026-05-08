@@ -21,7 +21,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY requirements.txt .
 # Install CPU-only torch wheel first to avoid pulling the multi-GB CUDA build
-RUN pip install --extra-index-url https://download.pytorch.org/whl/cpu torch>=2.2 \
+RUN pip install --extra-index-url https://download.pytorch.org/whl/cpu "torch>=2.2" \
     && pip install -r requirements.txt
 
 COPY api ./api
