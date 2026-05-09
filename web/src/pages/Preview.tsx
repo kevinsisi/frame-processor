@@ -19,13 +19,22 @@ import { useToast } from "@/components/Toast";
 import type {
   AdjustmentParams,
   AdjustmentJob,
+  AspectRatio,
   AdjustmentPreset,
   ColorGradePreset,
+  DenoiseStrength,
   ProcessingJob,
   ProcessingJobCreate,
   ProjectDetail,
 } from "@/types";
 import { missingPipelineOutputPhotoIds, needsPipelineRunNote } from "@/utils/pipelinePreview";
+import {
+  DEFAULT_PIPELINE_DENOISE,
+  DEFAULT_PIPELINE_PRESET,
+  buildPipelinePayload,
+  readProjectPipelinePreset,
+  writeProjectPipelinePreset,
+} from "@/utils/pipelineSettings";
 
 import "./Preview.css";
 
@@ -53,6 +62,28 @@ function sourceToVersionValue(source: AdjustmentParams["source"]): string | null
   return null;
 }
 
+const PRESET_LABELS: Record<ColorGradePreset, string> = {
+  showroom_white: "展示間白",
+  outdoor_warm: "戶外暖調",
+  night_cold: "夜拍冷調",
+};
+
+const DENOISE_LABELS: Record<DenoiseStrength, string> = {
+  none: "不降噪",
+  light: "輕度降噪",
+  medium: "中度降噪",
+  heavy: "重度降噪",
+};
+
+const ASPECT_LABELS: Record<AspectRatio, string> = {
+  original: "原始比例",
+  ratio_3_2: "3:2",
+  ratio_4_3: "4:3",
+  ratio_16_9: "16:9",
+  ratio_1_1: "1:1",
+  ratio_9_16: "9:16",
+};
+
 export default function PreviewPage() {
   const { projectId } = useParams();
   const { push: toast } = useToast();
@@ -66,11 +97,15 @@ export default function PreviewPage() {
   const [preview, setPreview] = useState<{ photoId: string; url: string } | null>(null);
   const [basePreview, setBasePreview] = useState<{ photoId: string; url: string } | null>(null);
   const [photoVersionValues, setPhotoVersionValues] = useState<Record<string, string>>({});
-  const [pipelinePreset, setPipelinePreset] = useState<ColorGradePreset>("showroom_white");
+  const [pipelinePreset, setPipelinePreset] = useState<ColorGradePreset>(DEFAULT_PIPELINE_PRESET);
   const [presets, setPresets] = useState<AdjustmentPreset[]>([]);
   const [job, setJob] = useState<ProcessingJob | null>(null);
   const [adjustmentJob, setAdjustmentJob] = useState<AdjustmentJob | null>(null);
   const [pipelineBusy, setPipelineBusy] = useState(false);
+  const [pipelineDenoise, setPipelineDenoise] = useState<DenoiseStrength>(DEFAULT_PIPELINE_DENOISE);
+  const [pipelineLensDistort, setPipelineLensDistort] = useState(true);
+  const [pipelineLevelCorrect, setPipelineLevelCorrect] = useState(true);
+  const [pipelineAspect, setPipelineAspect] = useState<AspectRatio>("original");
   const [adjustmentBusy, setAdjustmentBusy] = useState(false);
   const [draftDirty, setDraftDirty] = useState(false);
   const pollRef = useRef<number | null>(null);
@@ -120,6 +155,7 @@ export default function PreviewPage() {
     }
     setProject(null);
     setError(null);
+    setPipelinePreset(readProjectPipelinePreset(projectId) ?? DEFAULT_PIPELINE_PRESET);
     api
       .getProject(projectId)
       .then((p) => {
@@ -233,10 +269,21 @@ export default function PreviewPage() {
   }
 
   function handlePipelinePresetChange(preset: ColorGradePreset) {
+    if (projectId) writeProjectPipelinePreset(projectId, preset);
     setPipelinePreset(preset);
     if (adjustmentParamsRef.current.source?.kind === "original") {
       updateAdjustmentParams({ ...adjustmentParamsRef.current, grade_preset: preset });
     }
+  }
+
+  function currentPipelinePayload(): ProcessingJobCreate {
+    return buildPipelinePayload({
+      preset: pipelinePreset,
+      denoise: pipelineDenoise,
+      lensDistort: pipelineLensDistort,
+      levelCorrect: pipelineLevelCorrect,
+      aspect: pipelineAspect,
+    });
   }
 
   useEffect(() => {
@@ -249,25 +296,19 @@ export default function PreviewPage() {
   }, []);
 
   useEffect(() => {
-    if (!project || !projectId || pipelineBusy) return;
-    if (job && (job.status === "pending" || job.status === "running")) return;
+    const pipelineRunning = pipelineBusy || job?.status === "pending" || job?.status === "running";
+    if (!project || !projectId || pipelineRunning) return;
     const missingPhotoIds = missingPipelineOutputPhotoIds(project.photos, pipelinePreset);
     if (missingPhotoIds.length === 0) return;
     const key = `${project.id}:${pipelinePreset}:${missingPhotoIds.join(",")}`;
     if (autoProcessRef.current.has(key)) return;
     autoProcessRef.current.add(key);
     void startProcessing(
-      {
-        preset: pipelinePreset,
-        denoise_strength: "heavy",
-        lens_distort_correct: true,
-        level_correct: true,
-        auto_crop_aspect: null,
-      },
+      currentPipelinePayload(),
       missingPhotoIds,
       { automatic: true },
     );
-  }, [project, projectId, pipelineBusy, pipelinePreset, job?.status]);
+  }, [project, projectId, pipelineBusy, pipelinePreset, pipelineDenoise, pipelineLensDistort, pipelineLevelCorrect, pipelineAspect, job?.status]);
 
   function toggle(photoId: string) {
     setSelected((prev) => {
@@ -296,6 +337,7 @@ export default function PreviewPage() {
   }
 
   async function handleSubmit(payload: ProcessingJobCreate) {
+    if (job?.status === "pending" || job?.status === "running") return;
     await startProcessing(payload, Array.from(selected), { automatic: false });
   }
 
@@ -305,6 +347,7 @@ export default function PreviewPage() {
     options: { automatic: boolean },
   ) {
     if (!projectId || !project) return;
+    if (job?.status === "pending" || job?.status === "running") return;
     if (photoIds.length === 0) return;
     const submittedPreset = payload.preset;
     const submittedPhotoIds = photoIds;
@@ -521,6 +564,16 @@ export default function PreviewPage() {
   });
   const progressPct =
     job && job.total > 0 ? Math.round((job.progress / job.total) * 100) : 0;
+  const pipelineRunning = pipelineBusy || job?.status === "pending" || job?.status === "running";
+  const pipelineActionLabel = pipelineRunning ? "產生中…" : "開始產生";
+  const pipelineActionDisabled = pipelineRunning || selected.size === 0;
+  const pipelineStatusLabel = pipelineRunning
+    ? `正在產生 ${job?.progress ?? 0} / ${job?.total ?? selected.size} 張`
+    : job?.status === "done"
+      ? "上一批已完成"
+      : job?.status === "failed"
+        ? "上一批失敗"
+        : "準備產生";
   const adjustmentProgressPct =
     adjustmentJob && adjustmentJob.total > 0
       ? Math.round((adjustmentJob.progress / adjustmentJob.total) * 100)
@@ -534,6 +587,27 @@ export default function PreviewPage() {
         </div>
         <h1 className="hero__title">{project.name}</h1>
         <p className="hero__lede">{project.photo_count} 張照片</p>
+      </section>
+
+      <section className="preview-action" aria-label="目前處理設定與產生動作">
+        <div className="preview-action__main">
+          <span className="preview-action__eyebrow mono">目前處理設定</span>
+          <strong>{PRESET_LABELS[pipelinePreset]}</strong>
+          <span>
+            {DENOISE_LABELS[pipelineDenoise]} · {pipelineLensDistort ? "廣角矯正" : "不做廣角矯正"} · {pipelineLevelCorrect ? "水平校正" : "不做水平校正"} · {ASPECT_LABELS[pipelineAspect]}
+          </span>
+        </div>
+        <div className="preview-action__side">
+          <span className="preview-action__status mono">{pipelineStatusLabel}</span>
+          <button
+            type="button"
+            className="cta cta--primary"
+            onClick={() => void handleSubmit(currentPipelinePayload())}
+            disabled={pipelineActionDisabled}
+          >
+            {pipelineActionLabel}
+          </button>
+        </div>
       </section>
 
       {job && (
@@ -600,7 +674,7 @@ export default function PreviewPage() {
             <div className="preview__pipeline-note">
               <div>
                 <strong>原圖會保留未降噪，AI 版本會在背景產生。</strong>
-                <span>這張照片還沒有批次處理版本；系統會自動產生重度降噪、廣角與水平校正版本，完成後右側會切到處理後。</span>
+                <span>這張照片還沒有批次處理版本；系統會依目前處理設定自動產生 AI 版本，完成後右側會切到處理後。</span>
               </div>
               <a className="cta cta--primary" href="#pipeline-settings">前往開始產生</a>
             </div>
@@ -663,9 +737,17 @@ export default function PreviewPage() {
         <PipelinePanel
           selectedCount={selected.size}
           totalCount={project.photos.length}
-          busy={pipelineBusy}
+          busy={pipelineRunning}
           preset={pipelinePreset}
+          denoise={pipelineDenoise}
+          lensDistort={pipelineLensDistort}
+          levelCorrect={pipelineLevelCorrect}
+          aspect={pipelineAspect}
           onPresetChange={handlePipelinePresetChange}
+          onDenoiseChange={setPipelineDenoise}
+          onLensDistortChange={setPipelineLensDistort}
+          onLevelCorrectChange={setPipelineLevelCorrect}
+          onAspectChange={setPipelineAspect}
           onSubmit={handleSubmit}
         />
       </div>

@@ -40,7 +40,7 @@
 - [x] Increase manual warmth/tint feedback enough to be visible in mobile preview.
 - [x] Replace the geometry two-column modal with a full-screen single-photo editor with grid overlay and cancel/done controls.
 - [x] Make the geometry crop frame draggable/resizable and split manual perspective into horizontal/vertical controls with live transform preview.
-- [x] Default pipeline settings to heavy denoise, lens correction on, level correction on, original crop ratio.
+- [x] Default pipeline settings to medium denoise, lens correction on, level correction on, original crop ratio.
 - [x] Warn when Before/After is showing manual preview before AI denoise has been generated.
 - [x] Strengthen heavy denoise when NAFNet is conservative or unavailable.
 - [x] Make heavy denoise edge-aware so flat regions stay clean without erasing architecture detail.
@@ -49,6 +49,8 @@
 - [x] Add post-denoise detail restoration for medium/heavy outputs.
 - [x] Add automatic vertical perspective correction to the lens correction toggle.
 - [x] Move the primary batch start action below the manual adjustment section.
+- [x] Sync Upload-selected style into Preview pipeline settings and automatic batch generation.
+- [x] Add a sticky Preview action summary so the primary batch start action stays visible and is disabled while a job is running.
 - [ ] Validate mobile layout on iPhone Safari.
 
 ## Verification

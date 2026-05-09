@@ -20,9 +20,10 @@ const OPTIONS: Option[] = [
 export interface AspectPickerProps {
   value: AspectRatio;
   onChange: (next: AspectRatio) => void;
+  disabled?: boolean;
 }
 
-export function AspectPicker({ value, onChange }: AspectPickerProps) {
+export function AspectPicker({ value, onChange, disabled = false }: AspectPickerProps) {
   return (
     <div className="aspect-picker" role="radiogroup" aria-label="裁剪比例">
       {OPTIONS.map((opt) => {
@@ -35,6 +36,7 @@ export function AspectPicker({ value, onChange }: AspectPickerProps) {
             aria-checked={active}
             className={`aspect-pill${active ? " aspect-pill--active" : ""}`}
             onClick={() => onChange(opt.value)}
+            disabled={disabled}
           >
             <span className="aspect-pill__caption">{opt.caption}</span>
             <span className="aspect-pill__label">{opt.label}</span>

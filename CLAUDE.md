@@ -35,12 +35,12 @@ docs/        Architecture、ADR、設計筆記
 - 持久資料已從 Docker Desktop named volumes 遷到 `G:\frame-processor\` bind mounts：`postgres-data`、`storage-data`、`redis-data`。不要改回 named volumes；C 槽空間不足。舊 C 上的 frame-processor named volumes 與舊 Redis anonymous volume 已於 2026-05-08 遷移後移除。若重建或換機，必須先建立這三個目錄並把既有資料複製進去再啟動；空目錄會啟動成空 DB/storage。
 - CI/CD：`.github/workflows/docker-publish.yml` push `main` 時 build/push `kevin950805/frame-processor-api:<commit-sha>` 與 `kevin950805/frame-processor-web:<commit-sha>`，並更新 `latest` alias；`.github/workflows/deploy-dev.yml` 在 publish 成功後透過桌機 Windows OpenSSH Server 到 `100.83.112.20`，複製 `deploy/docker-compose.yml` 到 `D:/GitClone/_HomeProject/frame-processor/deploy/docker-compose.yml`，寫 `deploy/.env`，再上傳並執行 PowerShell scripts。Deploy 用 GitHub `DOCKERHUB_TOKEN` 建立臨時 Docker auth config、scp 到桌機、逐一 `docker pull` postgres/redis/api/web images，接著用該 commit SHA tag 執行 `docker compose up -d --pull never --no-build`，避免 Windows Docker credential helper 需要互動 logon session；臨時 auth config 不可 commit，workflow/script 必須清掉 local 與 remote 檔案。CD 必須在 up 前驗證三個 G 槽資料目錄存在且 compose 解析為 G 槽 bind mounts，並驗證 `SETTINGS_ADMIN_TOKEN` 仍存在；up 後用 `docker inspect` 確認 runtime images 使用該 commit tag 且 mounts 仍是 G 槽 bind，不可回到 Docker Desktop C 槽 named volumes。`GEMINI_API_KEY` 只是 DB key pool 之外的 runtime fallback，不可當成 deploy blocker。
 - CI/CD secrets：`DOCKERHUB_TOKEN`、`DEPLOY_SSH_KEY`、`DEPLOY_USER`、`TS_OAUTH_CLIENT_ID`、`TS_OAUTH_SECRET`；`DOCKERHUB_USERNAME` 預設 `kevin950805`。`GEMINI_API_KEY`、`SETTINGS_ADMIN_TOKEN`、`KEY_MANAGER_URL` 若在 GitHub secrets 有提供才更新到桌機 `deploy/.env`，否則保留桌機既有值；CD merge 後必須驗證 `SETTINGS_ADMIN_TOKEN` 仍存在。`GEMINI_API_KEY` optional fallback，不可因缺少它而阻擋 deploy。`KEY_MANAGER_URL` optional。CD 固定 `GEMINI_MODEL=gemini-2.5-flash`。`SETTINGS_ADMIN_TOKEN` 只進 api/worker runtime env，不可 bake 進 static web image。
-- 唯一對外 port 是 web container 的 `100.83.112.20:8533`（nginx）— api/postgres/redis 不外露；api debug 用 `127.0.0.1:8633`
+- 唯一對外 port 是 web container 的 `100.83.112.20:18533`（nginx）— api/postgres/redis 不外露。Production compose 不 publish API debug port，避免 Windows/Hyper-V reboot 後把 `85xx/86xx` port ranges 保留導致 stack 起不來。
 - web container 的 nginx 把 `/api/*` reverse proxy 到 `api:8000/*`（剝掉 `/api`），所以前端走同源
 - 前端 build 時 `VITE_API_BASE_URL=/api`（在 `deploy/docker-compose.yml`）
 - 服務時間以 GMT+8 / `Asia/Taipei` 呈現；前端時間格式化必須固定 `Asia/Taipei`，不可依賴使用者瀏覽器所在地 timezone。
 - API 的 `ALLOWED_ORIGINS` 必須包含 `https://frame.sisihome.org`
-- RPi (`rpi-matrix`) Caddy 反向代理：`frame.sisihome.org` → `100.83.112.20:8533`，`request_body.max_size 500MB`，設定在 `/home/kevin/DockerCompose/caddy/Caddyfile` 的 `*.sisihome.org` block 裡
+- RPi (`rpi-matrix`) Caddy 反向代理：`frame.sisihome.org` → `100.83.112.20:18533`，`request_body.max_size 500MB`，設定在 `/home/kevin/DockerCompose/caddy/Caddyfile` 的 `*.sisihome.org` block 裡
 - Caddy 改設定後一律 `docker restart caddy`（不是 reload）
 
 ### v0.2.0 處理 pipeline 必要條件
@@ -56,7 +56,7 @@ docs/        Architecture、ADR、設計筆記
 - 手動調整目前走同步 preview/apply API：`POST /photos/{id}/preview` 回小張 JPEG，`POST /photos/{id}/adjustments` 寫出 `processed_paths.adjusted`。
 - Preview API 必須先把來源縮成小圖再套用手動旋轉/色調/幾何，避免手機原圖每次 preview 卡數十秒；full-resolution render 只屬於按「產生」後的版本輸出。
 - AI 降噪、廣角矯正與 Gemini 水平校正只屬於 batch pipeline，尚未按「開始產生」的新上傳照片在 Before/After 右側只會是微調 preview；UI 必須明確提示尚未執行 AI 降噪並提供跳到「開始產生」入口，避免使用者誤以為重度降噪沒有效果。
-- 新上傳或目前 preset 尚無批次版本時，Preview 頁應自動背景建立預設 batch job；Before/After 的 Before 仍必須是未降噪原圖，After 才能在完成後切到處理後版本，用來直接比較降噪效果。
+- 新上傳或目前 preset 尚無批次版本時，Preview 頁應依目前 pipeline 設定自動背景建立 batch job；Before/After 的 Before 仍必須是未降噪原圖，After 才能在完成後切到處理後版本，用來直接比較降噪效果。
 - 可對每張照片獨立點按向左/向右 90 度旋轉，並可調整手動水平、裁切縮放/偏移、手動水平/垂直透視修正、曝光、對比、亮部、暗部、色溫、色偏、飽和、自然飽和、清晰度、銳利化與 HSL 六色區。
 - 90 度 orientation 旋轉與所有 slider 調整先存在該照片的 `photo_adjustments.params` 草稿，點按/拖曳後需立即更新 Before/After 原圖側與 live preview 側，且重開網頁要載回草稿。
 - 只有使用者按「產生目前版本」或「產生已選版本」時才建立 `photo_adjustment_versions` 與 `manual-vN.jpg`；單純操作 slider/旋轉不得建立版本。
@@ -65,8 +65,8 @@ docs/        Architecture、ADR、設計筆記
 - 手動水平、裁切、水平/垂直透視修正路徑不得呼叫 Gemini AI；AI level correction 只屬於原本 batch pipeline。
 - 使用者 preset 存在 `adjustment_presets`；單張調整參數存在 `photo_adjustments`。
 - 手動產生版本存在 `photo_adjustment_versions`；照片卡片版本下拉必須可選原圖、pipeline preset、各手動版本，並同步切換卡片圖、上方 Before/After 基準、手動調整來源與下載目標。未手動指定版本時，live preview 預設從原圖套用目前 pipeline 色調選擇；批次處理完成後才自動切到剛產生的 preset 版本。UI 不可暴露 `adjusted`、`latest`、raw preset key 等內部狀態名稱。
-- PipelinePanel 預設值：AI 降噪重度、廣角畸變矯正開啟、Gemini Vision 水平校正開啟、自動裁剪原圖比例；主要「開始產生」動作放在手動微調區塊下方。色調 preset 必須有可見差異，OpenCV fallback 降噪不得弱到使用者在重度模式看不出效果。
-- 重度降噪不得只依賴 NAFNet 輸出；NAFNet 對高 ISO / 彩色顆粒太保守時，medium/heavy 需要混合 OpenCV 強化 pass，production 權重缺失 fallback 也必須有肉眼可見差異。Heavy 要讓平坦暗部/天空強力清噪到乾淨，但不得全圖全量抹平；必須用 edge-aware blend 保護建築線條、窗框、車身邊緣、低光人像的臉部輪廓、頭髮與衣服摺痕。
+- PipelinePanel 預設值：AI 降噪中度、廣角畸變矯正開啟、Gemini Vision 水平校正開啟、自動裁剪原圖比例；Upload 選擇的色調 preset 必須延續到 Preview 處理設定、自動 batch job 與手動「開始產生」payload。主要「開始產生」動作必須在 Preview 固定底部摘要列可見，pending/running 時停用產生按鈕與 pipeline controls，避免重複建立 job。色調 preset 必須有可見差異，OpenCV fallback 降噪不得弱到使用者在重度模式看不出效果。
+- 重度降噪不得只依賴 NAFNet 輸出；NAFNet 對高 ISO / 彩色顆粒太保守時，medium/heavy 需要混合 OpenCV 強化 pass，production 權重缺失 fallback 也必須有肉眼可見差異。Heavy 不得全圖全量抹平或把畫面磨成油畫；必須用 edge-aware blend 保護建築線條、窗框、車身邊緣、低光人像的臉部輪廓、頭髮與衣服摺痕。
 - 降噪後需要細節補償：medium/heavy pipeline 在降噪與幾何後、色調前做 thresholded unsharp mask，避免建築線條或車身細節糊掉。
 - 廣角矯正目前包含兩段：固定通用 Brown-Conrady 桶形係數，以及 Hough line 偵測左右側近垂直線向上收斂時的自動垂直透視修正。不要把「桶形畸變」與「建築垂直線透視」混為同一種問題；兩者都由 batch 的廣角矯正 toggle 觸發。
 - 匯出 zip 順序必須是 `adjusted` → 任一 pipeline processed preset → original。

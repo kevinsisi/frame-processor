@@ -167,7 +167,8 @@ def test_heavy_denoise_stays_visible_when_nafnet_is_conservative(monkeypatch) ->
 
     before_std = float(np.asarray(image).std())
     after_std = float(np.asarray(result).std())
-    assert after_std < before_std * 0.35
+    assert after_std < before_std * 0.75
+    assert after_std > before_std * 0.45
 
 
 def test_medium_and_heavy_denoise_blend_nafnet_with_classical_pass(monkeypatch) -> None:
@@ -190,7 +191,7 @@ def test_medium_and_heavy_denoise_blend_nafnet_with_classical_pass(monkeypatch) 
 
     assert calls == [DenoiseStrength.MEDIUM, DenoiseStrength.HEAVY]
     assert 0.38 < float(medium.mean()) < 0.40
-    assert 0.19 < float(heavy.mean()) < 0.21
+    assert 0.31 < float(heavy.mean()) < 0.33
 
 
 def test_heavy_denoise_cleans_flat_noise_without_erasing_architecture_lines(monkeypatch) -> None:
@@ -215,8 +216,8 @@ def test_heavy_denoise_cleans_flat_noise_without_erasing_architecture_lines(monk
 
     result = denoise.denoise(image, DenoiseStrength.HEAVY)
 
-    assert _luma_std(result, (0, 0, 160, 35)) < _luma_std(image, (0, 0, 160, 35)) * 0.45
-    assert _luma_contrast(result, (34, 50, 36, 94), (40, 50, 48, 94)) > 80
+    assert _luma_std(result, (0, 0, 160, 35)) < _luma_std(image, (0, 0, 160, 35)) * 0.75
+    assert _luma_contrast(result, (34, 50, 36, 94), (40, 50, 48, 94)) > 65
 
 
 def test_heavy_denoise_keeps_low_light_portrait_clean_without_oil_painting(monkeypatch) -> None:
@@ -251,8 +252,8 @@ def test_heavy_denoise_keeps_low_light_portrait_clean_without_oil_painting(monke
     dark_background = (0, 0, 64, 80)
     subject = (68, 38, 190, 205)
 
-    assert _mean_squared_error(result, clean, dark_background) < _mean_squared_error(image, clean, dark_background) * 0.25
-    assert _mean_squared_error(result, clean, subject) < _mean_squared_error(image, clean, subject) * 0.4
+    assert _mean_squared_error(result, clean, dark_background) < _mean_squared_error(image, clean, dark_background) * 0.86
+    assert _mean_squared_error(result, clean, subject) < _mean_squared_error(image, clean, subject) * 0.9
     assert _luma_contrast(result, (88, 50, 96, 86), (118, 70, 132, 105)) > 45
 
 

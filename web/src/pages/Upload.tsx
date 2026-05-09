@@ -9,11 +9,12 @@ import { StylePicker } from "@/components/StylePicker";
 import type { StylePreset } from "@/components/StylePicker";
 import { useToast } from "@/components/Toast";
 import type { Project } from "@/types";
+import { DEFAULT_PIPELINE_PRESET, writeProjectPipelinePreset } from "@/utils/pipelineSettings";
 import { formatServiceDateTime } from "@/utils/time";
 
 import "./Upload.css";
 
-const DEFAULT_STYLE: StylePreset = "showroom_white";
+const DEFAULT_STYLE: StylePreset = DEFAULT_PIPELINE_PRESET;
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -106,15 +107,7 @@ export default function UploadPage() {
         project.id,
         pending.map((p) => p.file),
       );
-      // Persist the picked style for v0.2 — backend ignores for now.
-      try {
-        window.localStorage.setItem(
-          `frame-processor:style:${project.id}`,
-          style,
-        );
-      } catch {
-        /* private mode / quota: not fatal */
-      }
+      writeProjectPipelinePreset(project.id, style);
       toast.push(`已建立專案「${project.name}」並上傳 ${pending.length} 張`, "success");
       clearPending();
       navigate(`/preview/${project.id}`);
@@ -209,8 +202,7 @@ export default function UploadPage() {
           </header>
           <StylePicker value={style} onChange={setStyle} />
           <p className="upload-form__hint">
-            v0.1 walking skeleton 還沒接 AI 處理，僅記錄你選的風格；v0.2 會送進 worker
-            執行白平衡、色調與對比的批次後製。
+            這個風格會帶到預覽頁的處理設定，背景自動產生與手動「開始產生」都會使用同一個選擇。
           </p>
         </section>
 

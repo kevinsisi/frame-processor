@@ -3,6 +3,7 @@ name: frame-processor
 services:
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       TZ: Asia/Taipei
       POSTGRES_USER: frame
@@ -20,6 +21,7 @@ services:
 
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
     volumes:
       - type: bind
         source: G:/frame-processor/redis-data
@@ -32,6 +34,7 @@ services:
 
   api:
     image: ${DOCKERHUB_USERNAME:-kevin950805}/frame-processor-api:${IMAGE_TAG:-latest}
+    restart: unless-stopped
     environment:
       TZ: Asia/Taipei
       DATABASE_URL: postgresql+psycopg://frame:frame@postgres:5432/frame_processor
@@ -44,8 +47,6 @@ services:
       KEY_MANAGER_URL: ${KEY_MANAGER_URL:-}
       ULTRALYTICS_DIR: /data/models-weights/ultralytics
       NAFNET_DIR: /data/models-weights/nafnet
-    ports:
-      - "127.0.0.1:8633:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -59,6 +60,7 @@ services:
 
   worker:
     image: ${DOCKERHUB_USERNAME:-kevin950805}/frame-processor-api:${IMAGE_TAG:-latest}
+    restart: unless-stopped
     environment:
       TZ: Asia/Taipei
       DATABASE_URL: postgresql+psycopg://frame:frame@postgres:5432/frame_processor
@@ -84,9 +86,10 @@ services:
 
   web:
     image: ${DOCKERHUB_USERNAME:-kevin950805}/frame-processor-web:${IMAGE_TAG:-latest}
+    restart: unless-stopped
     environment:
       TZ: Asia/Taipei
     ports:
-      - "100.83.112.20:8533:80"
+      - "18533:80"
     depends_on:
       - api

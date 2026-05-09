@@ -22,7 +22,7 @@ The current deploy workflow is a placeholder, so production updates still depend
 
 **Non-Goals:**
 
-- No Caddy or DNS routing changes; `frame.sisihome.org` already routes to `100.83.112.20:8533`.
+- Caddy routes `frame.sisihome.org` to `100.83.112.20:18533`; this avoids Windows/Hyper-V reboot-time excluded ranges that can cover `8533`.
 - No database/storage migration; this change protects the existing G drive migration.
 - No public exposure change; the service remains private to the existing HomeProject Tailscale/Caddy model.
 - No new runtime dependency on key-manager.
@@ -105,7 +105,7 @@ Alternative considered: string search the compose file only. That catches obviou
 4. Replace deploy scaffold with Windows desktop deploy workflow.
 5. Update project docs and memory with the CI/CD contract.
 6. Push to `main`; GitHub Actions builds images, then deploys to `100.83.112.20`.
-7. Verify health at `http://100.83.112.20:8533/api/health` and final route `https://frame.sisihome.org/api/health`.
+7. Verify health at `http://100.83.112.20:18533/api/health` and final route `https://frame.sisihome.org/api/health`.
 
 Rollback is manual but bounded: rerun deploy against the previous known-good Docker image tag or restore the previous compose file on the desktop. Persistent data remains on G drive and is not modified by the workflow.
 

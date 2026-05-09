@@ -77,7 +77,7 @@ The system SHALL verify running container images, mounts, and the web-proxied he
 
 #### Scenario: Health check succeeds
 - **WHEN** runtime mount verification passes
-- **THEN** the workflow polls `http://100.83.112.20:8533/api/health` until it returns the expected app version or the retry budget is exhausted
+- **THEN** the workflow polls `http://100.83.112.20:18533/api/health` until it returns the expected app version or the retry budget is exhausted
 
 ### Requirement: Runtime secrets and optional integrations remain constrained
 The system SHALL keep Gemini model selection, settings admin protection, and key-manager integration aligned with production rules.

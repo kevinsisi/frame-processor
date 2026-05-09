@@ -15,7 +15,7 @@
 - [x] 3.2 Make the deploy workflow copy `deploy/docker-compose.yml` to `D:/GitClone/_HomeProject/frame-processor/deploy/docker-compose.yml`.
 - [x] 3.3 Make the deploy workflow write runtime `.env` values from GitHub Actions secrets without logging secrets.
 - [x] 3.4 Add pre-deploy guards for required G drive directories and compose-resolved bind mounts.
-- [x] 3.5 Add post-deploy `docker inspect` mount verification and `http://100.83.112.20:8533/api/health` health check.
+- [x] 3.5 Add post-deploy `docker inspect` mount verification and `http://100.83.112.20:18533/api/health` health check.
 
 ## 4. Documentation And Memory
 

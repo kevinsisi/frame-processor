@@ -1,5 +1,3 @@
-import { useState } from "react";
-
 import { AspectPicker } from "@/components/AspectPicker";
 import { StylePicker, type StylePreset } from "@/components/StylePicker";
 import type {
@@ -14,8 +12,16 @@ export interface PipelinePanelProps {
   selectedCount: number;
   totalCount: number;
   busy: boolean;
-  preset?: StylePreset;
-  onPresetChange?: (preset: StylePreset) => void;
+  preset: StylePreset;
+  denoise: DenoiseStrength;
+  lensDistort: boolean;
+  levelCorrect: boolean;
+  aspect: AspectRatio;
+  onPresetChange: (preset: StylePreset) => void;
+  onDenoiseChange: (denoise: DenoiseStrength) => void;
+  onLensDistortChange: (enabled: boolean) => void;
+  onLevelCorrectChange: (enabled: boolean) => void;
+  onAspectChange: (aspect: AspectRatio) => void;
   onSubmit: (payload: ProcessingJobCreate) => void;
 }
 
@@ -30,21 +36,18 @@ export function PipelinePanel({
   selectedCount,
   totalCount,
   busy,
-  preset: controlledPreset,
+  preset,
+  denoise,
+  lensDistort,
+  levelCorrect,
+  aspect,
   onPresetChange,
+  onDenoiseChange,
+  onLensDistortChange,
+  onLevelCorrectChange,
+  onAspectChange,
   onSubmit,
 }: PipelinePanelProps) {
-  const [internalPreset, setInternalPreset] = useState<StylePreset>("showroom_white");
-  const [denoise, setDenoise] = useState<DenoiseStrength>("heavy");
-  const [lensDistort, setLensDistort] = useState(true);
-  const [levelCorrect, setLevelCorrect] = useState(true);
-  const [aspect, setAspect] = useState<AspectRatio>("original");
-  const preset = controlledPreset ?? internalPreset;
-  const setPreset = (next: StylePreset) => {
-    setInternalPreset(next);
-    onPresetChange?.(next);
-  };
-
   function handleSubmit() {
     onSubmit({
       preset,
@@ -66,7 +69,7 @@ export function PipelinePanel({
 
       <div className="pipeline__row">
         <h4 className="pipeline__row-title">色調風格</h4>
-        <StylePicker value={preset} onChange={setPreset} />
+        <StylePicker value={preset} onChange={onPresetChange} disabled={busy} />
       </div>
 
       <div className="pipeline__row pipeline__row--grid">
@@ -80,7 +83,8 @@ export function PipelinePanel({
                   key={opt.value}
                   type="button"
                   className={`pipeline__chip${active ? " pipeline__chip--active" : ""}`}
-                  onClick={() => setDenoise(opt.value)}
+                  onClick={() => onDenoiseChange(opt.value)}
+                  disabled={busy}
                 >
                   <span className="pipeline__chip-caption mono">{opt.caption}</span>
                   <span className="pipeline__chip-label">{opt.label}</span>
@@ -96,7 +100,8 @@ export function PipelinePanel({
             <input
               type="checkbox"
               checked={lensDistort}
-              onChange={(e) => setLensDistort(e.target.checked)}
+              onChange={(e) => onLensDistortChange(e.target.checked)}
+              disabled={busy}
             />
             <span>廣角畸變矯正（barrel undistort）</span>
           </label>
@@ -104,7 +109,8 @@ export function PipelinePanel({
             <input
               type="checkbox"
               checked={levelCorrect}
-              onChange={(e) => setLevelCorrect(e.target.checked)}
+              onChange={(e) => onLevelCorrectChange(e.target.checked)}
+              disabled={busy}
             />
             <span>水平校正（Gemini Vision）</span>
           </label>
@@ -113,7 +119,7 @@ export function PipelinePanel({
 
       <div className="pipeline__row">
         <h4 className="pipeline__row-title">自動裁剪比例</h4>
-        <AspectPicker value={aspect} onChange={setAspect} />
+        <AspectPicker value={aspect} onChange={onAspectChange} disabled={busy} />
       </div>
 
       <footer className="pipeline__foot">

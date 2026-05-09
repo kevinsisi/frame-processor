@@ -40,9 +40,10 @@ const PRESETS: PresetMeta[] = [
 export interface StylePickerProps {
   value: StylePreset;
   onChange: (preset: StylePreset) => void;
+  disabled?: boolean;
 }
 
-export function StylePicker({ value, onChange }: StylePickerProps) {
+export function StylePicker({ value, onChange, disabled = false }: StylePickerProps) {
   return (
     <div className="style-picker" role="radiogroup" aria-label="色調風格">
       {PRESETS.map((preset) => {
@@ -55,6 +56,7 @@ export function StylePicker({ value, onChange }: StylePickerProps) {
             aria-checked={active}
             className={`style-card${active ? " style-card--active" : ""}`}
             onClick={() => onChange(preset.value)}
+            disabled={disabled}
           >
             <div className="style-card__caption">{preset.caption}</div>
             <div className="style-card__label">{preset.label}</div>

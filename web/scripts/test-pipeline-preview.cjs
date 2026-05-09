@@ -27,6 +27,7 @@ try {
       "--strict",
       "scripts/pipeline-preview.test.ts",
       "src/utils/pipelinePreview.ts",
+      "src/utils/pipelineSettings.ts",
     ],
     { cwd: root, stdio: "inherit" },
   );
