@@ -1,2 +1,2 @@
-// v0.3.24 - synced pipeline settings and safer default denoise.
-export const APP_VERSION = "0.3.24";
+// v0.3.25 - deploys from the kevinhome self-hosted runner.
+export const APP_VERSION = "0.3.25";

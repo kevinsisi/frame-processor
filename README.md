@@ -2,7 +2,7 @@
 
 照片批次後製工具。上傳 N 張 → 選 preset + 處理選項 → 全部一鍵處理 → 下載 zip。
 
-目前狀態：**v0.3.24 — synced pipeline settings + safer default denoise + manual adjustment panel + desktop CI/CD**（Upload 選擇的色調會延續到 Preview 與自動批次產生 / 預設 AI 降噪改為中度以避免油畫化 / Preview 固定顯示目前處理設定與開始產生入口 / NAFNet AI 降噪 + edge-aware OpenCV 重度降噪 + 降噪後細節銳化 / 廣角桶形與自動垂直透視矯正 / Gemini Vision 水平校正 / YOLOv8 自動裁剪 / Pillow 色調 preset / before-after 對比 / per-photo queue progress / Gemini key 設定頁 / 手動曝光、對比、亮暗部、色溫、色偏、飽和、自然飽和、清晰度、銳利化、HSL 微調、可拖曳/縮放裁切框、水平/垂直透視修正與 preset 儲存載入 / GMT+8 時間顯示）。正式環境：[frame.sisihome.org](https://frame.sisihome.org)。
+目前狀態：**v0.3.25 — kevinhome self-hosted runner CD + synced pipeline settings + safer default denoise + manual adjustment panel**（CD 改由 `DESK-KEVINHOME-frame-processor` 在桌機本機部署，不依賴 Windows OpenSSH/Tailscale SSH / Upload 選擇的色調會延續到 Preview 與自動批次產生 / 預設 AI 降噪改為中度以避免油畫化 / Preview 固定顯示目前處理設定與開始產生入口 / NAFNet AI 降噪 + edge-aware OpenCV 重度降噪 + 降噪後細節銳化 / 廣角桶形與自動垂直透視矯正 / Gemini Vision 水平校正 / YOLOv8 自動裁剪 / Pillow 色調 preset / before-after 對比 / per-photo queue progress / Gemini key 設定頁 / 手動曝光、對比、亮暗部、色溫、色偏、飽和、自然飽和、清晰度、銳利化、HSL 微調、可拖曳/縮放裁切框、水平/垂直透視修正與 preset 儲存載入 / GMT+8 時間顯示）。正式環境：[frame.sisihome.org](https://frame.sisihome.org)。
 
 ## Quick start
 
