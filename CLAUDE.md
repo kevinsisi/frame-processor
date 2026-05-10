@@ -153,6 +153,7 @@ Mirror locations (`.claude/skills/`, `.gemini/skills/`, `.opencode/skills/`, `.g
 
 - `ROADMAP.md` — phase 路線圖（v0.1 walking skeleton 已完成；v0.2+ 為 AI 處理 phase）。新對話先讀這個對齊大方向。
 - `ARCHITECTURE.md` — 系統架構、資料流、容器拓樸、儲存路徑慣例。
+- `docs/preview-ux-audit.md` — Preview 頁 UX 風險、已知可優化點、優先順序與未關閉 QA。
 - `openspec/changes/` — 進行中的提案；archived 在 `openspec/changes/archive/` 下。
 - 程式碼本身：
   - `api/main.py` — FastAPI app + CORS + router 掛載

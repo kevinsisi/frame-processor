@@ -2,7 +2,7 @@
 
 照片批次後製工具。上傳 N 張 → 選 preset + 處理選項 → 全部一鍵處理 → 下載 zip。
 
-目前狀態：**v0.3.26 — comparison arrows + kevinhome self-hosted runner CD + synced pipeline settings**（前後對比圖可直接用左右箭頭切換上一張/下一張，不必捲回照片清單 / CD 改由 `DESK-KEVINHOME-frame-processor` 在桌機本機部署，不依賴 Windows OpenSSH/Tailscale SSH / Upload 選擇的色調會延續到 Preview 與自動批次產生 / 預設 AI 降噪改為中度以避免油畫化 / Preview 固定顯示目前處理設定與開始產生入口 / NAFNet AI 降噪 + edge-aware OpenCV 重度降噪 + 降噪後細節銳化 / 廣角桶形與自動垂直透視矯正 / Gemini Vision 水平校正 / YOLOv8 自動裁剪 / Pillow 色調 preset / before-after 對比 / per-photo queue progress / Gemini key 設定頁 / 手動曝光、對比、亮暗部、色溫、色偏、飽和、自然飽和、清晰度、銳利化、HSL 微調、可拖曳/縮放裁切框、水平/垂直透視修正與 preset 儲存載入 / GMT+8 時間顯示）。正式環境：[frame.sisihome.org](https://frame.sisihome.org)。
+目前狀態：**v0.3.27 — Preview UX audit + comparison arrows + kevinhome self-hosted runner CD**（新增 `docs/preview-ux-audit.md` 記錄 Preview 頁目前已知 UX 風險、優先順序與未關閉 QA / 前後對比圖可直接用左右箭頭切換上一張/下一張，不必捲回照片清單 / CD 改由 `DESK-KEVINHOME-frame-processor` 在桌機本機部署，不依賴 Windows OpenSSH/Tailscale SSH / Upload 選擇的色調會延續到 Preview 與自動批次產生 / 預設 AI 降噪改為中度以避免油畫化 / Preview 固定顯示目前處理設定與開始產生入口 / NAFNet AI 降噪 + edge-aware OpenCV 重度降噪 + 降噪後細節銳化 / 廣角桶形與自動垂直透視矯正 / Gemini Vision 水平校正 / YOLOv8 自動裁剪 / Pillow 色調 preset / before-after 對比 / per-photo queue progress / Gemini key 設定頁 / 手動曝光、對比、亮暗部、色溫、色偏、飽和、自然飽和、清晰度、銳利化、HSL 微調、可拖曳/縮放裁切框、水平/垂直透視修正與 preset 儲存載入 / GMT+8 時間顯示）。正式環境：[frame.sisihome.org](https://frame.sisihome.org)。
 
 ## Quick start
 
@@ -53,6 +53,7 @@ GitHub Actions 使用 HomeProject two-workflow pattern：
 - `CLAUDE.md` — 專案規則、工作流程、stack、deploy 相依
 - `ARCHITECTURE.md` — 系統架構、資料流、storage layout、DB schema、pipeline 順序
 - `ROADMAP.md` — phase 路線圖（v0.1 walking skeleton → v0.2 bundled pipeline → v0.3 adjustment panel → v1.0）
+- `docs/preview-ux-audit.md` — Preview 頁 UX 分析、優先改善計畫與未關閉 QA
 - `openspec/changes/` — 進行中的提案；`archive/` 是已 ship 的
 - `docs/adr/` — Architecture Decision Records
 
