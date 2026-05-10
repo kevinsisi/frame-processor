@@ -52,4 +52,4 @@
 - [x] Compose config validation.
 - [x] Gemini review with `No findings`.
 - [x] Version bump and docs/memory updates.
-- [ ] Merge to `main`, push, track CI/CD, and production smoke on `noiseTest`.
+- [x] Merge to `main`, push, track CI/CD, and production smoke on `noiseTest`.
