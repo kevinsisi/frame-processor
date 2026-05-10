@@ -51,6 +51,7 @@
 - [x] Move the primary batch start action below the manual adjustment section.
 - [x] Sync Upload-selected style into Preview pipeline settings and automatic batch generation.
 - [x] Add a sticky Preview action summary so the primary batch start action stays visible and is disabled while a job is running.
+- [x] Add previous/next controls inside the Before/After comparison viewer so users can review adjacent photos without scrolling back to the grid.
 - [ ] Validate mobile layout on iPhone Safari.
 
 ## Verification

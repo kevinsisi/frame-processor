@@ -336,6 +336,16 @@ export default function PreviewPage() {
     setSelected(new Set());
   }
 
+  function navigateComparison(direction: -1 | 1) {
+    if (!project || project.photos.length <= 1) return;
+    const currentIndex = project.photos.findIndex(
+      (photo) => photo.id === (activePhotoId ?? project.photos[0]?.id),
+    );
+    const safeIndex = currentIndex >= 0 ? currentIndex : 0;
+    const nextIndex = (safeIndex + direction + project.photos.length) % project.photos.length;
+    setActivePhotoId(project.photos[nextIndex].id);
+  }
+
   async function handleSubmit(payload: ProcessingJobCreate) {
     if (job?.status === "pending" || job?.status === "running") return;
     await startProcessing(payload, Array.from(selected), { automatic: false });
@@ -546,6 +556,9 @@ export default function PreviewPage() {
     activePhoto ??
     project.photos.find((p) => Object.keys(p.processed_paths ?? {}).length > 0) ??
     null;
+  const samplePhotoIndex = samplePhoto
+    ? project.photos.findIndex((photo) => photo.id === samplePhoto.id)
+    : -1;
   const sampleVersion = samplePhoto ? selectedPhotoVersion(samplePhoto) : null;
   const resolvedPhotoVersionValues = Object.fromEntries(
     project.photos.map((photo) => [photo.id, selectedPhotoVersion(photo).value]),
@@ -661,15 +674,42 @@ export default function PreviewPage() {
               {activePreviewUrl ? "目前微調" : sampleVersion?.label ?? "原圖"}
             </span>
           </header>
-          <BeforeAfter
-            key={`${samplePhoto.id}:${adjustmentParams.orientation}:${sampleVersion?.value ?? "original"}`}
-            beforeUrl={originalDisplayUrl}
-            afterUrl={
-              activePreviewUrl ??
-              (sampleVersion?.url ?? api.photoFileUrl(samplePhoto.id))
-            }
-            alt={samplePhoto.original_filename}
-          />
+          <div className="preview-compare">
+            <BeforeAfter
+              key={`${samplePhoto.id}:${adjustmentParams.orientation}:${sampleVersion?.value ?? "original"}`}
+              beforeUrl={originalDisplayUrl}
+              afterUrl={
+                activePreviewUrl ??
+                (sampleVersion?.url ?? api.photoFileUrl(samplePhoto.id))
+              }
+              alt={samplePhoto.original_filename}
+            />
+            {project.photos.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  className="preview-compare__nav preview-compare__nav--prev"
+                  onClick={() => navigateComparison(-1)}
+                  aria-label="查看上一張照片"
+                >
+                  <span aria-hidden>‹</span>
+                  <strong>上一張</strong>
+                </button>
+                <button
+                  type="button"
+                  className="preview-compare__nav preview-compare__nav--next"
+                  onClick={() => navigateComparison(1)}
+                  aria-label="查看下一張照片"
+                >
+                  <strong>下一張</strong>
+                  <span aria-hidden>›</span>
+                </button>
+                <div className="preview-compare__counter mono">
+                  {samplePhotoIndex + 1} / {project.photos.length} · {samplePhoto.original_filename}
+                </div>
+              </>
+            )}
+          </div>
           {needsPipelineRun && (
             <div className="preview__pipeline-note">
               <div>
