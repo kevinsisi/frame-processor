@@ -5,7 +5,7 @@
 
 策略：
 - PyTorch 直接定義 NAFNet 架構（不依賴 basicsr，避免 BasicSR 巨型相依）
-- 權重 lazy download：第一次呼叫時從 HuggingFace mirror 下載到 NAFNET_DIR
+- 權重 lazy download：第一次呼叫時從官方 Google Drive 權重下載到 NAFNET_DIR
 - CPU 推理：對 > tile 的圖切 tile（預設 512x512 with 32px overlap），最後拼回去
 - GPU：``torch.cuda.is_available()`` 自動偵測
 - 強度（DenoiseStrength）：light/medium/heavy 先產生降噪候選圖，再用 edge-aware
@@ -18,9 +18,12 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import shutil
+import urllib.parse
 import urllib.request
+from html.parser import HTMLParser
 from pathlib import Path
 from threading import Lock
 
@@ -30,30 +33,37 @@ from PIL import Image
 from api.config import settings
 from models.enums import DenoiseStrength
 
+logger = logging.getLogger(__name__)
+
+NAFNET_GOOGLE_DRIVE_FILE_ID = "1lsByk21Xw-6aW7epCwOQxvm6HYCQZPHZ"
+NAFNET_GOOGLE_DRIVE_DOWNLOAD_URL = (
+    "https://drive.usercontent.google.com/download?"
+    f"id={NAFNET_GOOGLE_DRIVE_FILE_ID}&export=download&confirm=t"
+)
 NAFNET_WEIGHTS_URL = os.environ.get(
     "NAFNET_WEIGHTS_URL",
-    "https://huggingface.co/JingyunLiang/NAFNet/resolve/main/NAFNet-SIDD-width32.pth",
+    NAFNET_GOOGLE_DRIVE_DOWNLOAD_URL,
 )
 NAFNET_WEIGHTS_FILENAME = "NAFNet-SIDD-width32.pth"
 
 STRENGTH_BLEND: dict[DenoiseStrength, float] = {
     DenoiseStrength.NONE: 0.0,
     DenoiseStrength.LIGHT: 0.35,
-    DenoiseStrength.MEDIUM: 0.75,
+    DenoiseStrength.MEDIUM: 0.8,
     DenoiseStrength.HEAVY: 0.8,
 }
 
 CLASSICAL_POST_BLEND: dict[DenoiseStrength, float] = {
     DenoiseStrength.NONE: 0.0,
     DenoiseStrength.LIGHT: 0.0,
-    DenoiseStrength.MEDIUM: 0.5,
+    DenoiseStrength.MEDIUM: 0.65,
     DenoiseStrength.HEAVY: 0.6,
 }
 
 DETAIL_PROTECTION: dict[DenoiseStrength, float] = {
     DenoiseStrength.NONE: 0.0,
     DenoiseStrength.LIGHT: 0.25,
-    DenoiseStrength.MEDIUM: 0.45,
+    DenoiseStrength.MEDIUM: 0.55,
     DenoiseStrength.HEAVY: 0.72,
 }
 
@@ -91,7 +101,11 @@ def denoise(image: Image.Image, strength: DenoiseStrength) -> Image.Image:
         if post_alpha:
             classical = _run_opencv_denoise(rgb, strength)
             denoised = post_alpha * classical + (1.0 - post_alpha) * denoised
-    except DenoiseError:
+    except DenoiseError as exc:
+        logger.warning(
+            "NAFNet unavailable; using quality-preserving OpenCV fallback: %s",
+            exc,
+        )
         denoised = _run_opencv_denoise(rgb, strength)
     blended = _blend_preserving_detail(rgb, denoised, strength)
     blended = np.clip(blended * 255.0, 0, 255).astype(np.uint8)
@@ -105,7 +119,7 @@ def _run_opencv_denoise(rgb: np.ndarray, strength: DenoiseStrength) -> np.ndarra
 
     h_value = {
         DenoiseStrength.LIGHT: 6,
-        DenoiseStrength.MEDIUM: 15,
+        DenoiseStrength.MEDIUM: 20,
         DenoiseStrength.HEAVY: 20,
     }.get(strength, 0)
     if h_value <= 0:
@@ -265,8 +279,7 @@ def _download_weights() -> Path:
         return target
     tmp = target.with_suffix(target.suffix + ".part")
     try:
-        with urllib.request.urlopen(NAFNET_WEIGHTS_URL, timeout=120) as resp, tmp.open("wb") as out:
-            shutil.copyfileobj(resp, out)
+        _download_weight_file(NAFNET_WEIGHTS_URL, tmp)
         tmp.replace(target)
     except Exception as exc:
         if tmp.exists():
@@ -275,6 +288,65 @@ def _download_weights() -> Path:
             f"failed to download NAFNet weights from {NAFNET_WEIGHTS_URL}: {exc}"
         ) from exc
     return target
+
+
+def _download_weight_file(url: str, target: Path) -> None:
+    if "drive.google.com" in url or "drive.usercontent.google.com" in url:
+        _download_google_drive_file(url, target)
+        return
+    with urllib.request.urlopen(url, timeout=120) as resp, target.open("wb") as out:
+        shutil.copyfileobj(resp, out)
+
+
+def _download_google_drive_file(url: str, target: Path) -> None:
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor())
+    with opener.open(url, timeout=120) as resp:
+        content_type = resp.headers.get("Content-Type", "")
+        if "text/html" not in content_type:
+            with target.open("wb") as out:
+                shutil.copyfileobj(resp, out)
+            return
+        html = resp.read().decode("utf-8", errors="replace")
+    params = _google_drive_confirm_params(html)
+    if not params:
+        raise DenoiseError(
+            "Google Drive did not return a downloadable NAFNet confirmation form"
+        )
+    confirm_url = "https://drive.usercontent.google.com/download?" + urllib.parse.urlencode(params)
+    with opener.open(confirm_url, timeout=120) as resp:
+        content_type = resp.headers.get("Content-Type", "")
+        if "text/html" in content_type:
+            raise DenoiseError("Google Drive returned HTML instead of NAFNet weights")
+        with target.open("wb") as out:
+            shutil.copyfileobj(resp, out)
+
+
+def _google_drive_confirm_params(html: str) -> dict[str, str]:
+    parser = _GoogleDriveConfirmParser()
+    parser.feed(html)
+    if "confirm" not in parser.fields:
+        return {}
+    return {
+        key: parser.fields[key]
+        for key in ("id", "export", "confirm", "uuid")
+        if key in parser.fields
+    }
+
+
+class _GoogleDriveConfirmParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.fields: dict[str, str] = {}
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag != "input":
+            return
+        values = dict(attrs)
+        if values.get("type") != "hidden":
+            return
+        name = values.get("name")
+        if name:
+            self.fields[name] = values.get("value") or ""
 
 
 # ---------------------------------------------------------------------------

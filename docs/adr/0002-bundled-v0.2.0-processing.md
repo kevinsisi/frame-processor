@@ -31,7 +31,7 @@ Pipeline 固定順序：`denoise → lens_distort → level_correct → auto_cro
 負向：
 - v0.2.0 變更面變大，code review / 測試成本集中在這次
 - 引入較重相依（torch ~500MB CPU、opencv-headless ~50MB、ultralytics ~50MB），image 從 ~250MB 漲到 ~1GB
-- NAFNet weights ~67MB lazy download，第一次處理會慢
+- NAFNet weights ~112MB lazy download，第一次處理會慢
 - Gemini Vision 變成水平校正硬相依（沒 API key 就 fail）— 接受，因為 Hough Line 在實測車照場景表現不可靠
 
 ## Alternatives Considered

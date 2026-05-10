@@ -46,7 +46,7 @@ docs/        Architecture、ADR、設計筆記
 ### v0.2.0 處理 pipeline 必要條件
 
 - `GEMINI_API_KEY` env 是水平校正的 optional fallback；v0.2.2 起也可在 `/settings` 批次匯入 Gemini keys，DB key pool 會優先於 env，無任何 key 則 level_correct step 會 fail。Deploy 不強制要求 host `.env` 有 fallback key，避免把可在 DB 管理的金鑰寫死成發布前置條件。`/settings` 的 PUT/DELETE/sync mutation 需要 `SETTINGS_ADMIN_TOKEN`。key-manager 不是本系統依賴；只有明確設定後端 `KEY_MANAGER_URL` 時才啟用可選同步入口，不接受前端任意 URL。
-- 模型權重 lazy download 寫到 `G:\frame-processor\storage-data\models-weights\{ultralytics,nafnet}`；首次處理會下載 ~70MB（NAFNet）+ 6MB（YOLO），之後跨 container restart cached
+- 模型權重 lazy download 寫到 `G:\frame-processor\storage-data\models-weights\{ultralytics,nafnet}`；首次處理會下載 ~112MB（NAFNet）+ 6MB（YOLO），之後跨 container restart cached
 - worker image build 會拉 CPU-only torch wheel（避免 CUDA 多 GB），有 GPU 也只在 `torch.cuda.is_available()` 為 true 時自動用
 - pipeline 順序固定 `denoise → lens_distort → level → crop → grade`，理由見 `ARCHITECTURE.md` § Pipeline 順序
 
@@ -67,7 +67,7 @@ docs/        Architecture、ADR、設計筆記
 - 手動產生版本存在 `photo_adjustment_versions`；照片卡片版本下拉必須可選原圖、pipeline preset、各手動版本，並同步切換卡片圖、上方 Before/After 基準、手動調整來源與下載目標。未手動指定版本時，live preview 預設從原圖套用目前 pipeline 色調選擇；批次處理完成後才自動切到剛產生的 preset 版本。UI 不可暴露 `adjusted`、`latest`、raw preset key 等內部狀態名稱。
 - PipelinePanel 預設值：AI 降噪中度、廣角畸變矯正開啟、Gemini Vision 水平校正開啟、自動裁剪原圖比例；Upload 選擇的色調 preset 必須延續到 Preview 處理設定、自動 batch job 與手動「開始產生」payload。主要「開始產生」動作必須在 Preview 固定底部摘要列可見，pending/running 時停用產生按鈕與 pipeline controls，避免重複建立 job。色調 preset 必須有可見差異，OpenCV fallback 降噪不得弱到使用者在中度/重度模式看不出效果。
 - 中度/重度降噪不得只依賴 NAFNet 輸出；NAFNet 對高 ISO / 彩色顆粒太保守時，medium/heavy 需要混合 OpenCV 強化 pass，production 權重缺失 fallback 也必須有肉眼可見差異。Medium 是預設值，必須明顯清掉天空、牆面、暗部等平坦區域的噪點，同時保留建築線條、窗框與車身邊緣；Heavy 不得全圖全量抹平或把畫面磨成油畫，且必須額外保護低光人像的臉部輪廓、頭髮與衣服摺痕。
-- 降噪後需要細節補償：medium/heavy pipeline 在降噪與幾何後、色調前做 thresholded unsharp mask，避免建築線條或車身細節糊掉。
+- 降噪後細節補償只套用 heavy：medium 不做後段 unsharp，避免把已清掉的平坦區噪點再銳化回來；heavy pipeline 在降噪與幾何後、色調前做 thresholded unsharp mask，避免建築線條或車身細節糊掉。
 - 廣角矯正目前包含兩段：固定通用 Brown-Conrady 桶形係數，以及 Hough line 偵測左右側近垂直線向上收斂時的自動垂直透視修正。不要把「桶形畸變」與「建築垂直線透視」混為同一種問題；兩者都由 batch 的廣角矯正 toggle 觸發。
 - 匯出 zip 順序必須是 `adjusted` → 任一 pipeline processed preset → original。
 - 「套用到已選照片」走 `adjustment_jobs` worker job 與輪詢進度。

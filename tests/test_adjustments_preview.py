@@ -35,6 +35,28 @@ def _luma_contrast(
     return light - dark
 
 
+class _FakeHttpResponse(BytesIO):
+    def __init__(self, body: bytes, content_type: str) -> None:
+        super().__init__(body)
+        self.headers = {"Content-Type": content_type}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        return False
+
+
+class _FakeOpener:
+    def __init__(self, responses: list[_FakeHttpResponse]) -> None:
+        self.responses = responses
+        self.urls: list[str] = []
+
+    def open(self, url: str, timeout: int):
+        self.urls.append(url)
+        return self.responses.pop(0)
+
+
 def _mean_squared_error(
     left: Image.Image,
     right: Image.Image,
@@ -252,7 +274,7 @@ def test_medium_and_heavy_denoise_blend_nafnet_with_classical_pass(monkeypatch) 
     heavy = np.asarray(denoise.denoise(image, DenoiseStrength.HEAVY), dtype=np.float32) / 255
 
     assert calls == [DenoiseStrength.MEDIUM, DenoiseStrength.HEAVY]
-    assert 0.34 < float(medium.mean()) < 0.36
+    assert 0.30 < float(medium.mean()) < 0.33
     assert 0.31 < float(heavy.mean()) < 0.33
 
 
@@ -339,8 +361,64 @@ def test_denoise_detail_restore_respects_medium_and_none_strengths() -> None:
     medium = photo_processor._restore_detail_after_denoise(blurred, DenoiseStrength.MEDIUM)
     none = photo_processor._restore_detail_after_denoise(blurred, DenoiseStrength.NONE)
 
-    assert _edge_mean(medium) > _edge_mean(blurred)
+    assert _difference_sum(blurred, medium) == 0
     assert _difference_sum(blurred, none) == 0
+
+
+def test_google_drive_confirm_params_parse_download_form() -> None:
+    html = """
+    <html><body><form action="/download">
+      <input type="hidden" name="id" value="model-file-id">
+      <input type="hidden" name="export" value="download">
+      <input type="hidden" name="confirm" value="t">
+      <input type="hidden" name="uuid" value="abc-123">
+    </form></body></html>
+    """
+
+    params = denoise._google_drive_confirm_params(html)
+
+    assert params == {
+        "id": "model-file-id",
+        "export": "download",
+        "confirm": "t",
+        "uuid": "abc-123",
+    }
+
+
+def test_google_drive_download_writes_direct_response(monkeypatch, tmp_path) -> None:
+    opener = _FakeOpener([_FakeHttpResponse(b"weights", "application/octet-stream")])
+    monkeypatch.setattr(denoise.urllib.request, "build_opener", lambda *_: opener)
+    target = tmp_path / "model.pth"
+
+    denoise._download_google_drive_file(denoise.NAFNET_WEIGHTS_URL, target)
+
+    assert opener.urls == [denoise.NAFNET_WEIGHTS_URL]
+    assert target.read_bytes() == b"weights"
+
+
+def test_google_drive_download_follows_confirmation_form(monkeypatch, tmp_path) -> None:
+    html = b"""
+    <html><body><form action="/download">
+      <input type="hidden" name="id" value="model-file-id">
+      <input type="hidden" name="export" value="download">
+      <input type="hidden" name="confirm" value="t">
+      <input type="hidden" name="uuid" value="abc-123">
+    </form></body></html>
+    """
+    opener = _FakeOpener(
+        [
+            _FakeHttpResponse(html, "text/html; charset=utf-8"),
+            _FakeHttpResponse(b"weights", "application/octet-stream"),
+        ]
+    )
+    monkeypatch.setattr(denoise.urllib.request, "build_opener", lambda *_: opener)
+    target = tmp_path / "model.pth"
+
+    denoise._download_google_drive_file("https://drive.google.com/uc?id=model-file-id", target)
+
+    assert opener.urls[1].startswith("https://drive.usercontent.google.com/download?")
+    assert "confirm=t" in opener.urls[1]
+    assert target.read_bytes() == b"weights"
 
 
 def test_vertical_perspective_estimator_detects_converging_architecture_lines() -> None:

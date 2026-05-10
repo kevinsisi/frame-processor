@@ -85,5 +85,5 @@ def _restore_detail_after_denoise(image: Image.Image, strength: DenoiseStrength)
     if strength is DenoiseStrength.HEAVY:
         return image.filter(ImageFilter.UnsharpMask(radius=1.2, percent=120, threshold=4))
     if strength is DenoiseStrength.MEDIUM:
-        return image.filter(ImageFilter.UnsharpMask(radius=1.0, percent=90, threshold=4))
+        return image
     return image

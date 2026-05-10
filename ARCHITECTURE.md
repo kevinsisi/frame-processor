@@ -221,7 +221,7 @@ FE ──GET /photos/{id}/file?variant=processed&preset=...──▶ API ── 
 ## 模型權重
 
 - YOLOv8n：lazy download，Ultralytics 自動寫到 `ULTRALYTICS_DIR=/data/models-weights/ultralytics/`
-- NAFNet-SIDD-width32：lazy download from HuggingFace mirror，寫到 `NAFNET_DIR=/data/models-weights/nafnet/NAFNet-SIDD-width32.pth`
+- NAFNet-SIDD-width32：lazy download from the official Google Drive weight file，寫到 `NAFNET_DIR=/data/models-weights/nafnet/NAFNet-SIDD-width32.pth`
 - Gemini Vision：呼叫 Google AI Studio API，優先使用 DB key pool；`GEMINI_API_KEY` env 只是 fallback
 
 ## 容器拓樸（dev）
