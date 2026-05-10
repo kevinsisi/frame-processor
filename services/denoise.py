@@ -39,21 +39,21 @@ NAFNET_WEIGHTS_FILENAME = "NAFNet-SIDD-width32.pth"
 STRENGTH_BLEND: dict[DenoiseStrength, float] = {
     DenoiseStrength.NONE: 0.0,
     DenoiseStrength.LIGHT: 0.35,
-    DenoiseStrength.MEDIUM: 0.65,
+    DenoiseStrength.MEDIUM: 0.75,
     DenoiseStrength.HEAVY: 0.8,
 }
 
 CLASSICAL_POST_BLEND: dict[DenoiseStrength, float] = {
     DenoiseStrength.NONE: 0.0,
     DenoiseStrength.LIGHT: 0.0,
-    DenoiseStrength.MEDIUM: 0.35,
+    DenoiseStrength.MEDIUM: 0.5,
     DenoiseStrength.HEAVY: 0.6,
 }
 
 DETAIL_PROTECTION: dict[DenoiseStrength, float] = {
     DenoiseStrength.NONE: 0.0,
     DenoiseStrength.LIGHT: 0.25,
-    DenoiseStrength.MEDIUM: 0.55,
+    DenoiseStrength.MEDIUM: 0.45,
     DenoiseStrength.HEAVY: 0.72,
 }
 
@@ -105,7 +105,7 @@ def _run_opencv_denoise(rgb: np.ndarray, strength: DenoiseStrength) -> np.ndarra
 
     h_value = {
         DenoiseStrength.LIGHT: 6,
-        DenoiseStrength.MEDIUM: 13,
+        DenoiseStrength.MEDIUM: 15,
         DenoiseStrength.HEAVY: 20,
     }.get(strength, 0)
     if h_value <= 0:

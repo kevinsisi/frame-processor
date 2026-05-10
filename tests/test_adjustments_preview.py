@@ -171,6 +171,68 @@ def test_heavy_denoise_stays_visible_when_nafnet_is_conservative(monkeypatch) ->
     assert after_std > before_std * 0.45
 
 
+def test_medium_denoise_is_visible_when_nafnet_is_conservative(monkeypatch) -> None:
+    rng = np.random.default_rng(101)
+    clean = Image.new("RGB", (160, 110), (38, 64, 102))
+    draw = ImageDraw.Draw(clean)
+    draw.rectangle((20, 42, 140, 100), fill=(215, 212, 198))
+    for x in range(34, 128, 12):
+        draw.line((x, 48, x, 96), fill=(42, 42, 42), width=2)
+    noisy = np.clip(
+        np.asarray(clean, dtype=np.float32) + rng.normal(0, 24, (110, 160, 3)),
+        0,
+        255,
+    ).astype(np.uint8)
+    image = Image.fromarray(noisy, "RGB")
+
+    def conservative_nafnet(rgb: np.ndarray) -> np.ndarray:
+        return rgb
+
+    monkeypatch.setattr(denoise, "_run_nafnet", conservative_nafnet)
+
+    result = denoise.denoise(image, DenoiseStrength.MEDIUM)
+
+    sky = (0, 0, 160, 35)
+    assert _luma_std(result, sky) < _luma_std(image, sky) * 0.72
+    assert _luma_contrast(result, (34, 50, 36, 94), (40, 50, 48, 94)) > 65
+
+
+def test_medium_denoise_preserves_car_detail_when_stronger(monkeypatch) -> None:
+    rng = np.random.default_rng(202)
+    clean = Image.new("RGB", (180, 120), (34, 38, 44))
+    draw = ImageDraw.Draw(clean)
+    draw.rectangle((18, 36, 162, 92), fill=(92, 96, 102))
+    draw.rectangle((34, 50, 88, 70), fill=(24, 24, 24))
+    for x in range(38, 86, 6):
+        draw.line((x, 51, x, 69), fill=(185, 185, 178), width=2)
+    draw.rectangle((100, 50, 146, 70), fill=(132, 138, 144))
+    for x in range(104, 146, 8):
+        draw.line((x, 50, x + 6, 70), fill=(64, 68, 72), width=1)
+    draw.ellipse((34, 76, 58, 100), fill=(18, 18, 18), outline=(178, 178, 170), width=2)
+    draw.ellipse((122, 76, 146, 100), fill=(18, 18, 18), outline=(178, 178, 170), width=2)
+    noisy = np.clip(
+        np.asarray(clean, dtype=np.float32)
+        + rng.normal(0, 18, (clean.height, clean.width, 1))
+        + rng.normal(0, 14, (clean.height, clean.width, 3)),
+        0,
+        255,
+    ).astype(np.uint8)
+    image = Image.fromarray(noisy, "RGB")
+
+    def conservative_nafnet(rgb: np.ndarray) -> np.ndarray:
+        return rgb
+
+    monkeypatch.setattr(denoise, "_run_nafnet", conservative_nafnet)
+
+    result = denoise.denoise(image, DenoiseStrength.MEDIUM)
+
+    flat_body = (104, 74, 160, 88)
+    grille_dark = (40, 54, 43, 68)
+    grille_light = (44, 54, 47, 68)
+    assert _mean_squared_error(result, clean, flat_body) < _mean_squared_error(image, clean, flat_body) * 0.72
+    assert _luma_contrast(result, grille_dark, grille_light) > _luma_contrast(clean, grille_dark, grille_light) * 0.72
+
+
 def test_medium_and_heavy_denoise_blend_nafnet_with_classical_pass(monkeypatch) -> None:
     image = Image.new("RGB", (16, 16), (128, 128, 128))
     calls: list[DenoiseStrength] = []
@@ -190,7 +252,7 @@ def test_medium_and_heavy_denoise_blend_nafnet_with_classical_pass(monkeypatch) 
     heavy = np.asarray(denoise.denoise(image, DenoiseStrength.HEAVY), dtype=np.float32) / 255
 
     assert calls == [DenoiseStrength.MEDIUM, DenoiseStrength.HEAVY]
-    assert 0.38 < float(medium.mean()) < 0.40
+    assert 0.34 < float(medium.mean()) < 0.36
     assert 0.31 < float(heavy.mean()) < 0.33
 
 

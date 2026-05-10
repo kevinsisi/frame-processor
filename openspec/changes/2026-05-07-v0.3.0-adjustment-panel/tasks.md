@@ -43,6 +43,7 @@
 - [x] Default pipeline settings to medium denoise, lens correction on, level correction on, original crop ratio.
 - [x] Warn when Before/After is showing manual preview before AI denoise has been generated.
 - [x] Strengthen heavy denoise when NAFNet is conservative or unavailable.
+- [x] Strengthen medium denoise so the default pipeline is visibly cleaner when NAFNet is conservative or unavailable.
 - [x] Make heavy denoise edge-aware so flat regions stay clean without erasing architecture detail.
 - [x] Add a low-light portrait regression for clean dark backgrounds without oil-painting face/hair/clothing detail.
 - [x] Auto-start default batch generation for missing preset outputs while keeping Before as the original.
