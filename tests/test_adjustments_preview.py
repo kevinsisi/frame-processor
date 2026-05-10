@@ -1,8 +1,11 @@
+import uuid
 from io import BytesIO
 
 import numpy as np
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageStat
 
+from api.config import settings
+from api.routers.adjustments import AdjustmentSource as AdjustmentApiSource
 from models.enums import ColorGradePreset, DenoiseStrength
 from services import adjustments, color_grade, denoise, lens_distort, photo_processor
 
@@ -155,6 +158,33 @@ def test_pipeline_night_grade_is_visibly_cooler() -> None:
     graded = color_grade.apply_grade(image, ColorGradePreset.NIGHT_COLD)
 
     assert _mean_channel_delta(graded, 2, 0) >= 35
+
+
+def test_adjustment_source_accepts_processing_versions() -> None:
+    source = AdjustmentApiSource(kind="processing", value=" ai-version-id ")
+
+    assert source.normalized() == {"kind": "processing", "value": "ai-version-id"}
+
+
+def test_process_photo_writes_immutable_batch_version_path(monkeypatch, tmp_path) -> None:
+    project_id = uuid.uuid4()
+    photo_id = uuid.uuid4()
+    monkeypatch.setattr(settings, "storage_root", tmp_path)
+    source = tmp_path / "original.jpg"
+    Image.new("RGB", (24, 16), (128, 128, 128)).save(source)
+
+    result = photo_processor.process_photo(
+        project_id=project_id,
+        photo_id=photo_id,
+        source_relative_path="original.jpg",
+        preset=ColorGradePreset.SHOWROOM_WHITE,
+        denoise_strength=DenoiseStrength.NONE,
+        version_number=3,
+    )
+
+    assert result.relative_path.endswith(f"{photo_id}.batch-v3.jpg")
+    assert (tmp_path / result.relative_path).exists()
+    assert not (tmp_path / "projects" / str(project_id) / "processed" / f"{photo_id}.showroom_white.jpg").exists()
 
 
 def test_opencv_denoise_fallback_reduces_noise(monkeypatch) -> None:

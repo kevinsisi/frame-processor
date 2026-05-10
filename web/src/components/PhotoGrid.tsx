@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import { api } from "@/api/client";
-import type { AdjustmentSource, ColorGradePreset, Photo } from "@/types";
+import type { AdjustmentSource, ColorGradePreset, Photo, ProcessingVersion } from "@/types";
 
 import "./PhotoGrid.css";
 
@@ -18,6 +18,7 @@ export interface PhotoGridProps {
   selectedIds?: Set<string>;
   activeId?: string | null;
   versionValues?: Record<string, string>;
+  processingVersions?: ProcessingVersion[];
   onToggleSelect?: (photoId: string) => void;
   onOpenPreview?: (photoId: string) => void;
   onVersionChange?: (photoId: string, value: string, option: PhotoVersionOption) => void;
@@ -36,6 +37,7 @@ export function PhotoGrid({
   selectedIds,
   activeId,
   versionValues,
+  processingVersions = [],
   onToggleSelect,
   onOpenPreview,
   onVersionChange,
@@ -53,7 +55,7 @@ export function PhotoGrid({
       {photos.map((photo) => {
         const selected = selectedIds?.has(photo.id) ?? false;
         const active = activeId === photo.id;
-        const versionOptions = buildPhotoVersionOptions(photo);
+        const versionOptions = buildPhotoVersionOptions(photo, processingVersions);
         const selectedDownloadVersion =
           versionValues?.[photo.id] ?? internalVersions[photo.id] ?? defaultPhotoVersionOption(versionOptions).value;
         const selectedOption =
@@ -153,7 +155,10 @@ export function PhotoGrid({
   );
 }
 
-export function buildPhotoVersionOptions(photo: Photo): PhotoVersionOption[] {
+export function buildPhotoVersionOptions(
+  photo: Photo,
+  processingVersions: ProcessingVersion[] = [],
+): PhotoVersionOption[] {
   const options: PhotoVersionOption[] = [];
   for (const version of photo.adjustment_versions ?? []) {
     options.push({
@@ -161,6 +166,16 @@ export function buildPhotoVersionOptions(photo: Photo): PhotoVersionOption[] {
       label: `手動版本 v${version.version_number}`,
       url: api.adjustmentVersionUrl(photo.id, version.id),
       source: { kind: "manual", value: version.id },
+    });
+  }
+  for (const version of photo.processing_versions ?? []) {
+    if (version.status !== "done" || !version.path) continue;
+    const job = processingVersions.find((item) => item.id === version.processing_job_id);
+    options.push({
+      value: `processing:${version.processing_job_id}`,
+      label: job ? `AI v${job.version_number}：${presetLabel(job.preset)} / ${denoiseLabel(job.denoise_strength)}` : `AI v${version.version_number}`,
+      url: api.processingVersionUrl(photo.id, version.processing_job_id),
+      source: { kind: "processing", value: version.processing_job_id },
     });
   }
   for (const preset of Object.keys(photo.processed_paths ?? {})) {
@@ -190,4 +205,12 @@ function presetLabel(preset: string): string {
   if (preset === "outdoor_warm") return "戶外暖調";
   if (preset === "night_cold") return "夜拍冷調";
   return preset;
+}
+
+function denoiseLabel(strength: string): string {
+  if (strength === "none") return "不降噪";
+  if (strength === "light") return "輕度降噪";
+  if (strength === "medium") return "中度降噪";
+  if (strength === "heavy") return "重度降噪";
+  return strength;
 }

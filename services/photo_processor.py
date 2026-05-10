@@ -46,6 +46,7 @@ def process_photo(
     lens_distort_correct: bool = False,
     level_correct_on: bool = False,
     auto_crop_aspect: AspectRatio | None = None,
+    version_number: int | None = None,
 ) -> ProcessedPhoto:
     src = storage.absolute_path(source_relative_path)
     with Image.open(src) as raw:
@@ -67,9 +68,15 @@ def process_photo(
     img = _restore_detail_after_denoise(img, denoise_strength)
     img = color_grade.apply_grade(img, preset)
 
-    target_abs = storage.processed_path(project_id, photo_id, preset)
+    target_abs = (
+        storage.processing_version_path(project_id, photo_id, version_number)
+        if version_number is not None
+        else storage.processed_path(project_id, photo_id, preset)
+    )
     target_abs.parent.mkdir(parents=True, exist_ok=True)
-    img.save(target_abs, format="JPEG", quality=92, optimize=True)
+    tmp_abs = target_abs.with_suffix(target_abs.suffix + ".part")
+    img.save(tmp_abs, format="JPEG", quality=92, optimize=True)
+    tmp_abs.replace(target_abs)
     relative = storage.relative_to_storage(target_abs)
     return ProcessedPhoto(
         photo_id=photo_id,

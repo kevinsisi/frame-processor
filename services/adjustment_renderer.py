@@ -12,6 +12,7 @@ from api.config import settings
 from models.adjustment_version import AdjustmentVersion
 from models.photo import Photo
 from models.photo_adjustment import PhotoAdjustment
+from models.photo_processing_version import PhotoProcessingVersion
 from services import adjustments, storage
 
 
@@ -42,6 +43,22 @@ def source_relative_path(
             version = db.get(AdjustmentVersion, version_id)
             if version is None or version.photo_id != photo.id:
                 raise FileNotFoundError("selected manual version missing")
+            return version.path
+        if kind == "processing" and value:
+            if db is None:
+                raise FileNotFoundError("AI version lookup unavailable")
+            try:
+                job_id = UUID(str(value))
+            except ValueError as exc:
+                raise FileNotFoundError("selected AI version is invalid") from exc
+            version = db.execute(
+                select(PhotoProcessingVersion).where(
+                    PhotoProcessingVersion.processing_job_id == job_id,
+                    PhotoProcessingVersion.photo_id == photo.id,
+                )
+            ).scalar_one_or_none()
+            if version is None or version.status != "done" or not version.path:
+                raise FileNotFoundError("selected AI version missing")
             return version.path
 
     paths = dict(photo.processed_paths or {})

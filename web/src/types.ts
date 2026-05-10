@@ -17,6 +17,7 @@ export type Photo = {
   processed_paths: Record<string, string>;
   adjustment_params: AdjustmentParams | null;
   adjustment_versions: AdjustmentVersion[];
+  processing_versions: ProcessingVersionPhoto[];
 };
 
 export type AdjustmentVersion = {
@@ -30,6 +31,7 @@ export type AdjustmentVersion = {
 
 export type ProjectDetail = Project & {
   photos: Photo[];
+  processing_versions: ProcessingVersion[];
 };
 
 export type ExportStatus = "pending" | "running" | "done" | "failed";
@@ -37,6 +39,8 @@ export type ExportStatus = "pending" | "running" | "done" | "failed";
 export type Export = {
   id: string;
   project_id: string;
+  processing_job_id: string | null;
+  allow_partial: boolean;
   status: ExportStatus;
   error: string | null;
   created_at: string;
@@ -57,10 +61,13 @@ export type DenoiseStrength = "none" | "light" | "medium" | "heavy";
 
 export type ProcessingJobStatus = "pending" | "running" | "done" | "failed";
 
+export type ProcessingRetryScope = "none" | "full" | "missing_only";
+
 export type ProcessingJob = {
   id: string;
   project_id: string;
   status: ProcessingJobStatus;
+  version_number: number;
   preset: ColorGradePreset;
   denoise_strength: DenoiseStrength;
   lens_distort_correct: boolean;
@@ -70,8 +77,21 @@ export type ProcessingJob = {
   progress: number;
   total: number;
   error: string | null;
+  retry_scope: ProcessingRetryScope;
+  retry_of_job_id: string | null;
   created_at: string;
   completed_at: string | null;
+};
+
+export type ProcessingVersion = ProcessingJob;
+
+export type ProcessingVersionPhoto = {
+  processing_job_id: string;
+  version_number: number;
+  status: "done" | "failed" | string;
+  path: string | null;
+  error: string | null;
+  created_at: string;
 };
 
 export type ProcessingJobCreate = {
@@ -81,6 +101,9 @@ export type ProcessingJobCreate = {
   level_correct?: boolean;
   auto_crop_aspect?: AspectRatio | null;
   photo_ids?: string[];
+  force?: boolean;
+  retry_scope?: ProcessingRetryScope;
+  retry_of_job_id?: string | null;
 };
 
 export type KeyPoolSource = "db" | "env" | "none";
@@ -154,7 +177,7 @@ export type AdjustmentParams = {
 };
 
 export type AdjustmentSource = {
-  kind: "auto" | "original" | "preset" | "manual";
+  kind: "auto" | "original" | "preset" | "manual" | "processing";
   value?: string | null;
 };
 

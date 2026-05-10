@@ -22,6 +22,10 @@ class Export(Base):
         nullable=False,
         index=True,
     )
+    processing_job_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("processing_jobs.id", ondelete="SET NULL"), nullable=True
+    )
+    allow_partial: Mapped[bool] = mapped_column(nullable=False, default=False)
     status: Mapped[ExportStatus] = mapped_column(
         SAEnum(
             ExportStatus,

@@ -42,6 +42,11 @@ class Photo(Base):
         cascade="all, delete-orphan",
         order_by="AdjustmentVersion.version_number.desc()",
     )
+    processing_versions: Mapped[list["PhotoProcessingVersion"]] = relationship(  # noqa: F821
+        back_populates="photo",
+        cascade="all, delete-orphan",
+        order_by="PhotoProcessingVersion.created_at.desc()",
+    )
 
     @property
     def adjustment_params(self) -> dict | None:

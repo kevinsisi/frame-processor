@@ -58,8 +58,12 @@ export const api = {
     });
   },
 
-  createExport: (projectId: string) =>
-    request<Export>(`/projects/${projectId}/exports`, { method: "POST" }),
+  createExport: (projectId: string, payload?: { processing_job_id?: string | null; allow_partial?: boolean }) =>
+    request<Export>(`/projects/${projectId}/exports`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload ?? {}),
+    }),
 
   getExport: (exportId: string) => request<Export>(`/exports/${exportId}`),
 
@@ -73,6 +77,9 @@ export const api = {
   adjustmentVersionUrl: (photoId: string, versionId: string) =>
     `${BASE}/photos/${photoId}/file?version_id=${versionId}`,
 
+  processingVersionUrl: (photoId: string, jobId: string) =>
+    `${BASE}/photos/${photoId}/file?processing_job_id=${jobId}`,
+
   createProcessingJob: (projectId: string, payload: ProcessingJobCreate) =>
     request<ProcessingJob>(`/projects/${projectId}/process`, {
       method: "POST",
@@ -82,6 +89,9 @@ export const api = {
 
   getProcessingJob: (jobId: string) =>
     request<ProcessingJob>(`/processing-jobs/${jobId}`),
+
+  archiveProcessingVersion: (jobId: string) =>
+    request<ProcessingJob>(`/processing-jobs/${jobId}/version`, { method: "DELETE" }),
 
   getSettings: () => request<Settings>("/settings"),
 

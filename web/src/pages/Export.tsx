@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 
 import { api } from "@/api/client";
 import { Spinner } from "@/components/Spinner";
 import { useToast } from "@/components/Toast";
-import type { Export, ExportStatus, ProjectDetail } from "@/types";
+import type { DenoiseStrength, Export, ExportStatus, ProcessingVersion, ProjectDetail } from "@/types";
 import { formatServiceTime } from "@/utils/time";
 
 import "./Export.css";
@@ -16,13 +16,27 @@ const STATUS_LABEL: Record<ExportStatus, string> = {
   failed: "失敗",
 };
 
+const DENOISE_LABELS: Record<DenoiseStrength, string> = {
+  none: "不降噪",
+  light: "輕度降噪",
+  medium: "中度降噪",
+  heavy: "重度降噪",
+};
+
+function processingVersionLabel(version: ProcessingVersion): string {
+  return `AI v${version.version_number} · ${version.preset} · ${DENOISE_LABELS[version.denoise_strength]} · ${version.status}`;
+}
+
 export default function ExportPage() {
   const { projectId } = useParams();
+  const [searchParams] = useSearchParams();
   const toast = useToast();
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [exportRow, setExportRow] = useState<Export | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [selectedProcessingJobId, setSelectedProcessingJobId] = useState<string>("");
+  const [allowPartial, setAllowPartial] = useState(false);
   const pollRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -30,11 +44,17 @@ export default function ExportPage() {
       setProject(null);
       return;
     }
+    const requestedJobId = searchParams.get("processing_job_id") ?? "";
     api
       .getProject(projectId)
-      .then(setProject)
+      .then((next) => {
+        setProject(next);
+        if (requestedJobId && next.processing_versions.some((version) => version.id === requestedJobId)) {
+          setSelectedProcessingJobId(requestedJobId);
+        }
+      })
       .catch((err) => setError(String(err)));
-  }, [projectId]);
+  }, [projectId, searchParams]);
 
   useEffect(() => {
     return () => {
@@ -70,7 +90,10 @@ export default function ExportPage() {
     setError(null);
     setBusy(true);
     try {
-      const created = await api.createExport(projectId);
+      const created = await api.createExport(projectId, {
+        processing_job_id: selectedProcessingJobId || null,
+        allow_partial: allowPartial,
+      });
       setExportRow(created);
       toast.push("已送出打包任務，等 worker 完成。", "info");
       pollUntilDone(created.id);
@@ -148,6 +171,35 @@ export default function ExportPage() {
         </header>
 
         <div className="export-card__body">
+          {project ? (
+            <div className="export-card__options">
+              <label>
+                <span>匯出來源</span>
+                <select
+                  value={selectedProcessingJobId}
+                  onChange={(event) => setSelectedProcessingJobId(event.target.value)}
+                >
+                  <option value="">最新可用版本（手動微調優先）</option>
+                  {project.processing_versions.map((version) => (
+                    <option key={version.id} value={version.id}>
+                      {processingVersionLabel(version)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {selectedProcessingJobId ? (
+                <label className="export-card__check">
+                  <input
+                    type="checkbox"
+                    checked={allowPartial}
+                    onChange={(event) => setAllowPartial(event.target.checked)}
+                  />
+                  <span>若此 AI 版本有缺圖，仍匯出已完成照片</span>
+                </label>
+              ) : null}
+            </div>
+          ) : null}
+
           {!exportRow ? (
             <p className="export-card__hint">
               還沒打包過。建立 zip 之後 worker 會在背景處理；視照片數量約幾秒到幾十秒。

@@ -26,6 +26,39 @@
   max-width: 56ch;
 }
 
+.export-card__options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--ink-line);
+  background: var(--ink-elevated);
+}
+
+.export-card__options label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--t-xs);
+  letter-spacing: 0.08em;
+}
+
+.export-card__options select {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--ink-line);
+  background: var(--ink-base);
+  color: var(--text-primary);
+}
+
+.export-card__check {
+  flex-direction: row !important;
+  align-items: center;
+  letter-spacing: 0.02em !important;
+}
+
 .export-card__detail {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

@@ -12,15 +12,16 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy import select
-from sqlalchemy.orm.attributes import flag_modified
 
+from api.config import settings
 from api.database import SessionLocal
 from models.adjustment_job import AdjustmentJob
 from models.enums import ExportStatus, ProcessingJobStatus
 from models.export import Export
 from models.photo import Photo
+from models.photo_processing_version import PhotoProcessingVersion
 from models.processing_job import ProcessingJob
-from services import adjustment_renderer, photo_processor, zip_export
+from services import adjustment_renderer, photo_processor, processing_versions, zip_export
 
 
 def zip_export_job(export_id: str) -> str:
@@ -35,21 +36,7 @@ def zip_export_job(export_id: str) -> str:
         db.commit()
 
         try:
-            photos = (
-                db.execute(
-                    select(
-                        Photo.original_filename,
-                        Photo.stored_path,
-                        Photo.processed_paths,
-                    ).where(Photo.project_id == export.project_id)
-                )
-                .tuples()
-                .all()
-            )
-            payload: list[tuple[str, str]] = []
-            for original_name, stored_path, processed_paths in photos:
-                relative = _pick_export_path(stored_path, processed_paths)
-                payload.append((original_name, relative))
+            payload = _version_export_payload(db, export) if export.processing_job_id else _legacy_export_payload(db, export)
 
             zip_abs = zip_export.build_zip(export_id=export_uuid, photos=payload)
             export.zip_path = zip_export.relative_to_storage(zip_abs)
@@ -77,6 +64,68 @@ def _pick_export_path(stored_path: str, processed_paths: dict[str, str] | None) 
     return stored_path
 
 
+def _legacy_export_payload(db, export: Export) -> list[tuple[str, str]]:
+    photos = (
+        db.execute(
+            select(
+                Photo.original_filename,
+                Photo.stored_path,
+                Photo.processed_paths,
+            ).where(Photo.project_id == export.project_id)
+        )
+        .tuples()
+        .all()
+    )
+    payload: list[tuple[str, str]] = []
+    for original_name, stored_path, processed_paths in photos:
+        relative = _pick_export_path(stored_path, processed_paths)
+        payload.append((original_name, relative))
+    return payload
+
+
+def _version_export_payload(db, export: Export) -> list[tuple[str, str]]:
+    job = db.get(ProcessingJob, export.processing_job_id)
+    if job is None or job.archived_at is not None:
+        raise ValueError("selected AI version is unavailable")
+    photos = (
+        db.execute(
+            select(Photo.id, Photo.original_filename)
+            .where(Photo.project_id == export.project_id, Photo.id.in_(job.photo_ids or []))
+            .order_by(Photo.uploaded_at)
+        )
+        .tuples()
+        .all()
+    )
+    rows = (
+        db.execute(
+            select(
+                PhotoProcessingVersion.photo_id,
+                PhotoProcessingVersion.path,
+                PhotoProcessingVersion.status,
+            )
+            .where(
+                PhotoProcessingVersion.processing_job_id == export.processing_job_id,
+            )
+        )
+        .tuples()
+        .all()
+    )
+    rows_by_photo = {photo_id: (path, row_status) for photo_id, path, row_status in rows}
+    payload: list[tuple[str, str]] = []
+    missing: list[str] = []
+    for photo_id, original_name in photos:
+        path, row_status = rows_by_photo.get(photo_id, (None, None))
+        if row_status == processing_versions.PHOTO_VERSION_DONE and path:
+            payload.append((original_name, path))
+        else:
+            missing.append(original_name)
+    if missing and not export.allow_partial:
+        raise ValueError("selected AI version is missing outputs: " + ", ".join(missing[:10]))
+    if not payload:
+        raise ValueError("selected AI version has no successful outputs")
+    return payload
+
+
 def process_photos_job(job_id: str) -> int:
     job_uuid = UUID(job_id)
 
@@ -94,33 +143,55 @@ def process_photos_job(job_id: str) -> int:
         job.total = len(photo_ids)
         db.commit()
 
+        failures: list[str] = []
         try:
             for photo_id in photo_ids:
                 photo = db.get(Photo, photo_id)
                 if photo is None:
+                    failures.append(f"photo {photo_id} not found")
                     job.progress += 1
                     db.commit()
                     continue
 
-                result = photo_processor.process_photo(
-                    project_id=job.project_id,
-                    photo_id=photo.id,
-                    source_relative_path=photo.stored_path,
-                    preset=job.preset,
-                    denoise_strength=job.denoise_strength,
-                    lens_distort_correct=job.lens_distort_correct,
-                    level_correct_on=job.level_correct,
-                    auto_crop_aspect=job.auto_crop_aspect,
-                )
-                paths = dict(photo.processed_paths or {})
-                paths[result.preset.value] = result.relative_path
-                photo.processed_paths = paths
-                flag_modified(photo, "processed_paths")
-                job.progress += 1
-                db.commit()
+                try:
+                    result = photo_processor.process_photo(
+                        project_id=job.project_id,
+                        photo_id=photo.id,
+                        source_relative_path=photo.stored_path,
+                        preset=job.preset,
+                        denoise_strength=job.denoise_strength,
+                        lens_distort_correct=job.lens_distort_correct,
+                        level_correct_on=job.level_correct,
+                        auto_crop_aspect=job.auto_crop_aspect,
+                        version_number=job.version_number,
+                    )
+                    row = _photo_processing_version(db, job, photo.id)
+                    row.status = processing_versions.PHOTO_VERSION_DONE
+                    row.path = result.relative_path
+                    row.error = None
+                    db.add(row)
+                    job.progress += 1
+                    try:
+                        db.commit()
+                    except Exception:
+                        db.rollback()
+                        written = settings.storage_root / result.relative_path
+                        written.unlink(missing_ok=True)
+                        raise
+                except Exception as exc:
+                    failures.append(f"{photo.original_filename}: {exc}")
+                    row = _photo_processing_version(db, job, photo.id)
+                    row.status = processing_versions.PHOTO_VERSION_FAILED
+                    row.path = None
+                    row.error = str(exc)
+                    db.add(row)
+                    job.progress += 1
+                    db.commit()
 
-            job.status = ProcessingJobStatus.DONE
+            job.status = ProcessingJobStatus.FAILED if failures else ProcessingJobStatus.DONE
+            job.error = "\n".join(failures[:10]) if failures else None
             job.completed_at = datetime.now(tz=timezone.utc)
+            processing_versions.update_latest_processed_cache_for_job(db, job)
             db.commit()
             return job.progress
         except Exception as exc:
@@ -129,6 +200,22 @@ def process_photos_job(job_id: str) -> int:
             job.completed_at = datetime.now(tz=timezone.utc)
             db.commit()
             raise
+
+
+def _photo_processing_version(
+    db,
+    job: ProcessingJob,
+    photo_id: UUID,
+) -> PhotoProcessingVersion:
+    row = db.execute(
+        select(PhotoProcessingVersion).where(
+            PhotoProcessingVersion.processing_job_id == job.id,
+            PhotoProcessingVersion.photo_id == photo_id,
+        )
+    ).scalar_one_or_none()
+    if row is not None:
+        return row
+    return PhotoProcessingVersion(processing_job_id=job.id, photo_id=photo_id, status="failed")
 
 
 def apply_adjustments_job(job_id: str) -> int:

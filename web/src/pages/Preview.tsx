@@ -25,9 +25,10 @@ import type {
   DenoiseStrength,
   ProcessingJob,
   ProcessingJobCreate,
+  ProcessingVersion,
   ProjectDetail,
 } from "@/types";
-import { missingPipelineOutputPhotoIds, needsPipelineRunNote } from "@/utils/pipelinePreview";
+import { needsPipelineRunNote } from "@/utils/pipelinePreview";
 import {
   DEFAULT_PIPELINE_DENOISE,
   DEFAULT_PIPELINE_PRESET,
@@ -59,6 +60,7 @@ function sourceToVersionValue(source: AdjustmentParams["source"]): string | null
   if (source.kind === "original") return "original";
   if (source.kind === "preset" && source.value) return `preset:${source.value}`;
   if (source.kind === "manual" && source.value) return `manual:${source.value}`;
+  if (source.kind === "processing" && source.value) return `processing:${source.value}`;
   return null;
 }
 
@@ -83,6 +85,58 @@ const ASPECT_LABELS: Record<AspectRatio, string> = {
   ratio_1_1: "1:1",
   ratio_9_16: "9:16",
 };
+
+function processingVersionLabel(version: ProcessingVersion): string {
+  return `AI v${version.version_number} · ${PRESET_LABELS[version.preset]} · ${DENOISE_LABELS[version.denoise_strength]}`;
+}
+
+function pipelineMatches(version: ProcessingVersion, payload: ProcessingJobCreate): boolean {
+  return (
+    version.preset === payload.preset &&
+    version.denoise_strength === (payload.denoise_strength ?? "none") &&
+    version.lens_distort_correct === (payload.lens_distort_correct ?? false) &&
+    version.level_correct === (payload.level_correct ?? false) &&
+    version.auto_crop_aspect === (payload.auto_crop_aspect ?? null)
+  );
+}
+
+function photoHasDoneProcessingVersion(
+  photo: ProjectDetail["photos"][number],
+  versionId: string,
+): boolean {
+  return Boolean(
+    photo.processing_versions?.some(
+      (version) => version.processing_job_id === versionId && version.status === "done" && version.path,
+    ),
+  );
+}
+
+function missingPhotoIdsForProcessingVersion(
+  project: ProjectDetail,
+  version: ProcessingVersion,
+): string[] {
+  return version.photo_ids.filter((photoId) => {
+    const photo = project.photos.find((item) => item.id === photoId);
+    return !photo || !photoHasDoneProcessingVersion(photo, version.id);
+  });
+}
+
+function matchingPipelineOutputMissingPhotoIds(
+  project: ProjectDetail,
+  payload: ProcessingJobCreate,
+): string[] {
+  const matchingVersions = project.processing_versions.filter((version) => pipelineMatches(version, payload));
+  return project.photos
+    .filter(
+      (photo) =>
+        !matchingVersions.some(
+          (version) =>
+            (version.status === "done" && photoHasDoneProcessingVersion(photo, version.id)) ||
+            ((version.status === "pending" || version.status === "running") && version.photo_ids.includes(photo.id)),
+        ),
+    )
+    .map((photo) => photo.id);
+}
 
 export default function PreviewPage() {
   const { projectId } = useParams();
@@ -125,12 +179,16 @@ export default function PreviewPage() {
     if (options.persist !== false) setDraftDirty(true);
   }
 
-  function reload() {
-    if (!projectId) return;
-    api
-      .getProject(projectId)
-      .then((p) => setProject(p))
-      .catch((err) => setError(String(err)));
+  async function reload(): Promise<ProjectDetail | null> {
+    if (!projectId) return null;
+    try {
+      const next = await api.getProject(projectId);
+      setProject(next);
+      return next;
+    } catch (err) {
+      setError(String(err));
+      return null;
+    }
   }
 
   function reloadPresets() {
@@ -142,7 +200,7 @@ export default function PreviewPage() {
   }
 
   function selectedPhotoVersion(photo: ProjectDetail["photos"][number]): PhotoVersionOption {
-    const options = buildPhotoVersionOptions(photo);
+    const options = buildPhotoVersionOptions(photo, project?.processing_versions ?? []);
     const draftValue = sourceToVersionValue(photo.adjustment_params?.source);
     const value = photoVersionValues[photo.id] ?? draftValue ?? defaultPhotoVersionOption(options).value;
     return options.find((option) => option.value === value) ?? defaultPhotoVersionOption(options);
@@ -188,7 +246,7 @@ export default function PreviewPage() {
       { persist: false },
     );
     setDraftDirty(false);
-  }, [activePhotoId, project, pipelinePreset]);
+  }, [activePhotoId, project, pipelinePreset, photoVersionValues]);
 
   useEffect(() => {
     if (!activePhotoId || !draftDirty) return;
@@ -298,13 +356,14 @@ export default function PreviewPage() {
   useEffect(() => {
     const pipelineRunning = pipelineBusy || job?.status === "pending" || job?.status === "running";
     if (!project || !projectId || pipelineRunning) return;
-    const missingPhotoIds = missingPipelineOutputPhotoIds(project.photos, pipelinePreset);
+    const payload = currentPipelinePayload();
+    const missingPhotoIds = matchingPipelineOutputMissingPhotoIds(project, payload);
     if (missingPhotoIds.length === 0) return;
-    const key = `${project.id}:${pipelinePreset}:${missingPhotoIds.join(",")}`;
+    const key = `${project.id}:${JSON.stringify(payload)}:${missingPhotoIds.join(",")}`;
     if (autoProcessRef.current.has(key)) return;
     autoProcessRef.current.add(key);
     void startProcessing(
-      currentPipelinePayload(),
+      payload,
       missingPhotoIds,
       { automatic: true },
     );
@@ -351,6 +410,67 @@ export default function PreviewPage() {
     await startProcessing(payload, Array.from(selected), { automatic: false });
   }
 
+  function selectProcessingVersion(jobId: string, sourceProject?: ProjectDetail) {
+    const targetProject = sourceProject ?? project;
+    if (!targetProject) return;
+    const nextValues = Object.fromEntries(
+      targetProject.photos
+        .filter((photo) => photoHasDoneProcessingVersion(photo, jobId))
+        .map((photo) => [photo.id, `processing:${jobId}`]),
+    );
+    setPhotoVersionValues((prev) => ({
+      ...prev,
+      ...nextValues,
+    }));
+    if (activePhotoId && nextValues[activePhotoId]) {
+      updateAdjustmentParams({
+        ...adjustmentParamsRef.current,
+        source: { kind: "processing", value: jobId },
+        grade_preset: null,
+      });
+    }
+  }
+
+  async function archiveProcessingVersion(jobId: string) {
+    if (!project || !window.confirm("確定要隱藏這個 AI 版本？檔案會保留，但預設列表不再顯示。")) return;
+    try {
+      await api.archiveProcessingVersion(jobId);
+      const next = project.processing_versions.find((version) => version.id !== jobId);
+      setPhotoVersionValues((prev) => {
+        const entries = Object.entries(prev).filter(([, value]) => value !== `processing:${jobId}`);
+        return Object.fromEntries(entries);
+      });
+      const fresh = await reload();
+      if (next && fresh) selectProcessingVersion(next.id, fresh);
+      toast("AI 版本已隱藏", "success");
+    } catch (err) {
+      toast(`隱藏 AI 版本失敗：${String(err)}`, "error");
+    }
+  }
+
+  function retryProcessingVersion(version: ProcessingVersion, scope: "full" | "missing_only") {
+    if (!project) return;
+    const photoIds = scope === "missing_only" ? missingPhotoIdsForProcessingVersion(project, version) : version.photo_ids;
+    if (photoIds.length === 0) {
+      toast("這個 AI 版本沒有缺漏照片需要重試", "info");
+      return;
+    }
+    void startProcessing(
+      {
+        preset: version.preset,
+        denoise_strength: version.denoise_strength,
+        lens_distort_correct: version.lens_distort_correct,
+        level_correct: version.level_correct,
+        auto_crop_aspect: version.auto_crop_aspect,
+        force: true,
+        retry_scope: scope,
+        retry_of_job_id: version.id,
+      },
+      photoIds,
+      { automatic: false },
+    );
+  }
+
   async function startProcessing(
     payload: ProcessingJobCreate,
     photoIds: string[],
@@ -359,7 +479,6 @@ export default function PreviewPage() {
     if (!projectId || !project) return;
     if (job?.status === "pending" || job?.status === "running") return;
     if (photoIds.length === 0) return;
-    const submittedPreset = payload.preset;
     const submittedPhotoIds = photoIds;
     setPipelineBusy(true);
     try {
@@ -389,11 +508,10 @@ export default function PreviewPage() {
               toast(options.automatic ? "AI 版本已產生" : "處理完成", "success");
               setPhotoVersionValues((prev) => ({
                 ...prev,
-                ...Object.fromEntries(
-                  submittedPhotoIds.map((photoId) => [photoId, `preset:${submittedPreset}`]),
-                ),
+                ...Object.fromEntries(submittedPhotoIds.map((photoId) => [photoId, `processing:${created.id}`])),
               }));
-              reload();
+              const fresh = await reload();
+              if (fresh) selectProcessingVersion(created.id, fresh);
             } else {
               toast(`處理失敗：${next.error ?? "unknown error"}`, "error");
             }
@@ -559,7 +677,18 @@ export default function PreviewPage() {
   const samplePhotoIndex = samplePhoto
     ? project.photos.findIndex((photo) => photo.id === samplePhoto.id)
     : -1;
+  const processingVersions = project.processing_versions;
   const sampleVersion = samplePhoto ? selectedPhotoVersion(samplePhoto) : null;
+  const renderPipelinePayload = currentPipelinePayload();
+  const sampleHasMatchingPipelineOutput = Boolean(
+    samplePhoto &&
+      processingVersions.some(
+        (version) =>
+          version.status === "done" &&
+          pipelineMatches(version, renderPipelinePayload) &&
+          photoHasDoneProcessingVersion(samplePhoto, version.id),
+      ),
+  );
   const resolvedPhotoVersionValues = Object.fromEntries(
     project.photos.map((photo) => [photo.id, selectedPhotoVersion(photo).value]),
   );
@@ -571,7 +700,7 @@ export default function PreviewPage() {
   const originalDisplayUrl = samplePhoto ? api.photoFileUrl(samplePhoto.id) : "";
   const needsPipelineRun = needsPipelineRunNote({
     sourceKind: sampleVersion?.source.kind,
-    processedPaths: samplePhoto?.processed_paths,
+    processedPaths: sampleHasMatchingPipelineOutput ? { [pipelinePreset]: "matched" } : samplePhoto?.processed_paths,
     pipelinePreset,
     hasActivePreview: Boolean(activePreviewUrl),
   });
@@ -591,6 +720,13 @@ export default function PreviewPage() {
     adjustmentJob && adjustmentJob.total > 0
       ? Math.round((adjustmentJob.progress / adjustmentJob.total) * 100)
       : 0;
+  const selectedProcessingVersionIds = Array.from(
+    new Set(
+      Object.values(resolvedPhotoVersionValues)
+        .filter((value) => value.startsWith("processing:"))
+        .map((value) => value.slice("processing:".length)),
+    ),
+  );
 
   return (
     <main className="page preview">
@@ -663,6 +799,87 @@ export default function PreviewPage() {
               );
             })}
           </ol>
+        </section>
+      )}
+
+      {processingVersions.length > 0 && (
+        <section className="section ai-versions" aria-label="AI 批次版本">
+          <header className="section__head">
+            <h2 className="section__title">AI 批次版本</h2>
+            <span className="section__meta mono">
+              {processingVersions.length} 個版本
+              {selectedProcessingVersionIds.length === 1 ? ` · 目前 AI v${processingVersions.find((version) => version.id === selectedProcessingVersionIds[0])?.version_number ?? ""}` : ""}
+            </span>
+          </header>
+          <div className="ai-version-list">
+            {processingVersions.map((version) => {
+              const missingPhotoIds = missingPhotoIdsForProcessingVersion(project, version);
+              const missingNames = missingPhotoIds.map(
+                (photoId) => project.photos.find((photo) => photo.id === photoId)?.original_filename ?? photoId.slice(0, 8),
+              );
+              const isRunning = version.status === "pending" || version.status === "running";
+              const canExport = version.status === "done" || missingPhotoIds.length < version.photo_ids.length;
+              return (
+                <article key={version.id} className="ai-version-card">
+                  <div className="ai-version-card__main">
+                    <strong>{processingVersionLabel(version)}</strong>
+                    <span className={`job-status__pill job-status__pill--${version.status}`}>{version.status}</span>
+                    <span className="ai-version-card__meta mono">
+                      {version.progress} / {version.total} 完成
+                      {missingPhotoIds.length > 0 ? ` · 缺 ${missingPhotoIds.length} 張` : ""}
+                      {version.retry_scope !== "none" ? ` · retry ${version.retry_scope}` : ""}
+                    </span>
+                    <span className="ai-version-card__settings">
+                      {version.lens_distort_correct ? "廣角矯正" : "不做廣角矯正"} · {version.level_correct ? "水平校正" : "不做水平校正"} · {ASPECT_LABELS[version.auto_crop_aspect ?? "original"]}
+                    </span>
+                    {missingNames.length > 0 ? (
+                      <span className="ai-version-card__error">缺漏照片：{missingNames.slice(0, 6).join("、")}{missingNames.length > 6 ? "…" : ""}</span>
+                    ) : null}
+                    {version.error ? <span className="ai-version-card__error">{version.error}</span> : null}
+                  </div>
+                  <div className="ai-version-card__actions">
+                    <button
+                      type="button"
+                      className="bulk-bar__btn"
+                      onClick={() => selectProcessingVersion(version.id)}
+                      disabled={missingPhotoIds.length === version.photo_ids.length}
+                    >
+                      查看版本
+                    </button>
+                    <button
+                      type="button"
+                      className="bulk-bar__btn"
+                      onClick={() => retryProcessingVersion(version, "full")}
+                      disabled={pipelineRunning || isRunning}
+                    >
+                      重試全部
+                    </button>
+                    <button
+                      type="button"
+                      className="bulk-bar__btn"
+                      onClick={() => retryProcessingVersion(version, "missing_only")}
+                      disabled={pipelineRunning || isRunning || missingPhotoIds.length === 0}
+                    >
+                      只補缺漏
+                    </button>
+                    {canExport ? (
+                      <Link to={`/export/${project.id}?processing_job_id=${version.id}`} className="bulk-bar__btn">
+                        匯出此版
+                      </Link>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="bulk-bar__btn bulk-bar__btn--danger"
+                      onClick={() => void archiveProcessingVersion(version.id)}
+                      disabled={isRunning}
+                    >
+                      隱藏
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
         </section>
       )}
 
@@ -839,6 +1056,7 @@ export default function PreviewPage() {
           selectedIds={selected}
           activeId={samplePhoto?.id ?? activePhotoId}
           versionValues={resolvedPhotoVersionValues}
+          processingVersions={processingVersions}
           onToggleSelect={toggle}
           onOpenPreview={setActivePhotoId}
           onVersionChange={handlePhotoVersionChange}

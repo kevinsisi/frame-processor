@@ -1,2 +1,2 @@
-// v0.3.29 - restores NAFNet weight download and avoids medium re-sharpening noise.
-export const APP_VERSION = "0.3.29";
+// v0.4.0 - adds immutable AI batch versions for compare, retry, archive, and export.
+export const APP_VERSION = "0.4.0";

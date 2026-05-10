@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Text, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -17,6 +17,9 @@ from models.enums import (
 
 class ProcessingJob(Base):
     __tablename__ = "processing_jobs"
+    __table_args__ = (
+        UniqueConstraint("project_id", "version_number", name="uq_processing_job_project_version"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -63,6 +66,12 @@ class ProcessingJob(Base):
         ),
         nullable=True,
     )
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    retry_scope: Mapped[str] = mapped_column(String(32), nullable=False, default="none")
+    retry_of_job_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("processing_jobs.id", ondelete="SET NULL"), nullable=True
+    )
     photo_ids: Mapped[list[uuid.UUID]] = mapped_column(
         ARRAY(UUID(as_uuid=True)), nullable=False, default=list
     )
@@ -77,3 +86,6 @@ class ProcessingJob(Base):
     )
 
     project: Mapped["Project"] = relationship(back_populates="processing_jobs")  # noqa: F821
+    photo_versions: Mapped[list["PhotoProcessingVersion"]] = relationship(  # noqa: F821
+        back_populates="processing_job", cascade="all, delete-orphan"
+    )

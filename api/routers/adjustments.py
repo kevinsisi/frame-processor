@@ -23,13 +23,13 @@ router = APIRouter(tags=["adjustments"])
 
 
 class AdjustmentSource(BaseModel):
-    kind: Literal["auto", "original", "preset", "manual"] = "auto"
+    kind: Literal["auto", "original", "preset", "manual", "processing"] = "auto"
     value: str | None = None
 
     @model_validator(mode="after")
     def require_version_value(self) -> AdjustmentSource:
-        if self.kind in {"preset", "manual"} and not (self.value or "").strip():
-            raise ValueError("source value is required for preset/manual sources")
+        if self.kind in {"preset", "manual", "processing"} and not (self.value or "").strip():
+            raise ValueError("source value is required for preset/manual/processing sources")
         return self
 
     def normalized(self) -> dict[str, str | None]:
