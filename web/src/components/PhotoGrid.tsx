@@ -5,6 +5,8 @@ import type { AdjustmentSource, ColorGradePreset, Photo, ProcessingVersion } fro
 
 import "./PhotoGrid.css";
 
+const DOWNLOADED_PHOTO_VERSIONS_KEY = "frame-processor:downloaded-photo-versions:v1";
+
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -43,6 +45,7 @@ export function PhotoGrid({
   onVersionChange,
 }: PhotoGridProps) {
   const [internalVersions, setInternalVersions] = useState<Record<string, string>>({});
+  const [downloadedVersions, setDownloadedVersions] = useState<Set<string>>(() => loadDownloadedPhotoVersions());
   if (photos.length === 0) {
     return (
       <div className="photo-grid__empty">
@@ -61,9 +64,20 @@ export function PhotoGrid({
         const selectedOption =
           versionOptions.find((option) => option.value === selectedDownloadVersion) ??
           versionOptions[0];
+        const selectedDownloadKey = downloadedPhotoVersionKey(photo.id, selectedOption.value);
+        const selectedVersionDownloaded = downloadedVersions.has(selectedDownloadKey);
+        const photoDownloaded = versionOptions.some((option) => downloadedVersions.has(downloadedPhotoVersionKey(photo.id, option.value)));
         const Tag: "li" = "li";
         const handleClick = () => {
           onOpenPreview?.(photo.id);
+        };
+        const markDownloaded = () => {
+          setDownloadedVersions((prev) => {
+            const next = new Set(prev);
+            next.add(selectedDownloadKey);
+            saveDownloadedPhotoVersions(next);
+            return next;
+          });
         };
         return (
           <Tag
@@ -106,6 +120,7 @@ export function PhotoGrid({
                   ✓
                 </button>
               )}
+              {photoDownloaded && <span className="photo-tile__downloaded-badge mono">已下載</span>}
             </div>
             <div className="photo-tile__actions">
               <a
@@ -142,10 +157,13 @@ export function PhotoGrid({
               <a
                 href={selectedOption.url}
                 download
-                className="photo-tile__open mono"
-                onClick={(e) => e.stopPropagation()}
+                className={`photo-tile__open mono${selectedVersionDownloaded ? " photo-tile__open--downloaded" : ""}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  markDownloaded();
+                }}
               >
-                下載版本 ↓
+                {selectedVersionDownloaded ? "此版本已下載 ✓" : "下載版本 ↓"}
               </a>
             </div>
           </Tag>
@@ -153,6 +171,31 @@ export function PhotoGrid({
       })}
     </ul>
   );
+}
+
+function downloadedPhotoVersionKey(photoId: string, versionValue: string): string {
+  return `${photoId}:${versionValue}`;
+}
+
+function loadDownloadedPhotoVersions(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = window.localStorage.getItem(DOWNLOADED_PHOTO_VERSIONS_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((item): item is string => typeof item === "string"));
+  } catch {
+    return new Set();
+  }
+}
+
+function saveDownloadedPhotoVersions(downloadedVersions: Set<string>): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(DOWNLOADED_PHOTO_VERSIONS_KEY, JSON.stringify([...downloadedVersions]));
+  } catch {
+    // Some private/restricted browsers block localStorage; keep in-memory markers for this session.
+  }
 }
 
 export function buildPhotoVersionOptions(
