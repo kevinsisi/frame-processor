@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy import select
@@ -14,6 +15,50 @@ from models.processing_job import ProcessingJob
 
 PHOTO_VERSION_DONE = "done"
 PHOTO_VERSION_FAILED = "failed"
+PHOTO_VERSION_PENDING = "pending"
+PHOTO_VERSION_RUNNING = "running"
+
+_TERMINAL_PHOTO_VERSION_STATUSES = {PHOTO_VERSION_DONE, PHOTO_VERSION_FAILED}
+
+
+def refresh_processing_job_progress(db: Session, job_id: UUID) -> ProcessingJob | None:
+    job = db.execute(
+        select(ProcessingJob).where(ProcessingJob.id == job_id).with_for_update()
+    ).scalar_one_or_none()
+    if job is None:
+        return None
+
+    photo_ids = list(job.photo_ids or [])
+    rows = (
+        db.execute(
+            select(PhotoProcessingVersion).where(PhotoProcessingVersion.processing_job_id == job.id)
+        )
+        .scalars()
+        .all()
+    )
+    rows_by_photo = {row.photo_id: row for row in rows}
+    expected_rows = [rows_by_photo.get(photo_id) for photo_id in photo_ids]
+    terminal_rows = [
+        row for row in expected_rows if row is not None and row.status in _TERMINAL_PHOTO_VERSION_STATUSES
+    ]
+    failed_rows = [row for row in terminal_rows if row.status == PHOTO_VERSION_FAILED]
+
+    job.total = len(photo_ids)
+    job.progress = len(terminal_rows)
+    if not photo_ids:
+        job.status = ProcessingJobStatus.FAILED
+        job.error = "processing job has no photos"
+        job.completed_at = datetime.now(tz=timezone.utc)
+    elif len(terminal_rows) == len(photo_ids):
+        job.status = ProcessingJobStatus.FAILED if failed_rows else ProcessingJobStatus.DONE
+        job.error = "\n".join(row.error or str(row.photo_id) for row in failed_rows[:10]) if failed_rows else None
+        job.completed_at = datetime.now(tz=timezone.utc)
+        update_latest_processed_cache_for_job(db, job)
+    else:
+        job.status = ProcessingJobStatus.RUNNING
+        job.completed_at = None
+        job.error = None
+    return job
 
 
 def update_latest_processed_cache_for_job(db: Session, job: ProcessingJob) -> None:

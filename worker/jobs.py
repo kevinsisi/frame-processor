@@ -2,8 +2,8 @@
 
 - ``zip_export_job``：打包專案輸出為 zip。優先採用每張照片的最新處理結果，
   若無則 fallback 到原圖。
-- ``process_photos_job``：對 ProcessingJob 列出的 photo 跑 pipeline，
-  把結果路徑寫回 ``Photo.processed_paths``，並更新 progress / status。
+- ``process_photo_version_job``：對 ProcessingJob 的單張 photo 跑 pipeline，
+  寫回該 photo version 狀態，並回算 parent job progress / status。
 """
 
 from __future__ import annotations
@@ -202,6 +202,83 @@ def process_photos_job(job_id: str) -> int:
             job.completed_at = datetime.now(tz=timezone.utc)
             db.commit()
             raise
+
+
+def process_photo_version_job(job_id: str, photo_id: str) -> str:
+    job_uuid = UUID(job_id)
+    photo_uuid = UUID(photo_id)
+
+    with SessionLocal() as db:
+        job = db.get(ProcessingJob, job_uuid)
+        if job is None:
+            raise ValueError(f"processing job {job_id} not found")
+        if job.archived_at is not None:
+            return "archived"
+
+        row = _photo_processing_version(db, job, photo_uuid)
+        if row.status == processing_versions.PHOTO_VERSION_DONE and row.path:
+            processing_versions.refresh_processing_job_progress(db, job.id)
+            db.commit()
+            return row.status
+
+        job.status = ProcessingJobStatus.RUNNING
+        job.error = None
+        job.completed_at = None
+        row.status = processing_versions.PHOTO_VERSION_RUNNING
+        row.path = None
+        row.error = None
+        db.add(row)
+        db.commit()
+
+        photo = db.get(Photo, photo_uuid)
+        if photo is None:
+            row = _photo_processing_version(db, job, photo_uuid)
+            row.status = processing_versions.PHOTO_VERSION_FAILED
+            row.error = f"photo {photo_id} not found"
+            db.add(row)
+            processing_versions.refresh_processing_job_progress(db, job.id)
+            db.commit()
+            return row.status
+
+        try:
+            result = photo_processor.process_photo(
+                project_id=job.project_id,
+                photo_id=photo.id,
+                source_relative_path=photo.stored_path,
+                preset=job.preset,
+                denoise_strength=job.denoise_strength,
+                lens_distort_correct=job.lens_distort_correct,
+                level_correct_on=job.level_correct,
+                auto_crop_aspect=job.auto_crop_aspect,
+                cpl_strength=job.cpl_strength,
+                chroma_clean_strength=job.chroma_clean_strength,
+                version_number=job.version_number,
+            )
+            row = _photo_processing_version(db, job, photo.id)
+            row.status = processing_versions.PHOTO_VERSION_DONE
+            row.path = result.relative_path
+            row.error = None
+            db.add(row)
+            processing_versions.refresh_processing_job_progress(db, job.id)
+            try:
+                db.commit()
+            except Exception:
+                db.rollback()
+                written = settings.storage_root / result.relative_path
+                written.unlink(missing_ok=True)
+                raise
+            return row.status
+        except BaseException as exc:
+            row = _photo_processing_version(db, job, photo.id)
+            row.status = processing_versions.PHOTO_VERSION_FAILED
+            row.path = None
+            row.error = str(exc)
+            db.add(row)
+            processing_versions.refresh_processing_job_progress(db, job.id)
+            db.commit()
+            if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+                raise
+            return row.status
 
 
 def _photo_processing_version(

@@ -32,6 +32,12 @@ import type {
 } from "@/types";
 import { needsPipelineRunNote } from "@/utils/pipelinePreview";
 import {
+  incompletePhotoIdsForProcessingVersion,
+  missingPhotoIdsForProcessingVersion,
+  photoHasDoneProcessingVersion,
+  photoProcessingVersionStatus,
+} from "@/utils/processingVersions";
+import {
   DEFAULT_PIPELINE_DENOISE,
   DEFAULT_PIPELINE_CHROMA_CLEAN,
   DEFAULT_PIPELINE_CPL,
@@ -118,27 +124,6 @@ function pipelineMatches(version: ProcessingVersion, payload: ProcessingJobCreat
     version.cpl_strength === (payload.cpl_strength ?? "none") &&
     version.chroma_clean_strength === (payload.chroma_clean_strength ?? "none")
   );
-}
-
-function photoHasDoneProcessingVersion(
-  photo: ProjectDetail["photos"][number],
-  versionId: string,
-): boolean {
-  return Boolean(
-    photo.processing_versions?.some(
-      (version) => version.processing_job_id === versionId && version.status === "done" && version.path,
-    ),
-  );
-}
-
-function missingPhotoIdsForProcessingVersion(
-  project: ProjectDetail,
-  version: ProcessingVersion,
-): string[] {
-  return version.photo_ids.filter((photoId) => {
-    const photo = project.photos.find((item) => item.id === photoId);
-    return !photo || !photoHasDoneProcessingVersion(photo, version.id);
-  });
 }
 
 function matchingPipelineOutputMissingPhotoIds(
@@ -520,6 +505,10 @@ export default function PreviewPage() {
         const next = await api.getProcessingJob(jobId);
         if (pollGenerationRef.current !== pollGeneration || activeProjectIdRef.current !== pollProjectId) return;
         setJob(next);
+        if (next.status === "pending" || next.status === "running") {
+          await reload();
+          if (pollGenerationRef.current !== pollGeneration || activeProjectIdRef.current !== pollProjectId) return;
+        }
         if (next.status === "done" || next.status === "failed") {
           if (pollRef.current !== null) {
             window.clearInterval(pollRef.current);
@@ -540,10 +529,12 @@ export default function PreviewPage() {
             const fresh = await reload();
             if (pollGenerationRef.current !== pollGeneration || activeProjectIdRef.current !== pollProjectId) return;
             if ((options.selectOnDone ?? true) && fresh) selectProcessingVersion(jobId, fresh);
-          } else if (options.showDoneToast) {
-            toast(`處理失敗：${next.error ?? "unknown error"}`, "error");
           } else {
             await reload();
+            if (pollGenerationRef.current !== pollGeneration || activeProjectIdRef.current !== pollProjectId) return;
+            if (options.showDoneToast) {
+              toast(`處理失敗：${next.error ?? "unknown error"}`, "error");
+            }
           }
         }
       } catch (err) {
@@ -1099,12 +1090,12 @@ export default function PreviewPage() {
             {displayedJob.photo_ids.map((pid, idx) => {
               const photo = project.photos.find((p) => p.id === pid);
               const name = photo?.original_filename ?? pid.slice(0, 8);
-              let state: "done" | "running" | "queued" = "queued";
-              if (displayedJob.status === "done") state = "done";
-              else if (idx < displayedJob.progress) state = "done";
-              else if (idx === displayedJob.progress && displayedJob.status === "running")
-                state = "running";
-              const icon = state === "done" ? "✓" : state === "running" ? "●" : "○";
+              const photoStatus = photo ? photoProcessingVersionStatus(photo, displayedJob.id) : null;
+              let state: "done" | "running" | "failed" | "queued" = "queued";
+              if (photoStatus === "done") state = "done";
+              else if (photoStatus === "failed") state = "failed";
+              else if (photoStatus === "running") state = "running";
+              const icon = state === "done" ? "✓" : state === "running" ? "●" : state === "failed" ? "!" : "○";
               return (
                 <li key={pid} className={`job-status__queue-item job-status__queue-item--${state}`}>
                   <span className="job-status__queue-icon" aria-hidden>{icon}</span>
@@ -1112,7 +1103,7 @@ export default function PreviewPage() {
                     {String(idx + 1).padStart(String(displayedJob.total).length, "0")}/{displayedJob.total}
                   </span>
                   <span className="job-status__queue-name" title={name}>{name}</span>
-                  <span className="job-status__queue-state mono">{state === "running" ? "處理中" : state === "done" ? "完成" : "等待中"}</span>
+                  <span className="job-status__queue-state mono">{state === "running" ? "處理中" : state === "done" ? "完成" : state === "failed" ? "失敗" : "等待中"}</span>
                 </li>
               );
             })}
@@ -1131,11 +1122,15 @@ export default function PreviewPage() {
           </header>
           <div className="ai-version-list">
             {processingVersions.map((version) => {
-              const missingPhotoIds = missingPhotoIdsForProcessingVersion(project, version);
+              const isRunning = version.status === "pending" || version.status === "running";
+              const incompletePhotoIds = isRunning ? incompletePhotoIdsForProcessingVersion(project, version) : [];
+              const missingPhotoIds = isRunning ? [] : missingPhotoIdsForProcessingVersion(project, version);
               const missingNames = missingPhotoIds.map(
                 (photoId) => project.photos.find((photo) => photo.id === photoId)?.original_filename ?? photoId.slice(0, 8),
               );
-              const isRunning = version.status === "pending" || version.status === "running";
+              const incompleteNames = incompletePhotoIds.map(
+                (photoId) => project.photos.find((photo) => photo.id === photoId)?.original_filename ?? photoId.slice(0, 8),
+              );
               const canExport = version.status === "done" || missingPhotoIds.length < version.photo_ids.length;
               return (
                 <article key={version.id} className="ai-version-card">
@@ -1144,7 +1139,8 @@ export default function PreviewPage() {
                     <span className={`job-status__pill job-status__pill--${version.status}`}>{version.status}</span>
                     <span className="ai-version-card__meta mono">
                       {version.progress} / {version.total} 完成
-                      {missingPhotoIds.length > 0 ? ` · 缺 ${missingPhotoIds.length} 張` : ""}
+                      {isRunning && incompletePhotoIds.length > 0 ? ` · 待 ${incompletePhotoIds.length} 張` : ""}
+                      {!isRunning && missingPhotoIds.length > 0 ? ` · 缺 ${missingPhotoIds.length} 張` : ""}
                       {version.retry_scope !== "none" ? ` · retry ${version.retry_scope}` : ""}
                     </span>
                     <span className="ai-version-card__settings">
@@ -1152,6 +1148,9 @@ export default function PreviewPage() {
                     </span>
                     {missingNames.length > 0 ? (
                       <span className="ai-version-card__error">缺漏照片：{missingNames.slice(0, 6).join("、")}{missingNames.length > 6 ? "…" : ""}</span>
+                    ) : null}
+                    {incompleteNames.length > 0 ? (
+                      <span className="ai-version-card__pending">處理中 / 待處理：{incompleteNames.slice(0, 6).join("、")}{incompleteNames.length > 6 ? "…" : ""}</span>
                     ) : null}
                     {version.error ? <span className="ai-version-card__error">{version.error}</span> : null}
                   </div>

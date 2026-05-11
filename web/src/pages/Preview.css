@@ -333,6 +333,10 @@
   background: rgba(201, 168, 107, 0.08);
 }
 
+.job-status__queue-item--failed {
+  color: #ef8b8b;
+}
+
 .job-status__queue-item--queued {
   color: var(--text-tertiary);
 }
@@ -395,14 +399,21 @@
 
 .ai-version-card__meta,
 .ai-version-card__settings,
+.ai-version-card__pending,
 .ai-version-card__error {
   font-size: var(--t-xs);
   color: var(--text-tertiary);
 }
 
 .ai-version-card__settings,
+.ai-version-card__pending,
 .ai-version-card__error {
   flex-basis: 100%;
+}
+
+.ai-version-card__pending {
+  color: var(--gold-bright);
+  overflow-wrap: anywhere;
 }
 
 .ai-version-card__error {

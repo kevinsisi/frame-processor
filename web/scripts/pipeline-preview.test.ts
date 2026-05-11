@@ -1,5 +1,10 @@
 import { missingPipelineOutputPhotoIds, needsPipelineRunNote } from "../src/utils/pipelinePreview.js";
 import {
+  incompletePhotoIdsForProcessingVersion,
+  missingPhotoIdsForProcessingVersion,
+  visibleMissingPhotoIdsForProcessingVersion,
+} from "../src/utils/processingVersions.js";
+import {
   DEFAULT_PIPELINE_DENOISE,
   DEFAULT_PIPELINE_CHROMA_CLEAN,
   DEFAULT_PIPELINE_CPL,
@@ -67,6 +72,25 @@ const missing = missingPipelineOutputPhotoIds(
 
 if (missing.join(",") !== "a,c") {
   throw new Error(`missingPipelineOutputPhotoIds: expected a,c, got ${missing.join(",")}`);
+}
+
+const projectWithRunningVersions = {
+  photos: [
+    { id: "p1", processing_versions: [{ processing_job_id: "job-1", status: "running", path: null }] },
+    { id: "p2", processing_versions: [{ processing_job_id: "job-1", status: "pending", path: null }] },
+    { id: "p3", processing_versions: [{ processing_job_id: "job-1", status: "done", path: "p3.jpg" }] },
+  ],
+} as any;
+const runningVersion = { id: "job-1", status: "running", photo_ids: ["p1", "p2", "p3"] } as any;
+if (incompletePhotoIdsForProcessingVersion(projectWithRunningVersions, runningVersion).join(",") !== "p1,p2") {
+  throw new Error("incompletePhotoIdsForProcessingVersion: running/pending photos should be incomplete");
+}
+if (visibleMissingPhotoIdsForProcessingVersion(projectWithRunningVersions, runningVersion).length !== 0) {
+  throw new Error("visibleMissingPhotoIdsForProcessingVersion: running versions should not show missing photos");
+}
+const failedVersion = { ...runningVersion, status: "failed" } as any;
+if (missingPhotoIdsForProcessingVersion(projectWithRunningVersions, failedVersion).join(",") !== "p1,p2") {
+  throw new Error("missingPhotoIdsForProcessingVersion: failed versions should show photos without done outputs");
 }
 
 if (DEFAULT_PIPELINE_DENOISE !== "medium") {

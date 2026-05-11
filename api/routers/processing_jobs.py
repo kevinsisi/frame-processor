@@ -10,9 +10,15 @@ from api.queue import default_queue
 from api.schemas import ProcessingJobCreate, ProcessingJobOut
 from models.enums import ProcessingJobStatus
 from models.photo import Photo
+from models.photo_processing_version import PhotoProcessingVersion
 from models.processing_job import ProcessingJob
 from models.project import Project
-from services.processing_versions import recompute_latest_processed_cache
+from services.processing_versions import (
+    PHOTO_VERSION_FAILED,
+    PHOTO_VERSION_PENDING,
+    recompute_latest_processed_cache,
+    refresh_processing_job_progress,
+)
 
 router = APIRouter(tags=["processing"])
 
@@ -100,12 +106,44 @@ def create_processing_job(
         total=len(photo_ids),
     )
     db.add(job)
+    db.flush()
+    for photo_id in photo_ids:
+        db.add(
+            PhotoProcessingVersion(
+                processing_job_id=job.id,
+                photo_id=photo_id,
+                status=PHOTO_VERSION_PENDING,
+            )
+        )
     db.commit()
     db.refresh(job)
 
-    default_queue.enqueue(
-        "worker.jobs.process_photos_job", str(job.id), job_timeout=1800
-    )
+    enqueued_photo_ids: set[UUID] = set()
+    enqueue_error: Exception | None = None
+    for photo_id in photo_ids:
+        try:
+            default_queue.enqueue(
+                "worker.jobs.process_photo_version_job", str(job.id), str(photo_id), job_timeout=1800
+            )
+            enqueued_photo_ids.add(photo_id)
+        except Exception as exc:
+            enqueue_error = exc
+            break
+    if enqueue_error is not None:
+        for photo_id in photo_ids:
+            if photo_id in enqueued_photo_ids:
+                continue
+            row = db.execute(
+                select(PhotoProcessingVersion).where(
+                    PhotoProcessingVersion.processing_job_id == job.id,
+                    PhotoProcessingVersion.photo_id == photo_id,
+                )
+            ).scalar_one()
+            row.status = PHOTO_VERSION_FAILED
+            row.error = f"enqueue failed: {enqueue_error}"
+        refresh_processing_job_progress(db, job.id)
+        db.commit()
+        db.refresh(job)
     return ProcessingJobOut.model_validate(job)
 
 
