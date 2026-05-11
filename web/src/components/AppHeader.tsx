@@ -13,6 +13,12 @@ export function AppHeader() {
           <span className="brand-word">
             Frame <span className="em">·</span> Processor
           </span>
+          <span
+            className="app-header__version"
+            title={`build version v${APP_VERSION}`}
+          >
+            v{APP_VERSION}
+          </span>
         </Link>
 
         <nav className="app-header__nav">
@@ -28,12 +34,6 @@ export function AppHeader() {
           <NavLink to="/settings" className="nav-link nav-link--quiet">
             設定
           </NavLink>
-          <span
-            className="app-header__version"
-            title={`build version v${APP_VERSION}`}
-          >
-            v{APP_VERSION}
-          </span>
         </nav>
       </div>
       <div className="app-header__rule" aria-hidden />

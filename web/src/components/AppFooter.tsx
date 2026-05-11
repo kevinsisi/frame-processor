@@ -1,5 +1,3 @@
-import { APP_VERSION } from "@/version";
-
 import "./AppFooter.css";
 
 export function AppFooter() {
@@ -11,7 +9,6 @@ export function AppFooter() {
         </span>
         <span className="app-footer__meta">
           <span className="mono">照片批次後製</span>
-          <span className="mono app-footer__version">v{APP_VERSION}</span>
         </span>
       </div>
     </footer>

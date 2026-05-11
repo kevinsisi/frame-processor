@@ -37,10 +37,6 @@
   color: var(--text-tertiary);
 }
 
-.app-footer__version {
-  opacity: 0.7;
-}
-
 @media (max-width: 600px) {
   .app-footer__inner {
     padding: 0 var(--space-4);

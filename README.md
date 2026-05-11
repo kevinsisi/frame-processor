@@ -2,7 +2,7 @@
 
 照片批次後製工具。上傳 N 張 → 選 preset + 處理選項 → 全部一鍵處理 → 下載 zip。
 
-目前狀態：**v0.4.0 — immutable AI batch versions**（每次按「開始產生」都會建立可回看、比較、重試、隱藏與指定匯出的 `AI vN`，批次輸出寫入 `batch-vN` immutable path，不再覆蓋同 preset 舊結果 / NAFNet 權重改走官方 Google Drive lazy download；預設中度降噪不再做後段 unsharp，避免把平坦區噪點銳化回來，fallback 仍會明顯清掉平坦區噪點並保留建築/車身線條 / 前後對比圖可直接用左右箭頭切換上一張/下一張 / Upload 選擇的色調會延續到 Preview 與自動批次產生 / Preview 固定顯示目前處理設定與開始產生入口 / NAFNet AI 降噪 + edge-aware OpenCV 重度降噪 / 廣角桶形與自動垂直透視矯正 / Gemini Vision 水平校正 / YOLOv8 自動裁剪 / Pillow 色調 preset / before-after 對比 / per-photo queue progress / Gemini key 設定頁 / 手動曝光、對比、亮暗部、色溫、色偏、飽和、自然飽和、清晰度、銳利化、HSL 微調、可拖曳/縮放裁切框、水平/垂直透視修正與 preset 儲存載入 / GMT+8 時間顯示）。正式環境：[frame.sisihome.org](https://frame.sisihome.org)。
+目前狀態：**v0.4.1 — Preview 500 hotfix + header version**（修復 Preview 專案詳情在含 AI batch versions 時可能回 500 的序列化問題，並把版本號固定顯示在 header / 每次按「開始產生」都會建立可回看、比較、重試、隱藏與指定匯出的 `AI vN`，批次輸出寫入 `batch-vN` immutable path，不再覆蓋同 preset 舊結果 / NAFNet 權重改走官方 Google Drive lazy download；預設中度降噪不再做後段 unsharp，避免把平坦區噪點銳化回來，fallback 仍會明顯清掉平坦區噪點並保留建築/車身線條 / 前後對比圖可直接用左右箭頭切換上一張/下一張 / Upload 選擇的色調會延續到 Preview 與自動批次產生 / Preview 固定顯示目前處理設定與開始產生入口 / NAFNet AI 降噪 + edge-aware OpenCV 重度降噪 / 廣角桶形與自動垂直透視矯正 / Gemini Vision 水平校正 / YOLOv8 自動裁剪 / Pillow 色調 preset / before-after 對比 / per-photo queue progress / Gemini key 設定頁 / 手動曝光、對比、亮暗部、色溫、色偏、飽和、自然飽和、清晰度、銳利化、HSL 微調、可拖曳/縮放裁切框、水平/垂直透視修正與 preset 儲存載入 / GMT+8 時間顯示）。正式環境：[frame.sisihome.org](https://frame.sisihome.org)。
 
 ## Quick start
 

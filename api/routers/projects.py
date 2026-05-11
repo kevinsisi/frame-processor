@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from api.database import get_db
 from api.schemas import (
+    AdjustmentVersionOut,
     PhotoOut,
     ProcessingVersionOut,
     ProcessingVersionPhotoOut,
@@ -45,9 +46,23 @@ def _processing_version_out(job: ProcessingJob) -> ProcessingVersionOut:
 
 
 def _photo_out(photo: Photo, versions: dict[UUID, list[ProcessingVersionPhotoOut]]) -> PhotoOut:
-    data = PhotoOut.model_validate(photo)
-    data.processing_versions = versions.get(photo.id, [])
-    return data
+    return PhotoOut(
+        id=photo.id,
+        project_id=photo.project_id,
+        original_filename=photo.original_filename,
+        size_bytes=photo.size_bytes,
+        width=photo.width,
+        height=photo.height,
+        mime_type=photo.mime_type,
+        uploaded_at=photo.uploaded_at,
+        processed_paths=dict(photo.processed_paths or {}),
+        adjustment_params=photo.adjustment_params,
+        adjustment_versions=[
+            AdjustmentVersionOut.model_validate(version)
+            for version in (photo.adjustment_versions or [])
+        ],
+        processing_versions=versions.get(photo.id, []),
+    )
 
 
 @router.post("", response_model=ProjectOut, status_code=status.HTTP_201_CREATED)
