@@ -35,6 +35,7 @@ def _processing_version_out(job: ProcessingJob) -> ProcessingVersionOut:
         level_correct=job.level_correct,
         auto_crop_aspect=job.auto_crop_aspect,
         cpl_strength=job.cpl_strength,
+        chroma_clean_strength=job.chroma_clean_strength,
         photo_ids=list(job.photo_ids or []),
         progress=job.progress,
         total=job.total,

@@ -4,7 +4,7 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { api } from "@/api/client";
 import { Spinner } from "@/components/Spinner";
 import { useToast } from "@/components/Toast";
-import type { CplStrength, DenoiseStrength, Export, ExportStatus, ProcessingVersion, ProjectDetail } from "@/types";
+import type { ChromaCleanStrength, CplStrength, DenoiseStrength, Export, ExportStatus, ProcessingVersion, ProjectDetail } from "@/types";
 import { formatServiceTime } from "@/utils/time";
 
 import "./Export.css";
@@ -30,8 +30,15 @@ const CPL_LABELS: Record<CplStrength, string> = {
   high: "CPL 重度",
 };
 
+const CHROMA_CLEAN_LABELS: Record<ChromaCleanStrength, string> = {
+  none: "不修正偽色",
+  low: "偽色輕度",
+  medium: "偽色中度",
+  high: "偽色重度",
+};
+
 function processingVersionLabel(version: ProcessingVersion): string {
-  return `AI v${version.version_number} · ${version.preset} · ${DENOISE_LABELS[version.denoise_strength]} · ${CPL_LABELS[version.cpl_strength]} · ${version.status}`;
+  return `AI v${version.version_number} · ${version.preset} · ${DENOISE_LABELS[version.denoise_strength]} · ${CHROMA_CLEAN_LABELS[version.chroma_clean_strength]} · ${CPL_LABELS[version.cpl_strength]} · ${version.status}`;
 }
 
 export default function ExportPage() {

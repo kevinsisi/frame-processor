@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from models.enums import (
     AspectRatio,
+    ChromaCleanStrength,
     ColorGradePreset,
     CplStrength,
     DenoiseStrength,
@@ -79,6 +80,7 @@ class ProcessingVersionOut(BaseModel):
     level_correct: bool
     auto_crop_aspect: AspectRatio | None
     cpl_strength: CplStrength
+    chroma_clean_strength: ChromaCleanStrength
     photo_ids: list[UUID]
     progress: int
     total: int
@@ -119,6 +121,7 @@ class ProcessingJobCreate(BaseModel):
     level_correct: bool = False
     auto_crop_aspect: AspectRatio | None = None
     cpl_strength: CplStrength = CplStrength.NONE
+    chroma_clean_strength: ChromaCleanStrength = ChromaCleanStrength.NONE
     force: bool = False
     retry_scope: Literal["none", "full", "missing_only"] = "none"
     retry_of_job_id: UUID | None = None
@@ -141,6 +144,7 @@ class ProcessingJobOut(BaseModel):
     level_correct: bool
     auto_crop_aspect: AspectRatio | None
     cpl_strength: CplStrength
+    chroma_clean_strength: ChromaCleanStrength
     photo_ids: list[UUID]
     progress: int
     total: int

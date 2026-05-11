@@ -53,6 +53,15 @@ class CplStrength(str, Enum):
     HIGH = "high"
 
 
+class ChromaCleanStrength(str, Enum):
+    """暗部偽色/彩色雜訊修正強度。NONE = 跳過 chroma cleanup step。"""
+
+    NONE = "none"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
 class ProcessingJobStatus(str, Enum):
     PENDING = "pending"
     RUNNING = "running"

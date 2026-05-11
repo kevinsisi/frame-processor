@@ -2,6 +2,7 @@ import { AspectPicker } from "@/components/AspectPicker";
 import { StylePicker, type StylePreset } from "@/components/StylePicker";
 import type {
   AspectRatio,
+  ChromaCleanStrength,
   CplStrength,
   DenoiseStrength,
   ProcessingJobCreate,
@@ -19,12 +20,14 @@ export interface PipelinePanelProps {
   levelCorrect: boolean;
   aspect: AspectRatio;
   cplStrength: CplStrength;
+  chromaCleanStrength: ChromaCleanStrength;
   onPresetChange: (preset: StylePreset) => void;
   onDenoiseChange: (denoise: DenoiseStrength) => void;
   onLensDistortChange: (enabled: boolean) => void;
   onLevelCorrectChange: (enabled: boolean) => void;
   onAspectChange: (aspect: AspectRatio) => void;
   onCplStrengthChange: (strength: CplStrength) => void;
+  onChromaCleanStrengthChange: (strength: ChromaCleanStrength) => void;
   onSubmit: (payload: ProcessingJobCreate) => void;
 }
 
@@ -42,6 +45,13 @@ const CPL_OPTIONS: { value: CplStrength; label: string; caption: string }[] = [
   { value: "high", label: "重度", caption: "High" },
 ];
 
+const CHROMA_CLEAN_OPTIONS: { value: ChromaCleanStrength; label: string; caption: string }[] = [
+  { value: "none", label: "關閉", caption: "Off" },
+  { value: "low", label: "輕度", caption: "Low" },
+  { value: "medium", label: "中度", caption: "Med" },
+  { value: "high", label: "重度", caption: "High" },
+];
+
 export function PipelinePanel({
   selectedCount,
   totalCount,
@@ -52,12 +62,14 @@ export function PipelinePanel({
   levelCorrect,
   aspect,
   cplStrength,
+  chromaCleanStrength,
   onPresetChange,
   onDenoiseChange,
   onLensDistortChange,
   onLevelCorrectChange,
   onAspectChange,
   onCplStrengthChange,
+  onChromaCleanStrengthChange,
   onSubmit,
 }: PipelinePanelProps) {
   function handleSubmit() {
@@ -68,6 +80,7 @@ export function PipelinePanel({
       level_correct: levelCorrect,
       auto_crop_aspect: aspect === "original" ? null : aspect,
       cpl_strength: cplStrength,
+      chroma_clean_strength: chromaCleanStrength,
     });
   }
 
@@ -76,7 +89,7 @@ export function PipelinePanel({
       <header className="pipeline__head">
         <h3 className="pipeline__title">處理設定</h3>
         <p className="pipeline__lede mono">
-          順序：降噪 → 廣角矯正 → 水平校正 → 自動裁剪 → 車內 CPL Look → 色調
+          順序：降噪 → 偽色雜色修正 → 廣角矯正 → 水平校正 → 自動裁剪 → 車內 CPL Look → 色調
         </p>
       </header>
 
@@ -144,6 +157,30 @@ export function PipelinePanel({
                 type="button"
                 className={`pipeline__chip${active ? " pipeline__chip--active" : ""}`}
                 onClick={() => onCplStrengthChange(opt.value)}
+                disabled={busy}
+              >
+                <span className="pipeline__chip-caption mono">{opt.caption}</span>
+                <span className="pipeline__chip-label">{opt.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="pipeline__row">
+        <div className="pipeline__row-title-wrap">
+          <h4 className="pipeline__row-title">Chroma Clean / 偽色雜色修正</h4>
+          <span className="pipeline__hint">針對暗部彩色顆粒、紅綠紫色斑與低飽和偽色；保護黃色安全帶與氛圍燈。</span>
+        </div>
+        <div className="pipeline__chips">
+          {CHROMA_CLEAN_OPTIONS.map((opt) => {
+            const active = opt.value === chromaCleanStrength;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                className={`pipeline__chip${active ? " pipeline__chip--active" : ""}`}
+                onClick={() => onChromaCleanStrengthChange(opt.value)}
                 disabled={busy}
               >
                 <span className="pipeline__chip-caption mono">{opt.caption}</span>

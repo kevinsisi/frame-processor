@@ -92,6 +92,7 @@ def create_processing_job(
         level_correct=payload.level_correct,
         auto_crop_aspect=payload.auto_crop_aspect,
         cpl_strength=payload.cpl_strength,
+        chroma_clean_strength=payload.chroma_clean_strength,
         photo_ids=list(photo_ids),
         retry_scope=payload.retry_scope,
         retry_of_job_id=payload.retry_of_job_id,

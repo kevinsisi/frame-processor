@@ -1,5 +1,6 @@
 import type {
   AspectRatio,
+  ChromaCleanStrength,
   ColorGradePreset,
   CplStrength,
   DenoiseStrength,
@@ -9,6 +10,7 @@ import type {
 export const DEFAULT_PIPELINE_PRESET: ColorGradePreset = "showroom_white";
 export const DEFAULT_PIPELINE_DENOISE: DenoiseStrength = "medium";
 export const DEFAULT_PIPELINE_CPL: CplStrength = "none";
+export const DEFAULT_PIPELINE_CHROMA_CLEAN: ChromaCleanStrength = "medium";
 
 const COLOR_GRADE_PRESETS: ColorGradePreset[] = [
   "showroom_white",
@@ -25,6 +27,7 @@ export interface PipelineSettingsState {
   levelCorrect: boolean;
   aspect: AspectRatio;
   cplStrength: CplStrength;
+  chromaCleanStrength: ChromaCleanStrength;
 }
 
 export function isColorGradePreset(value: string | null): value is ColorGradePreset {
@@ -69,5 +72,6 @@ export function buildPipelinePayload(settings: PipelineSettingsState): Processin
     level_correct: settings.levelCorrect,
     auto_crop_aspect: settings.aspect === "original" ? null : settings.aspect,
     cpl_strength: settings.cplStrength,
+    chroma_clean_strength: settings.chromaCleanStrength,
   };
 }

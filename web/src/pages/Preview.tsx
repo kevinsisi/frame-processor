@@ -21,6 +21,7 @@ import type {
   AdjustmentJob,
   AspectRatio,
   AdjustmentPreset,
+  ChromaCleanStrength,
   ColorGradePreset,
   CplStrength,
   DenoiseStrength,
@@ -32,6 +33,7 @@ import type {
 import { needsPipelineRunNote } from "@/utils/pipelinePreview";
 import {
   DEFAULT_PIPELINE_DENOISE,
+  DEFAULT_PIPELINE_CHROMA_CLEAN,
   DEFAULT_PIPELINE_CPL,
   DEFAULT_PIPELINE_PRESET,
   buildPipelinePayload,
@@ -86,6 +88,13 @@ const CPL_LABELS: Record<CplStrength, string> = {
   high: "CPL 重度",
 };
 
+const CHROMA_CLEAN_LABELS: Record<ChromaCleanStrength, string> = {
+  none: "不修正偽色",
+  low: "偽色修正輕度",
+  medium: "偽色修正中度",
+  high: "偽色修正重度",
+};
+
 const ASPECT_LABELS: Record<AspectRatio, string> = {
   original: "原始比例",
   ratio_3_2: "3:2",
@@ -96,7 +105,7 @@ const ASPECT_LABELS: Record<AspectRatio, string> = {
 };
 
 function processingVersionLabel(version: ProcessingVersion): string {
-  return `AI v${version.version_number} · ${PRESET_LABELS[version.preset]} · ${DENOISE_LABELS[version.denoise_strength]} · ${CPL_LABELS[version.cpl_strength]}`;
+  return `AI v${version.version_number} · ${PRESET_LABELS[version.preset]} · ${DENOISE_LABELS[version.denoise_strength]} · ${CHROMA_CLEAN_LABELS[version.chroma_clean_strength]} · ${CPL_LABELS[version.cpl_strength]}`;
 }
 
 function pipelineMatches(version: ProcessingVersion, payload: ProcessingJobCreate): boolean {
@@ -106,7 +115,8 @@ function pipelineMatches(version: ProcessingVersion, payload: ProcessingJobCreat
     version.lens_distort_correct === (payload.lens_distort_correct ?? false) &&
     version.level_correct === (payload.level_correct ?? false) &&
     version.auto_crop_aspect === (payload.auto_crop_aspect ?? null) &&
-    version.cpl_strength === (payload.cpl_strength ?? "none")
+    version.cpl_strength === (payload.cpl_strength ?? "none") &&
+    version.chroma_clean_strength === (payload.chroma_clean_strength ?? "none")
   );
 }
 
@@ -193,6 +203,7 @@ export default function PreviewPage() {
   const [pipelineLevelCorrect, setPipelineLevelCorrect] = useState(true);
   const [pipelineAspect, setPipelineAspect] = useState<AspectRatio>("original");
   const [pipelineCplStrength, setPipelineCplStrength] = useState<CplStrength>(DEFAULT_PIPELINE_CPL);
+  const [pipelineChromaCleanStrength, setPipelineChromaCleanStrength] = useState<ChromaCleanStrength>(DEFAULT_PIPELINE_CHROMA_CLEAN);
   const [adjustmentBusy, setAdjustmentBusy] = useState(false);
   const [draftDirty, setDraftDirty] = useState(false);
   const pollRef = useRef<number | null>(null);
@@ -474,6 +485,11 @@ export default function PreviewPage() {
     setPipelineCplStrength(strength);
   }
 
+  function handlePipelineChromaCleanStrengthChange(strength: ChromaCleanStrength) {
+    pipelineEditedByUserRef.current = true;
+    setPipelineChromaCleanStrength(strength);
+  }
+
   function currentPipelinePayload(): ProcessingJobCreate {
     return buildPipelinePayload({
       preset: pipelinePreset,
@@ -482,6 +498,7 @@ export default function PreviewPage() {
       levelCorrect: pipelineLevelCorrect,
       aspect: pipelineAspect,
       cplStrength: pipelineCplStrength,
+      chromaCleanStrength: pipelineChromaCleanStrength,
     });
   }
 
@@ -580,7 +597,7 @@ export default function PreviewPage() {
       missingPhotoIds,
       { automatic: true },
     );
-  }, [project, projectId, pipelineBusy, pipelinePreset, pipelineDenoise, pipelineLensDistort, pipelineLevelCorrect, pipelineAspect, pipelineCplStrength, job?.status]);
+  }, [project, projectId, pipelineBusy, pipelinePreset, pipelineDenoise, pipelineLensDistort, pipelineLevelCorrect, pipelineAspect, pipelineCplStrength, pipelineChromaCleanStrength, job?.status]);
 
   function toggle(photoId: string) {
     setSelected((prev) => {
@@ -713,6 +730,7 @@ export default function PreviewPage() {
         level_correct: version.level_correct,
         auto_crop_aspect: version.auto_crop_aspect,
         cpl_strength: version.cpl_strength,
+        chroma_clean_strength: version.chroma_clean_strength,
         force: true,
         retry_scope: scope,
         retry_of_job_id: version.id,
@@ -1043,7 +1061,7 @@ export default function PreviewPage() {
           <span className="preview-action__eyebrow mono">目前處理設定</span>
           <strong>{PRESET_LABELS[pipelinePreset]}</strong>
           <span>
-            {DENOISE_LABELS[pipelineDenoise]} · {CPL_LABELS[pipelineCplStrength]} · {pipelineLensDistort ? "廣角矯正" : "不做廣角矯正"} · {pipelineLevelCorrect ? "水平校正" : "不做水平校正"} · {ASPECT_LABELS[pipelineAspect]}
+            {DENOISE_LABELS[pipelineDenoise]} · {CHROMA_CLEAN_LABELS[pipelineChromaCleanStrength]} · {CPL_LABELS[pipelineCplStrength]} · {pipelineLensDistort ? "廣角矯正" : "不做廣角矯正"} · {pipelineLevelCorrect ? "水平校正" : "不做水平校正"} · {ASPECT_LABELS[pipelineAspect]}
           </span>
         </div>
         <div className="preview-action__side">
@@ -1130,7 +1148,7 @@ export default function PreviewPage() {
                       {version.retry_scope !== "none" ? ` · retry ${version.retry_scope}` : ""}
                     </span>
                     <span className="ai-version-card__settings">
-                      {CPL_LABELS[version.cpl_strength]} · {version.lens_distort_correct ? "廣角矯正" : "不做廣角矯正"} · {version.level_correct ? "水平校正" : "不做水平校正"} · {ASPECT_LABELS[version.auto_crop_aspect ?? "original"]}
+                      {CHROMA_CLEAN_LABELS[version.chroma_clean_strength]} · {CPL_LABELS[version.cpl_strength]} · {version.lens_distort_correct ? "廣角矯正" : "不做廣角矯正"} · {version.level_correct ? "水平校正" : "不做水平校正"} · {ASPECT_LABELS[version.auto_crop_aspect ?? "original"]}
                     </span>
                     {missingNames.length > 0 ? (
                       <span className="ai-version-card__error">缺漏照片：{missingNames.slice(0, 6).join("、")}{missingNames.length > 6 ? "…" : ""}</span>
@@ -1301,12 +1319,14 @@ export default function PreviewPage() {
           levelCorrect={pipelineLevelCorrect}
           aspect={pipelineAspect}
           cplStrength={pipelineCplStrength}
+          chromaCleanStrength={pipelineChromaCleanStrength}
           onPresetChange={handlePipelinePresetChange}
           onDenoiseChange={handlePipelineDenoiseChange}
           onLensDistortChange={handlePipelineLensDistortChange}
           onLevelCorrectChange={handlePipelineLevelCorrectChange}
           onAspectChange={handlePipelineAspectChange}
           onCplStrengthChange={handlePipelineCplStrengthChange}
+          onChromaCleanStrengthChange={handlePipelineChromaCleanStrengthChange}
           onSubmit={handleSubmit}
         />
       </div>

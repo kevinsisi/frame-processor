@@ -9,6 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from models.database import Base
 from models.enums import (
     AspectRatio,
+    ChromaCleanStrength,
     ColorGradePreset,
     CplStrength,
     DenoiseStrength,
@@ -75,6 +76,15 @@ class ProcessingJob(Base):
         ),
         nullable=False,
         default=CplStrength.NONE,
+    )
+    chroma_clean_strength: Mapped[ChromaCleanStrength] = mapped_column(
+        SAEnum(
+            ChromaCleanStrength,
+            name="chroma_clean_strength",
+            values_callable=lambda enum_cls: [m.value for m in enum_cls],
+        ),
+        nullable=False,
+        default=ChromaCleanStrength.NONE,
     )
     version_number: Mapped[int] = mapped_column(Integer, nullable=False)
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

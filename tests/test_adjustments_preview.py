@@ -6,8 +6,16 @@ from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageStat
 
 from api.config import settings
 from api.routers.adjustments import AdjustmentSource as AdjustmentApiSource
-from models.enums import ColorGradePreset, CplStrength, DenoiseStrength
-from services import adjustments, color_grade, cpl_look, denoise, lens_distort, photo_processor
+from models.enums import ChromaCleanStrength, ColorGradePreset, CplStrength, DenoiseStrength
+from services import (
+    adjustments,
+    chroma_clean,
+    color_grade,
+    cpl_look,
+    denoise,
+    lens_distort,
+    photo_processor,
+)
 
 
 def _mean_channel_delta(image: Image.Image, left: int, right: int) -> float:
@@ -29,6 +37,11 @@ def _luma_std(image: Image.Image, box: tuple[int, int, int, int]) -> float:
 
 def _luma_mean(image: Image.Image, box: tuple[int, int, int, int]) -> float:
     return float(np.asarray(image.convert("L").crop(box)).mean())
+
+
+def _mean_chroma_spread(image: Image.Image, box: tuple[int, int, int, int]) -> float:
+    arr = np.asarray(image.convert("RGB").crop(box), dtype=np.float32)
+    return float((np.abs(arr[:, :, 0] - arr[:, :, 1]) + np.abs(arr[:, :, 2] - arr[:, :, 1])).mean())
 
 
 def _luma_contrast(
@@ -204,6 +217,44 @@ def test_cpl_look_reduces_moderate_dashboard_reflection() -> None:
 
     glare_box = (32, 33, 88, 38)
     assert _luma_mean(result, glare_box) < _luma_mean(image, glare_box) - 10
+
+
+def test_chroma_clean_none_preserves_pixels() -> None:
+    image = Image.new("RGB", (32, 24), (40, 42, 44))
+
+    result = chroma_clean.apply_chroma_clean(image, ChromaCleanStrength.NONE)
+
+    assert _difference_sum(image, result) == 0
+
+
+def test_chroma_clean_reduces_dark_false_color_without_washing_yellow() -> None:
+    base = Image.new("RGB", (96, 64), (28, 28, 28))
+    noisy = np.asarray(base).copy()
+    rng = np.random.default_rng(42)
+    noise = rng.normal(0, 20, noisy[:, :64, :].shape).astype(np.int16)
+    noisy[:, :64, :] = np.clip(noisy[:, :64, :].astype(np.int16) + noise, 0, 255).astype(np.uint8)
+    noisy[:, 64:, :] = (216, 155, 28)
+    image = Image.fromarray(noisy, mode="RGB")
+
+    result = chroma_clean.apply_chroma_clean(image, ChromaCleanStrength.HIGH)
+
+    dark_box = (0, 0, 64, 64)
+    yellow_box = (70, 8, 92, 56)
+    assert _mean_chroma_spread(result, dark_box) < _mean_chroma_spread(image, dark_box) * 0.73
+    assert _mean_squared_error(result, image, yellow_box) < 8
+
+
+def test_chroma_clean_preserves_dark_saturated_details() -> None:
+    image = Image.new("RGB", (80, 48), (28, 28, 28))
+    pixels = np.asarray(image).copy()
+    pixels[:, :44] = (30, 32, 34)
+    pixels[10:38, 50:72] = (18, 45, 115)
+    image = Image.fromarray(pixels, mode="RGB")
+
+    result = chroma_clean.apply_chroma_clean(image, ChromaCleanStrength.HIGH)
+
+    ambient_light_box = (50, 10, 72, 38)
+    assert _mean_squared_error(result, image, ambient_light_box) < 3
 
 
 def test_adjustment_source_accepts_processing_versions() -> None:
