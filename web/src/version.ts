@@ -1,2 +1,2 @@
-// v0.4.1 - keeps the build version visible in the app header.
-export const APP_VERSION = "0.4.1";
+// v0.4.2 - adds car-interior CPL Look / anti-glare batch processing.
+export const APP_VERSION = "0.4.2";

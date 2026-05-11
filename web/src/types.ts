@@ -59,6 +59,8 @@ export type AspectRatio =
 
 export type DenoiseStrength = "none" | "light" | "medium" | "heavy";
 
+export type CplStrength = "none" | "low" | "medium" | "high";
+
 export type ProcessingJobStatus = "pending" | "running" | "done" | "failed";
 
 export type ProcessingRetryScope = "none" | "full" | "missing_only";
@@ -73,6 +75,7 @@ export type ProcessingJob = {
   lens_distort_correct: boolean;
   level_correct: boolean;
   auto_crop_aspect: AspectRatio | null;
+  cpl_strength: CplStrength;
   photo_ids: string[];
   progress: number;
   total: number;
@@ -100,6 +103,7 @@ export type ProcessingJobCreate = {
   lens_distort_correct?: boolean;
   level_correct?: boolean;
   auto_crop_aspect?: AspectRatio | null;
+  cpl_strength?: CplStrength;
   photo_ids?: string[];
   force?: boolean;
   retry_scope?: ProcessingRetryScope;

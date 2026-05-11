@@ -80,7 +80,7 @@ FE ──GET /photos/{id}/thumbnail──▶ API
 ### 批次處理
 
 ```
-FE ──POST /projects/{id}/process { preset, photo_ids?, level_correct, auto_crop_aspect }──▶ API
+FE ──POST /projects/{id}/process { preset, photo_ids?, level_correct, auto_crop_aspect, cpl_strength }──▶ API
                                                                                               ├─ INSERT ProcessingJob (status=pending, total=N)
                                                                                               ├─ rq.enqueue("worker.jobs.processing_job", job_id, photo_id_strs)
                                                                                               └─ return ProcessingJob (202)
@@ -88,7 +88,7 @@ FE ──POST /projects/{id}/process { preset, photo_ids?, level_correct, auto_c
 worker picks up job:
    ├─ UPDATE ProcessingJob.status = "running"
    ├─ for photo in target photos:
-   │     ├─ pipeline: level_correct → auto_crop → color_grade
+   │     ├─ pipeline: denoise → lens_distort → level_correct → auto_crop → cpl_look → color_grade
    │     ├─ save jpg to <storage>/projects/<pid>/processed/<photo_id>.<preset>.jpg
    │     ├─ UPDATE Photo.processed_paths[preset] = relative_path
    │     └─ UPDATE ProcessingJob.progress_done += 1
@@ -103,8 +103,11 @@ FE ──GET /photos/{id}/processed/{preset}──▶ API ── stream processe
 ```
 原圖（PIL）
    ↓ ImageOps.exif_transpose（修正 iPhone / DJI 直拍 orientation）
-   ↓ level_correct（Canny + HoughLinesP，|θ| ≤ 30° 中位數；超過 ±5° 不旋轉）
-   ↓ auto_crop（Sobel energy + integral image sliding window；original 比例為 no-op）
+   ↓ denoise（NAFNet + OpenCV edge-aware fallback）
+   ↓ lens_distort（桶形畸變 + 自動垂直透視矯正）
+   ↓ level_correct（Gemini Vision / Hough fallback 水平校正）
+   ↓ auto_crop（YOLOv8 + aspect crop；original 比例為 no-op）
+   ↓ cpl_look（車內亮面飾板、儀表玻璃、中控螢幕與車窗反光抑制）
    ↓ color_grade（依 preset 套白平衡 / 暖 / 冷 numpy float 運算）
    ↓ JPEG quality=92 寫入 processed/
 ```
@@ -180,6 +183,7 @@ FE ──GET /photos/{id}/processed/{preset}──▶ API ── stream processe
 | lens_distort_correct | bool | 開廣角桶形矯正 |
 | level_correct | bool | 開 Gemini 水平校正 |
 | auto_crop_aspect | enum nullable | `aspect_ratio` 或 NULL = 跳過 crop |
+| cpl_strength | enum(none, low, medium, high) | 車內 CPL Look / 反光抑制強度 |
 | photo_ids | UUID[] | 處理的 photo id list |
 | progress | int | 已完成張數 |
 | total | int | 總張數 |
@@ -191,13 +195,14 @@ FE ──GET /photos/{id}/processed/{preset}──▶ API ── stream processe
 
 ## Pipeline 順序
 
-固定：`denoise → lens_distort → level_correct → auto_crop → color_grade`
+固定：`denoise → lens_distort → level_correct → auto_crop → cpl_look → color_grade`
 
 1. denoise 最先 — geometric ops 會放大噪點
 2. lens_distort 次之 — 廣角修平後 level/crop 才對得到真水平 / 真主體
 3. level_correct 第三 — 用 Gemini Vision 估角度（無上限）+ `cv2.warpAffine`
 4. auto_crop 第四 — YOLOv8n 偵測車輛 bbox + rule-of-thirds
-5. color_grade 最後 — 純像素操作
+5. cpl_look 在色調前 — 先壓低車內亮面飾板、儀表玻璃、中控螢幕與車窗反光
+6. color_grade 最後 — 純像素操作
 
 ## 處理資料流（v0.2.0）
 
@@ -209,7 +214,7 @@ FE ──POST /projects/{id}/process──▶ API
 
 worker picks up job:
    ├─ load ProcessingJob + each Photo
-   ├─ for each photo: denoise → lens → level → crop → grade
+   ├─ for each photo: denoise → lens → level → crop → cpl → grade
    │   └─ write <storage>/projects/<pid>/processed/<photo_id>.<preset>.jpg
    ├─ update Photo.processed_paths[preset_value]
    └─ UPDATE ProcessingJob.progress / status

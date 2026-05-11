@@ -6,8 +6,8 @@ from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageStat
 
 from api.config import settings
 from api.routers.adjustments import AdjustmentSource as AdjustmentApiSource
-from models.enums import ColorGradePreset, DenoiseStrength
-from services import adjustments, color_grade, denoise, lens_distort, photo_processor
+from models.enums import ColorGradePreset, CplStrength, DenoiseStrength
+from services import adjustments, color_grade, cpl_look, denoise, lens_distort, photo_processor
 
 
 def _mean_channel_delta(image: Image.Image, left: int, right: int) -> float:
@@ -25,6 +25,10 @@ def _edge_mean(image: Image.Image) -> float:
 
 def _luma_std(image: Image.Image, box: tuple[int, int, int, int]) -> float:
     return float(np.asarray(image.convert("L").crop(box)).std())
+
+
+def _luma_mean(image: Image.Image, box: tuple[int, int, int, int]) -> float:
+    return float(np.asarray(image.convert("L").crop(box)).mean())
 
 
 def _luma_contrast(
@@ -158,6 +162,48 @@ def test_pipeline_night_grade_is_visibly_cooler() -> None:
     graded = color_grade.apply_grade(image, ColorGradePreset.NIGHT_COLD)
 
     assert _mean_channel_delta(graded, 2, 0) >= 35
+
+
+def test_cpl_look_none_preserves_pixels() -> None:
+    image = Image.new("RGB", (32, 24), (96, 104, 112))
+
+    result = cpl_look.apply_cpl_look(image, CplStrength.NONE)
+
+    assert _difference_sum(image, result) == 0
+
+
+def test_cpl_look_reduces_car_interior_glare_without_crushing_dark_trim() -> None:
+    image = Image.new("RGB", (120, 80), (28, 30, 32))
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((8, 12, 112, 68), fill=(34, 36, 38))
+    draw.rectangle((18, 20, 102, 34), fill=(18, 20, 22))
+    draw.rectangle((42, 42, 78, 58), fill=(16, 90, 170))
+    draw.rectangle((82, 42, 108, 58), fill=(224, 220, 208))
+    draw.line((20, 27, 100, 27), fill=(238, 238, 232), width=5)
+    draw.line((28, 24, 94, 34), fill=(218, 218, 212), width=2)
+
+    result = cpl_look.apply_cpl_look(image, CplStrength.MEDIUM)
+
+    glare_box = (36, 24, 84, 31)
+    dark_trim_box = (18, 44, 38, 60)
+    screen_box = (46, 44, 74, 56)
+    white_leather_box = (86, 45, 104, 55)
+    assert _luma_mean(result, glare_box) < _luma_mean(image, glare_box) - 18
+    assert _luma_mean(result, dark_trim_box) >= _luma_mean(image, dark_trim_box) - 6
+    assert _luma_mean(result, screen_box) >= _luma_mean(image, screen_box) - 8
+    assert _luma_mean(result, white_leather_box) >= _luma_mean(image, white_leather_box) - 8
+
+
+def test_cpl_look_reduces_moderate_dashboard_reflection() -> None:
+    image = Image.new("RGB", (120, 72), (26, 27, 29))
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((12, 14, 108, 58), fill=(24, 25, 27))
+    draw.line((20, 35, 100, 35), fill=(190, 190, 184), width=4)
+
+    result = cpl_look.apply_cpl_look(image, CplStrength.MEDIUM)
+
+    glare_box = (32, 33, 88, 38)
+    assert _luma_mean(result, glare_box) < _luma_mean(image, glare_box) - 10
 
 
 def test_adjustment_source_accepts_processing_versions() -> None:

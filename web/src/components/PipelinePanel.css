@@ -68,6 +68,19 @@
   min-width: 0;
 }
 
+.pipeline__row-title-wrap {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pipeline__hint {
+  color: var(--ink-3, rgba(245, 244, 238, 0.55));
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .pipeline__chip {
   display: inline-flex;
   flex-direction: column;

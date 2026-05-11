@@ -163,6 +163,7 @@ def process_photos_job(job_id: str) -> int:
                         lens_distort_correct=job.lens_distort_correct,
                         level_correct_on=job.level_correct,
                         auto_crop_aspect=job.auto_crop_aspect,
+                        cpl_strength=job.cpl_strength,
                         version_number=job.version_number,
                     )
                     row = _photo_processing_version(db, job, photo.id)

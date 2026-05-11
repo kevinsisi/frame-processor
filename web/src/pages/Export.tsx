@@ -4,7 +4,7 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { api } from "@/api/client";
 import { Spinner } from "@/components/Spinner";
 import { useToast } from "@/components/Toast";
-import type { DenoiseStrength, Export, ExportStatus, ProcessingVersion, ProjectDetail } from "@/types";
+import type { CplStrength, DenoiseStrength, Export, ExportStatus, ProcessingVersion, ProjectDetail } from "@/types";
 import { formatServiceTime } from "@/utils/time";
 
 import "./Export.css";
@@ -23,8 +23,15 @@ const DENOISE_LABELS: Record<DenoiseStrength, string> = {
   heavy: "重度降噪",
 };
 
+const CPL_LABELS: Record<CplStrength, string> = {
+  none: "不做 CPL",
+  low: "CPL 輕度",
+  medium: "CPL 中度",
+  high: "CPL 重度",
+};
+
 function processingVersionLabel(version: ProcessingVersion): string {
-  return `AI v${version.version_number} · ${version.preset} · ${DENOISE_LABELS[version.denoise_strength]} · ${version.status}`;
+  return `AI v${version.version_number} · ${version.preset} · ${DENOISE_LABELS[version.denoise_strength]} · ${CPL_LABELS[version.cpl_strength]} · ${version.status}`;
 }
 
 export default function ExportPage() {

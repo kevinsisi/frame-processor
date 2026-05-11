@@ -10,6 +10,7 @@ from models.database import Base
 from models.enums import (
     AspectRatio,
     ColorGradePreset,
+    CplStrength,
     DenoiseStrength,
     ProcessingJobStatus,
 )
@@ -65,6 +66,15 @@ class ProcessingJob(Base):
             values_callable=lambda enum_cls: [m.value for m in enum_cls],
         ),
         nullable=True,
+    )
+    cpl_strength: Mapped[CplStrength] = mapped_column(
+        SAEnum(
+            CplStrength,
+            name="cpl_strength",
+            values_callable=lambda enum_cls: [m.value for m in enum_cls],
+        ),
+        nullable=False,
+        default=CplStrength.NONE,
     )
     version_number: Mapped[int] = mapped_column(Integer, nullable=False)
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

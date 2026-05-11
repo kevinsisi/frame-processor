@@ -22,6 +22,7 @@ import type {
   AspectRatio,
   AdjustmentPreset,
   ColorGradePreset,
+  CplStrength,
   DenoiseStrength,
   ProcessingJob,
   ProcessingJobCreate,
@@ -31,6 +32,7 @@ import type {
 import { needsPipelineRunNote } from "@/utils/pipelinePreview";
 import {
   DEFAULT_PIPELINE_DENOISE,
+  DEFAULT_PIPELINE_CPL,
   DEFAULT_PIPELINE_PRESET,
   buildPipelinePayload,
   readProjectPipelinePreset,
@@ -77,6 +79,13 @@ const DENOISE_LABELS: Record<DenoiseStrength, string> = {
   heavy: "重度降噪",
 };
 
+const CPL_LABELS: Record<CplStrength, string> = {
+  none: "不做 CPL Look",
+  low: "CPL 輕度",
+  medium: "CPL 中度",
+  high: "CPL 重度",
+};
+
 const ASPECT_LABELS: Record<AspectRatio, string> = {
   original: "原始比例",
   ratio_3_2: "3:2",
@@ -87,7 +96,7 @@ const ASPECT_LABELS: Record<AspectRatio, string> = {
 };
 
 function processingVersionLabel(version: ProcessingVersion): string {
-  return `AI v${version.version_number} · ${PRESET_LABELS[version.preset]} · ${DENOISE_LABELS[version.denoise_strength]}`;
+  return `AI v${version.version_number} · ${PRESET_LABELS[version.preset]} · ${DENOISE_LABELS[version.denoise_strength]} · ${CPL_LABELS[version.cpl_strength]}`;
 }
 
 function pipelineMatches(version: ProcessingVersion, payload: ProcessingJobCreate): boolean {
@@ -96,7 +105,8 @@ function pipelineMatches(version: ProcessingVersion, payload: ProcessingJobCreat
     version.denoise_strength === (payload.denoise_strength ?? "none") &&
     version.lens_distort_correct === (payload.lens_distort_correct ?? false) &&
     version.level_correct === (payload.level_correct ?? false) &&
-    version.auto_crop_aspect === (payload.auto_crop_aspect ?? null)
+    version.auto_crop_aspect === (payload.auto_crop_aspect ?? null) &&
+    version.cpl_strength === (payload.cpl_strength ?? "none")
   );
 }
 
@@ -160,6 +170,7 @@ export default function PreviewPage() {
   const [pipelineLensDistort, setPipelineLensDistort] = useState(true);
   const [pipelineLevelCorrect, setPipelineLevelCorrect] = useState(true);
   const [pipelineAspect, setPipelineAspect] = useState<AspectRatio>("original");
+  const [pipelineCplStrength, setPipelineCplStrength] = useState<CplStrength>(DEFAULT_PIPELINE_CPL);
   const [adjustmentBusy, setAdjustmentBusy] = useState(false);
   const [draftDirty, setDraftDirty] = useState(false);
   const pollRef = useRef<number | null>(null);
@@ -341,6 +352,7 @@ export default function PreviewPage() {
       lensDistort: pipelineLensDistort,
       levelCorrect: pipelineLevelCorrect,
       aspect: pipelineAspect,
+      cplStrength: pipelineCplStrength,
     });
   }
 
@@ -367,7 +379,7 @@ export default function PreviewPage() {
       missingPhotoIds,
       { automatic: true },
     );
-  }, [project, projectId, pipelineBusy, pipelinePreset, pipelineDenoise, pipelineLensDistort, pipelineLevelCorrect, pipelineAspect, job?.status]);
+  }, [project, projectId, pipelineBusy, pipelinePreset, pipelineDenoise, pipelineLensDistort, pipelineLevelCorrect, pipelineAspect, pipelineCplStrength, job?.status]);
 
   function toggle(photoId: string) {
     setSelected((prev) => {
@@ -462,6 +474,7 @@ export default function PreviewPage() {
         lens_distort_correct: version.lens_distort_correct,
         level_correct: version.level_correct,
         auto_crop_aspect: version.auto_crop_aspect,
+        cpl_strength: version.cpl_strength,
         force: true,
         retry_scope: scope,
         retry_of_job_id: version.id,
@@ -700,8 +713,7 @@ export default function PreviewPage() {
   const originalDisplayUrl = samplePhoto ? api.photoFileUrl(samplePhoto.id) : "";
   const needsPipelineRun = needsPipelineRunNote({
     sourceKind: sampleVersion?.source.kind,
-    processedPaths: sampleHasMatchingPipelineOutput ? { [pipelinePreset]: "matched" } : samplePhoto?.processed_paths,
-    pipelinePreset,
+    hasMatchingPipelineOutput: sampleHasMatchingPipelineOutput,
     hasActivePreview: Boolean(activePreviewUrl),
   });
   const progressPct =
@@ -743,7 +755,7 @@ export default function PreviewPage() {
           <span className="preview-action__eyebrow mono">目前處理設定</span>
           <strong>{PRESET_LABELS[pipelinePreset]}</strong>
           <span>
-            {DENOISE_LABELS[pipelineDenoise]} · {pipelineLensDistort ? "廣角矯正" : "不做廣角矯正"} · {pipelineLevelCorrect ? "水平校正" : "不做水平校正"} · {ASPECT_LABELS[pipelineAspect]}
+            {DENOISE_LABELS[pipelineDenoise]} · {CPL_LABELS[pipelineCplStrength]} · {pipelineLensDistort ? "廣角矯正" : "不做廣角矯正"} · {pipelineLevelCorrect ? "水平校正" : "不做水平校正"} · {ASPECT_LABELS[pipelineAspect]}
           </span>
         </div>
         <div className="preview-action__side">
@@ -830,7 +842,7 @@ export default function PreviewPage() {
                       {version.retry_scope !== "none" ? ` · retry ${version.retry_scope}` : ""}
                     </span>
                     <span className="ai-version-card__settings">
-                      {version.lens_distort_correct ? "廣角矯正" : "不做廣角矯正"} · {version.level_correct ? "水平校正" : "不做水平校正"} · {ASPECT_LABELS[version.auto_crop_aspect ?? "original"]}
+                      {CPL_LABELS[version.cpl_strength]} · {version.lens_distort_correct ? "廣角矯正" : "不做廣角矯正"} · {version.level_correct ? "水平校正" : "不做水平校正"} · {ASPECT_LABELS[version.auto_crop_aspect ?? "original"]}
                     </span>
                     {missingNames.length > 0 ? (
                       <span className="ai-version-card__error">缺漏照片：{missingNames.slice(0, 6).join("、")}{missingNames.length > 6 ? "…" : ""}</span>
@@ -1000,11 +1012,13 @@ export default function PreviewPage() {
           lensDistort={pipelineLensDistort}
           levelCorrect={pipelineLevelCorrect}
           aspect={pipelineAspect}
+          cplStrength={pipelineCplStrength}
           onPresetChange={handlePipelinePresetChange}
           onDenoiseChange={setPipelineDenoise}
           onLensDistortChange={setPipelineLensDistort}
           onLevelCorrectChange={setPipelineLevelCorrect}
           onAspectChange={setPipelineAspect}
+          onCplStrengthChange={setPipelineCplStrength}
           onSubmit={handleSubmit}
         />
       </div>

@@ -1,18 +1,16 @@
 export function needsPipelineRunNote({
   sourceKind,
-  processedPaths,
-  pipelinePreset,
+  hasMatchingPipelineOutput,
   hasActivePreview,
 }: {
   sourceKind: string | null | undefined;
-  processedPaths: Record<string, string> | null | undefined;
-  pipelinePreset: string;
+  hasMatchingPipelineOutput: boolean;
   hasActivePreview: boolean;
 }): boolean {
   return Boolean(
     hasActivePreview &&
       sourceKind === "original" &&
-      !(processedPaths ?? {})[pipelinePreset],
+      !hasMatchingPipelineOutput,
   );
 }
 

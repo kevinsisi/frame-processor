@@ -44,6 +44,15 @@ class DenoiseStrength(str, Enum):
     HEAVY = "heavy"
 
 
+class CplStrength(str, Enum):
+    """CPL Look 反光抑制強度。NONE = 跳過 anti-glare step。"""
+
+    NONE = "none"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
 class ProcessingJobStatus(str, Enum):
     PENDING = "pending"
     RUNNING = "running"

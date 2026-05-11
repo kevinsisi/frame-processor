@@ -1,6 +1,7 @@
 import { missingPipelineOutputPhotoIds, needsPipelineRunNote } from "../src/utils/pipelinePreview.js";
 import {
   DEFAULT_PIPELINE_DENOISE,
+  DEFAULT_PIPELINE_CPL,
   buildPipelinePayload,
   isColorGradePreset,
   pipelinePresetStorageKey,
@@ -17,8 +18,7 @@ function assertEqual(actual: boolean, expected: boolean, label: string): void {
 assertEqual(
   needsPipelineRunNote({
     sourceKind: "original",
-    processedPaths: {},
-    pipelinePreset: "showroom_white",
+    hasMatchingPipelineOutput: false,
     hasActivePreview: true,
   }),
   true,
@@ -28,8 +28,7 @@ assertEqual(
 assertEqual(
   needsPipelineRunNote({
     sourceKind: "original",
-    processedPaths: { showroom_white: "processed.jpg" },
-    pipelinePreset: "showroom_white",
+    hasMatchingPipelineOutput: true,
     hasActivePreview: true,
   }),
   false,
@@ -39,8 +38,7 @@ assertEqual(
 assertEqual(
   needsPipelineRunNote({
     sourceKind: "preset",
-    processedPaths: {},
-    pipelinePreset: "showroom_white",
+    hasMatchingPipelineOutput: false,
     hasActivePreview: true,
   }),
   false,
@@ -50,8 +48,7 @@ assertEqual(
 assertEqual(
   needsPipelineRunNote({
     sourceKind: "original",
-    processedPaths: {},
-    pipelinePreset: "showroom_white",
+    hasMatchingPipelineOutput: false,
     hasActivePreview: false,
   }),
   false,
@@ -73,6 +70,10 @@ if (missing.join(",") !== "a,c") {
 
 if (DEFAULT_PIPELINE_DENOISE !== "medium") {
   throw new Error(`DEFAULT_PIPELINE_DENOISE: expected medium, got ${DEFAULT_PIPELINE_DENOISE}`);
+}
+
+if (DEFAULT_PIPELINE_CPL !== "none") {
+  throw new Error(`DEFAULT_PIPELINE_CPL: expected none, got ${DEFAULT_PIPELINE_CPL}`);
 }
 
 const store = new Map<string, string>();
@@ -102,13 +103,15 @@ const originalAspectPayload = buildPipelinePayload({
   lensDistort: false,
   levelCorrect: true,
   aspect: "original",
+  cplStrength: "medium",
 });
 if (
   originalAspectPayload.preset !== "night_cold" ||
   originalAspectPayload.denoise_strength !== "medium" ||
   originalAspectPayload.lens_distort_correct !== false ||
   originalAspectPayload.level_correct !== true ||
-  originalAspectPayload.auto_crop_aspect !== null
+  originalAspectPayload.auto_crop_aspect !== null ||
+  originalAspectPayload.cpl_strength !== "medium"
 ) {
   throw new Error("buildPipelinePayload: did not preserve original-aspect pipeline settings");
 }
@@ -119,13 +122,15 @@ const croppedPayload = buildPipelinePayload({
   lensDistort: true,
   levelCorrect: false,
   aspect: "ratio_16_9",
+  cplStrength: "high",
 });
 if (
   croppedPayload.preset !== "outdoor_warm" ||
   croppedPayload.denoise_strength !== "heavy" ||
   croppedPayload.lens_distort_correct !== true ||
   croppedPayload.level_correct !== false ||
-  croppedPayload.auto_crop_aspect !== "ratio_16_9"
+  croppedPayload.auto_crop_aspect !== "ratio_16_9" ||
+  croppedPayload.cpl_strength !== "high"
 ) {
   throw new Error("buildPipelinePayload: did not preserve cropped pipeline settings");
 }

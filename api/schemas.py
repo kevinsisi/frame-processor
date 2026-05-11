@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from models.enums import (
     AspectRatio,
     ColorGradePreset,
+    CplStrength,
     DenoiseStrength,
     ExportStatus,
     ProcessingJobStatus,
@@ -77,6 +78,7 @@ class ProcessingVersionOut(BaseModel):
     lens_distort_correct: bool
     level_correct: bool
     auto_crop_aspect: AspectRatio | None
+    cpl_strength: CplStrength
     photo_ids: list[UUID]
     progress: int
     total: int
@@ -116,6 +118,7 @@ class ProcessingJobCreate(BaseModel):
     lens_distort_correct: bool = False
     level_correct: bool = False
     auto_crop_aspect: AspectRatio | None = None
+    cpl_strength: CplStrength = CplStrength.NONE
     force: bool = False
     retry_scope: Literal["none", "full", "missing_only"] = "none"
     retry_of_job_id: UUID | None = None
@@ -137,6 +140,7 @@ class ProcessingJobOut(BaseModel):
     lens_distort_correct: bool
     level_correct: bool
     auto_crop_aspect: AspectRatio | None
+    cpl_strength: CplStrength
     photo_ids: list[UUID]
     progress: int
     total: int
