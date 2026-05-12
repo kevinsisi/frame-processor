@@ -36,6 +36,10 @@ NAFNET_DIR=/data/models-weights/nafnet            # NAFNet 權重 cache
 
 模型權重（YOLOv8n 6MB + NAFNet-SIDD-width32 ~112MB）首次處理時 lazy download 到對應 volume 路徑，之後跨 container restart 共用。
 
+### 幾何校正注意
+
+廣角畸變矯正與 Gemini 水平校正都是幾何變形步驟，不是降噪步驟。若照片已被手機/相機或前期流程校正，或同一批混有不同鏡頭、不同裁切比例，請關閉「廣角畸變矯正」；若處理後仍出現不合理旋轉或拉伸，也關閉「Gemini 水平校正」後重跑一版。AI 降噪、Chroma Clean、Detail Preserve 可以獨立保留，不需要為了降噪強制套幾何校正。
+
 ## CI/CD Deployment
 
 GitHub Actions 使用 HomeProject two-workflow pattern：

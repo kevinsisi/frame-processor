@@ -119,6 +119,7 @@ v0.x 期間若 alembic revision id 對不上（例：branch supersede 舊版 000
 - **EXIF orientation**：iPhone / DJI 直拍照片帶 `Orientation=6/8`，讀取時必須套用旋轉，否則 thumbnail 會躺著。所有 `services/storage.py` 的 PIL 讀取都應該 `ImageOps.exif_transpose()`。
 - **色調預設名稱用 enum**：禁止字串散落在 routers / services / FE，全部走 `models/enums.py:ColorGradePreset`。
 - **batch 處理永遠走 worker**：FastAPI handler 不做 CPU 重的事；上傳 / 列表 / 觸發 job / 查狀態 / 下載 zip 是 API 的責任。處理本身一律 enqueue 到 RQ。
+- **幾何校正不是降噪必要條件**：`lens_distort_correct` 會套通用 Brown-Conrady 桶形校正與自動垂直透視修正，`level_correct` 會呼叫 Gemini 做水平旋轉。若原圖已由手機/相機校正、已人工修正，或同批照片混有不同鏡頭/裁切，這兩步可能過度矯正造成變形；使用者回報處理後變形時，優先重跑「lens 關、level 關、保留 denoise/chroma/detail」的版本，不要為了 AI 降噪強制套幾何校正。
 
 ## Skill Activation Rules
 
