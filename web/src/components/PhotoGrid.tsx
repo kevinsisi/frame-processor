@@ -2,6 +2,11 @@ import { useState } from "react";
 
 import { api } from "@/api/client";
 import type { AdjustmentSource, ColorGradePreset, Photo, ProcessingVersion } from "@/types";
+import {
+  formatAIVersionFallbackLabel,
+  formatAIVersionLabel,
+  formatBatchPresetLabel,
+} from "@/utils/processingVersionLabel";
 
 import "./PhotoGrid.css";
 
@@ -216,7 +221,7 @@ export function buildPhotoVersionOptions(
     const job = processingVersions.find((item) => item.id === version.processing_job_id);
     options.push({
       value: `processing:${version.processing_job_id}`,
-      label: job ? `AI v${job.version_number}：${presetLabel(job.preset)} / ${denoiseLabel(job.denoise_strength)} / ${chromaCleanLabel(job.chroma_clean_strength)} / ${detailPreserveLabel(job.detail_preserve_strength)} / ${cplLabel(job.cpl_strength)}` : `AI v${version.version_number}`,
+      label: job ? formatAIVersionLabel(job) : formatAIVersionFallbackLabel(version.version_number),
       url: api.processingVersionUrl(photo.id, version.processing_job_id),
       source: { kind: "processing", value: version.processing_job_id },
     });
@@ -225,7 +230,7 @@ export function buildPhotoVersionOptions(
     if (preset === "adjusted") continue;
     options.push({
       value: `preset:${preset}`,
-      label: `批次：${presetLabel(preset)}`,
+      label: formatBatchPresetLabel(preset),
       url: api.processedPhotoUrl(photo.id, preset as ColorGradePreset),
       source: { kind: "preset", value: preset },
     });
@@ -243,41 +248,3 @@ export function defaultPhotoVersionOption(options: PhotoVersionOption[]): PhotoV
   return options.find((option) => option.value === "original") ?? options[0];
 }
 
-function presetLabel(preset: string): string {
-  if (preset === "showroom_white") return "展示間白";
-  if (preset === "outdoor_warm") return "戶外暖調";
-  if (preset === "night_cold") return "夜拍冷調";
-  return preset;
-}
-
-function denoiseLabel(strength: string): string {
-  if (strength === "none") return "不降噪";
-  if (strength === "light") return "輕度降噪";
-  if (strength === "medium") return "中度降噪";
-  if (strength === "heavy") return "重度降噪";
-  return strength;
-}
-
-function cplLabel(strength: string): string {
-  if (strength === "none") return "不做 CPL";
-  if (strength === "low") return "CPL 輕度";
-  if (strength === "medium") return "CPL 中度";
-  if (strength === "high") return "CPL 重度";
-  return strength;
-}
-
-function chromaCleanLabel(strength: string): string {
-  if (strength === "none") return "不修正偽色";
-  if (strength === "low") return "偽色輕度";
-  if (strength === "medium") return "偽色中度";
-  if (strength === "high") return "偽色重度";
-  return strength;
-}
-
-function detailPreserveLabel(strength: string): string {
-  if (strength === "none") return "不保留細節";
-  if (strength === "low") return "細節輕度";
-  if (strength === "medium") return "細節中度";
-  if (strength === "high") return "細節重度";
-  return strength;
-}

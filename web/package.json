@@ -11,6 +11,7 @@
     "test:time": "node scripts/test-time-format.cjs",
     "test:geometry": "node scripts/test-geometry-crop.cjs",
     "test:pipeline-preview": "node scripts/test-pipeline-preview.cjs",
+    "test:processing-version-label": "node scripts/test-processing-version-label.cjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

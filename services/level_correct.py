@@ -7,6 +7,13 @@
 4. 旋轉後用反推內接矩形裁掉黑邊
 5. Gemini API key 缺失或回應無法解析時 raise，讓 worker 標 fail（不靜默 fallback）
 
+錯誤分類與重試（``_classify_gemini_error`` / ``_backoff_seconds``）：
+- AUTH（401 / 403）：不重試，直接 fail；換 key 才可能解
+- QUOTA（429）：長 backoff 15 → 30 → 60s 共 3 次
+- TIMEOUT（DeadlineExceeded / RetryError）：中 backoff 2 → 4 → 8s
+- TRANSIENT（503 / 500 / Aborted）：短 backoff 1 → 2 → 4s
+- PERMANENT / 其它：短 backoff 0.5s 一次後 fail
+
 公開介面：``correct_level(image: PIL.Image) -> tuple[PIL.Image, float]``
 """
 
@@ -15,6 +22,7 @@ from __future__ import annotations
 import io
 import re
 import time
+from enum import Enum
 
 import cv2
 import numpy as np
@@ -33,9 +41,25 @@ _PROMPT = (
 
 _NUMBER_RE = re.compile(r"-?\d+(?:\.\d+)?")
 
+# Per-call timeout (秒) — Gemini Flash 處理 768px 圖通常 1-3s，30s 已留足容錯
+GEMINI_REQUEST_TIMEOUT_SECONDS = 30
+
+# 重試上限
+GEMINI_MAX_ATTEMPTS = 3
+
 
 class LevelCorrectError(RuntimeError):
     pass
+
+
+class GeminiErrorKind(str, Enum):
+    """Gemini API 錯誤分類，用來決定 retry 策略。"""
+
+    AUTH = "auth"
+    QUOTA = "quota"
+    TIMEOUT = "timeout"
+    TRANSIENT = "transient"
+    PERMANENT = "permanent"
 
 
 def correct_level(image: Image.Image) -> tuple[Image.Image, float]:
@@ -45,6 +69,54 @@ def correct_level(image: Image.Image) -> tuple[Image.Image, float]:
     rgb = np.array(image.convert("RGB"))
     rotated = _rotate_and_crop_black_borders(rgb, angle_deg)
     return Image.fromarray(rotated), angle_deg
+
+
+def _classify_gemini_error(exc: BaseException) -> GeminiErrorKind:
+    """Map an SDK / network exception to a retry category.
+
+    Compare by class name string so we don't need the SDK installed at import time
+    and tests can use lightweight fakes.
+    """
+    name = type(exc).__name__
+    if name in {"Unauthenticated", "PermissionDenied", "Forbidden"}:
+        return GeminiErrorKind.AUTH
+    if name in {"ResourceExhausted", "TooManyRequests"}:
+        return GeminiErrorKind.QUOTA
+    if name in {"DeadlineExceeded", "RetryError", "TimeoutError"}:
+        return GeminiErrorKind.TIMEOUT
+    if name in {
+        "ServiceUnavailable",
+        "InternalServerError",
+        "Aborted",
+        "Cancelled",
+        "GatewayTimeout",
+    }:
+        return GeminiErrorKind.TRANSIENT
+    return GeminiErrorKind.PERMANENT
+
+
+def _backoff_seconds(kind: GeminiErrorKind, attempt: int) -> float | None:
+    """How long to sleep before the next attempt, or ``None`` to stop retrying.
+
+    ``attempt`` is 0-indexed for the attempt that *just failed*. Returning
+    ``None`` means do not retry further.
+    """
+    if kind is GeminiErrorKind.AUTH:
+        return None
+    if attempt >= GEMINI_MAX_ATTEMPTS - 1:
+        return None
+    if kind is GeminiErrorKind.QUOTA:
+        return 15.0 * (2 ** attempt)
+    if kind is GeminiErrorKind.TIMEOUT:
+        return 2.0 * (2 ** attempt)
+    if kind is GeminiErrorKind.TRANSIENT:
+        return 1.0 * (2 ** attempt)
+    return 0.5
+
+
+def _format_failure_message(kind: GeminiErrorKind, exc: BaseException, attempts: int) -> str:
+    label = kind.value
+    return f"Gemini level_correct failed ({label}) after {attempts} attempt(s): {type(exc).__name__}: {exc}"
 
 
 def _ask_gemini_for_angle(image: Image.Image) -> float:
@@ -60,31 +132,57 @@ def _ask_gemini_for_angle(image: Image.Image) -> float:
     model = genai.GenerativeModel(settings.gemini_model)
 
     payload = _downscale_for_vision(image)
-    last_exc: Exception | None = None
-    for attempt in range(3):
+    return _call_gemini_with_retry(
+        lambda: _generate_angle(model, payload),
+        sleep=time.sleep,
+    )
+
+
+def _generate_angle(model, payload: bytes) -> float:
+    """Single Gemini call. Raises ``LevelCorrectError`` for non-retryable parse failures."""
+    response = model.generate_content(
+        [
+            {"mime_type": "image/jpeg", "data": payload},
+            _PROMPT,
+        ],
+        request_options={"timeout": GEMINI_REQUEST_TIMEOUT_SECONDS},
+    )
+    text = (response.text or "").strip()
+    match = _NUMBER_RE.search(text)
+    if not match:
+        raise LevelCorrectError(f"Gemini returned non-numeric angle: {text!r}")
+    angle = float(match.group(0))
+    if angle < -90 or angle > 90:
+        raise LevelCorrectError(f"Gemini angle out of range: {angle}")
+    return angle
+
+
+def _call_gemini_with_retry(call, *, sleep=time.sleep) -> float:
+    """Retry ``call()`` per the GeminiErrorKind backoff schedule.
+
+    ``call`` must return ``float`` on success or raise. ``LevelCorrectError``
+    raised by ``call`` is treated as a deterministic parse failure and not
+    retried.
+    """
+    last_exc: BaseException | None = None
+    last_kind: GeminiErrorKind = GeminiErrorKind.PERMANENT
+    for attempt in range(GEMINI_MAX_ATTEMPTS):
         try:
-            response = model.generate_content(
-                [
-                    {"mime_type": "image/jpeg", "data": payload},
-                    _PROMPT,
-                ]
-            )
-            text = (response.text or "").strip()
-            match = _NUMBER_RE.search(text)
-            if not match:
-                raise LevelCorrectError(
-                    f"Gemini returned non-numeric angle: {text!r}"
-                )
-            angle = float(match.group(0))
-            if angle < -90 or angle > 90:
-                raise LevelCorrectError(f"Gemini angle out of range: {angle}")
-            return angle
+            return call()
         except LevelCorrectError:
             raise
         except Exception as exc:
+            kind = _classify_gemini_error(exc)
             last_exc = exc
-            time.sleep(0.5 * (2 ** attempt))
-    raise LevelCorrectError(f"Gemini call failed after 3 attempts: {last_exc}")
+            last_kind = kind
+            wait = _backoff_seconds(kind, attempt)
+            if wait is None:
+                break
+            sleep(wait)
+    assert last_exc is not None
+    raise LevelCorrectError(
+        _format_failure_message(last_kind, last_exc, attempt + 1)
+    ) from last_exc
 
 
 def _active_gemini_api_key() -> str | None:
