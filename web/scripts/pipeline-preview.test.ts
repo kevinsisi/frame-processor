@@ -1,4 +1,4 @@
-import { missingPipelineOutputPhotoIds, needsPipelineRunNote } from "../src/utils/pipelinePreview.js";
+import { automaticPipelineCandidatePhotoIds, missingPipelineOutputPhotoIds, needsPipelineRunNote } from "../src/utils/pipelinePreview.js";
 import {
   incompletePhotoIdsForProcessingVersion,
   missingPhotoIdsForProcessingVersion,
@@ -74,6 +74,20 @@ const missing = missingPipelineOutputPhotoIds(
 
 if (missing.join(",") !== "a,c") {
   throw new Error(`missingPipelineOutputPhotoIds: expected a,c, got ${missing.join(",")}`);
+}
+
+const autoCandidates = automaticPipelineCandidatePhotoIds(
+  [
+    { id: "new", processed_paths: {}, processing_versions: [] },
+    { id: "legacy", processed_paths: { showroom_white: "legacy.jpg" }, processing_versions: [] },
+    { id: "other-preset", processed_paths: { night_cold: "night.jpg" }, processing_versions: [] },
+    { id: "manual-only", processed_paths: { adjusted: "manual.jpg" }, processing_versions: [] },
+    { id: "old-ai", processed_paths: {}, processing_versions: [{ status: "done", path: "batch-v1.jpg" }] },
+    { id: "failed-ai", processed_paths: {}, processing_versions: [{ status: "failed", path: null }] },
+  ],
+);
+if (autoCandidates.join(",") !== "new,manual-only,failed-ai") {
+  throw new Error(`automaticPipelineCandidatePhotoIds: expected new,manual-only,failed-ai, got ${autoCandidates.join(",")}`);
 }
 
 const projectWithRunningVersions = {

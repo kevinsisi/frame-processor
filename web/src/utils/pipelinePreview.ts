@@ -22,3 +22,21 @@ export function missingPipelineOutputPhotoIds(
     .filter((photo) => !(photo.processed_paths ?? {})[pipelinePreset])
     .map((photo) => photo.id);
 }
+
+export function automaticPipelineCandidatePhotoIds(
+  photos: Array<{
+    id: string;
+    processed_paths?: Record<string, string> | null;
+    processing_versions?: Array<{ status: string; path?: string | null }> | null;
+  }>,
+): string[] {
+  return photos
+    .filter((photo) => {
+      const hasLegacyPipelineOutput = Object.entries(photo.processed_paths ?? {}).some(
+        ([key, path]) => key !== "adjusted" && Boolean(path),
+      );
+      if (hasLegacyPipelineOutput) return false;
+      return !(photo.processing_versions ?? []).some((version) => version.status === "done" && version.path);
+    })
+    .map((photo) => photo.id);
+}

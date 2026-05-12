@@ -31,7 +31,7 @@ import type {
   ProcessingVersion,
   ProjectDetail,
 } from "@/types";
-import { needsPipelineRunNote } from "@/utils/pipelinePreview";
+import { automaticPipelineCandidatePhotoIds, needsPipelineRunNote } from "@/utils/pipelinePreview";
 import {
   incompletePhotoIdsForProcessingVersion,
   missingPhotoIdsForProcessingVersion,
@@ -583,7 +583,8 @@ export default function PreviewPage() {
     if (!project || !projectId || pipelineRunning) return;
     if (pipelineEditedByUserRef.current) return;
     const payload = currentPipelinePayload();
-    const missingPhotoIds = matchingPipelineOutputMissingPhotoIds(project, payload);
+    const autoCandidateIds = new Set(automaticPipelineCandidatePhotoIds(project.photos));
+    const missingPhotoIds = matchingPipelineOutputMissingPhotoIds(project, payload).filter((photoId) => autoCandidateIds.has(photoId));
     if (missingPhotoIds.length === 0) return;
     const key = `${project.id}:${JSON.stringify(payload)}:${missingPhotoIds.join(",")}`;
     if (autoProcessRef.current.has(key)) return;
