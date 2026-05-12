@@ -161,6 +161,7 @@ Backlog（已寫 spec，未開工）：
 - **0.4.9** — GPU worker split：worker CUDA image、`docker compose` 掛 GPU、deploy 驗證 `torch.cuda.is_available()`、geometry 校正文件改寫（`1e7a38a` + `293e61e`）
 - **0.4.10** — safe geometry defaults + export/detail hotfixes：Preview 預設關閉 lens/Gemini level 幾何校正，只保留 AI denoise/chroma/detail；Gemini 回傳超出範圍角度時跳過旋轉，不讓整批失敗；ZIP 相容匯出會在 cache 為空時查最新完成 AI 版本；NAFNet tile feather、Detail Preserve source-structure 回補與 `showroom_white` Lightroom `01.CH偏光色` 方向調整，修正 911 專案 logo/輪框細節流失與格狀 artifact 風險。
 - **0.4.11** — dark chroma de-grid + neutral showroom white：denoise / Chroma Clean 對暗部低彩平坦區做 luma-safe chroma de-grid，壓低黑牆、玻璃與暗部的彩色棋盤格 artifact；`showroom_white` 改為中性偏冷白，並將 clarity 改成只銳化亮度，避免 RGB unsharp 放大暗部 chroma pattern。
+- **0.4.12** — dark mesh de-moire：Chroma Clean 中度新增暗部低彩/低變化 mesh pass，在受保護 mask 內同時壓低 luma 與 chroma 細密網格，並避免處理文字、車標、紅色物件與大面積飽和氛圍燈。
 
 ---
 

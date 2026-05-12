@@ -1,2 +1,2 @@
-// v0.4.11 - suppresses dark chroma grid artifacts and neutralizes showroom white.
-export const APP_VERSION = "0.4.11";
+// v0.4.12 - suppresses dark low-light mesh artifacts.
+export const APP_VERSION = "0.4.12";

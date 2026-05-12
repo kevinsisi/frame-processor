@@ -68,6 +68,12 @@ def _chroma_hf_mean(image: Image.Image, box: tuple[int, int, int, int]) -> float
     return float(np.sqrt((cr_residual * cr_residual) + (cb_residual * cb_residual)).mean())
 
 
+def _luma_hf_mean(image: Image.Image, box: tuple[int, int, int, int]) -> float:
+    arr = np.asarray(image.convert("L").crop(box), dtype=np.float32)
+    residual = arr - cv2.GaussianBlur(arr, (0, 0), 1.0)
+    return float(np.abs(residual).mean())
+
+
 def _luma_contrast(
     image: Image.Image,
     dark_box: tuple[int, int, int, int],
@@ -316,6 +322,48 @@ def test_chroma_clean_degrid_does_not_bleed_into_saturated_detail() -> None:
     assert _chroma_hf_mean(result, grid_box) < _chroma_hf_mean(image, grid_box) * 0.70
     assert _mean_squared_error(result, image, detail_box) < 3
     assert _luma_mse(result, image, grid_box) < 0.8
+
+
+def test_chroma_clean_suppresses_visible_dark_luma_mesh() -> None:
+    height = 80
+    width = 120
+    ycrcb = np.full((height, width, 3), (42, 128, 128), dtype=np.uint8)
+    yy, xx = np.indices((height, width))
+    mesh = ((xx % 4 == 0) | (yy % 4 == 0))
+    ycrcb[:, :, 0] = np.where(mesh, 58, 38).astype(np.uint8)
+    ycrcb[:, :, 1] = np.where(mesh, 134, 122).astype(np.uint8)
+    ycrcb[:, :, 2] = np.where(mesh, 122, 134).astype(np.uint8)
+    image = Image.fromarray(cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2RGB), mode="RGB")
+
+    box = (0, 0, width, height)
+    for strength in (ChromaCleanStrength.MEDIUM, ChromaCleanStrength.HIGH):
+        result = chroma_clean.apply_chroma_clean(image, strength)
+        assert _luma_hf_mean(result, box) < _luma_hf_mean(image, box) * 0.58
+        assert _chroma_hf_mean(result, box) < _chroma_hf_mean(image, box) * 0.55
+
+
+def test_chroma_clean_mesh_pass_preserves_text_and_red_detail() -> None:
+    height = 88
+    width = 156
+    ycrcb = np.full((height, width, 3), (48, 128, 128), dtype=np.uint8)
+    yy, xx = np.indices((height, width))
+    mesh = ((xx[:, :88] % 4 == 0) | (yy[:, :88] % 4 == 0))
+    ycrcb[:, :88, 0] = np.where(mesh, 60, 40).astype(np.uint8)
+    ycrcb[:, :88, 1] = np.where(mesh, 134, 122).astype(np.uint8)
+    ycrcb[:, :88, 2] = np.where(mesh, 122, 134).astype(np.uint8)
+    image = Image.fromarray(cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2RGB), mode="RGB")
+    draw = ImageDraw.Draw(image)
+    draw.text((96, 28), "GTS", fill=(20, 20, 20))
+    draw.rectangle((96, 58, 146, 68), fill=(188, 28, 44))
+
+    result = chroma_clean.apply_chroma_clean(image, ChromaCleanStrength.MEDIUM)
+
+    mesh_box = (0, 0, 88, height)
+    text_box = (94, 24, 130, 48)
+    red_box = (96, 58, 146, 68)
+    assert _luma_hf_mean(result, mesh_box) < _luma_hf_mean(image, mesh_box) * 0.65
+    assert _edge_mean(result.crop(text_box)) > _edge_mean(image.crop(text_box)) * 0.82
+    assert _mean_squared_error(result, image, red_box) < 4
 
 
 def test_denoise_suppresses_dark_chroma_grid_artifacts(monkeypatch) -> None:
