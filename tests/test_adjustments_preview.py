@@ -389,6 +389,57 @@ def test_denoise_suppresses_dark_chroma_grid_artifacts(monkeypatch) -> None:
     assert _luma_std(result, box) <= _luma_std(artifact, box) + 0.8
 
 
+def test_denoise_does_not_introduce_dark_luma_mesh(monkeypatch) -> None:
+    source = Image.new("RGB", (128, 80), (32, 34, 34))
+
+    def mesh_nafnet(rgb: np.ndarray) -> np.ndarray:
+        height, width, _ = rgb.shape
+        ycrcb = np.full((height, width, 3), (34, 128, 128), dtype=np.uint8)
+        yy, xx = np.indices((height, width))
+        mesh = ((xx % 4 == 0) | (yy % 4 == 0))
+        ycrcb[:, :, 0] = np.where(mesh, 58, 30).astype(np.uint8)
+        ycrcb[:, :, 1] = np.where(mesh, 134, 122).astype(np.uint8)
+        ycrcb[:, :, 2] = np.where(mesh, 122, 134).astype(np.uint8)
+        return cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2RGB).astype(np.float32) / 255.0
+
+    monkeypatch.setattr(denoise, "_run_nafnet", mesh_nafnet)
+    monkeypatch.setattr(denoise, "_run_opencv_denoise", lambda rgb, _strength: mesh_nafnet(rgb))
+
+    artifact = Image.fromarray(np.clip(mesh_nafnet(np.asarray(source, dtype=np.float32) / 255.0) * 255, 0, 255).astype(np.uint8))
+    result = denoise.denoise(source, DenoiseStrength.MEDIUM)
+
+    box = (0, 0, 128, 80)
+    assert _luma_hf_mean(result, box) < _luma_hf_mean(artifact, box) * 0.32
+    assert _chroma_hf_mean(result, box) < _chroma_hf_mean(artifact, box) * 0.45
+    assert _mean_squared_error(result, source, box) < 3
+
+
+def test_denoise_dark_mesh_guard_preserves_saturated_detail(monkeypatch) -> None:
+    pixels = np.full((80, 140, 3), (32, 34, 34), dtype=np.uint8)
+    pixels[22:58, 92:126] = (188, 28, 44)
+    source = Image.fromarray(pixels, mode="RGB")
+
+    def mesh_nafnet(rgb: np.ndarray) -> np.ndarray:
+        out = np.asarray(source, dtype=np.float32) / 255.0
+        ycrcb = cv2.cvtColor(np.clip(out * 255, 0, 255).astype(np.uint8), cv2.COLOR_RGB2YCrCb)
+        yy, xx = np.indices(ycrcb.shape[:2])
+        mesh = ((xx[:, :84] % 4 == 0) | (yy[:, :84] % 4 == 0))
+        ycrcb[:, :84, 0] = np.where(mesh, 58, 30).astype(np.uint8)
+        ycrcb[:, :84, 1] = np.where(mesh, 134, 122).astype(np.uint8)
+        ycrcb[:, :84, 2] = np.where(mesh, 122, 134).astype(np.uint8)
+        return cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2RGB).astype(np.float32) / 255.0
+
+    monkeypatch.setattr(denoise, "_run_nafnet", mesh_nafnet)
+    monkeypatch.setattr(denoise, "_run_opencv_denoise", lambda rgb, _strength: mesh_nafnet(rgb))
+
+    result = denoise.denoise(source, DenoiseStrength.MEDIUM)
+
+    mesh_box = (0, 0, 84, 80)
+    red_box = (92, 22, 126, 58)
+    assert _luma_hf_mean(result, mesh_box) < _luma_hf_mean(source, mesh_box) + 0.8
+    assert _mean_squared_error(result, source, red_box) < 4
+
+
 def test_denoise_degrid_preserves_adjacent_saturated_detail_luma() -> None:
     height = 64
     width = 128

@@ -2,7 +2,7 @@
 
 照片批次後製工具。上傳 N 張 → 選 preset + 處理選項 → 全部一鍵處理 → 下載 zip。
 
-目前狀態：**v0.4.12 — dark mesh de-moire**（Chroma Clean 中度新增暗部低彩/低變化 mesh pass，在受保護 mask 內同時壓低 luma 與 chroma 細密網格；保護文字、車標、紅色物件與大面積飽和氛圍燈；沿用 v0.4.11 中性偏冷 `showroom_white`、安全幾何預設、GPU worker、ZIP 最新 AI 版本匯出與 Detail Preserve）。正式環境：[frame.sisihome.org](https://frame.sisihome.org)。
+目前狀態：**v0.4.13 — denoise dark mesh guard**（AI 降噪會偵測原圖暗部平坦但 denoise 後突然出現的 luma/chroma 細密 mesh，並在受保護 mask 內回退到乾淨原圖，避免 NAFNet/OpenCV 在黑牆、玻璃與暗部大平面製造格紋；沿用 v0.4.12 Chroma Clean dark mesh de-moire、中性偏冷 `showroom_white`、安全幾何預設、GPU worker、ZIP 最新 AI 版本匯出與 Detail Preserve）。正式環境：[frame.sisihome.org](https://frame.sisihome.org)。
 
 ## Quick start
 

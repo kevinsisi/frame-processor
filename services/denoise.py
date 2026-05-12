@@ -89,6 +89,16 @@ DARK_CHROMA_GRID_STRUCTURE_RANGE = 22.0
 DARK_CHROMA_GRID_RESIDUAL_FLOOR = 0.8
 DARK_CHROMA_GRID_RESIDUAL_RANGE = 5.5
 
+DENOISE_MESH_VALUE_LIMIT = 118.0
+DENOISE_MESH_VALUE_RANGE = 82.0
+DENOISE_MESH_SOURCE_TEXTURE_LIMIT = 1.8
+DENOISE_MESH_SOURCE_TEXTURE_RANGE = 3.4
+DENOISE_MESH_ARTIFACT_FLOOR = 0.6
+DENOISE_MESH_ARTIFACT_RANGE = 5.0
+DENOISE_MESH_STRUCTURE_FLOOR = 3.5
+DENOISE_MESH_STRUCTURE_RANGE = 18.0
+DENOISE_MESH_SOURCE_CHROMA_LIMIT = 58.0
+
 DETAIL_STRUCTURE_BLUR_SIGMA = 1.8
 DETAIL_CANNY_LOW = 55
 DETAIL_CANNY_HIGH = 140
@@ -124,6 +134,7 @@ def denoise(image: Image.Image, strength: DenoiseStrength) -> Image.Image:
         denoised = _run_opencv_denoise(rgb, strength)
     blended = _blend_preserving_detail(rgb, denoised, strength)
     blended = _suppress_dark_chroma_grid(blended, strength)
+    blended = _suppress_denoise_introduced_dark_mesh(rgb, blended, strength)
     blended = np.clip(blended * 255.0, 0, 255).astype(np.uint8)
     return Image.fromarray(blended)
 
@@ -251,6 +262,74 @@ def _clean_grid_chroma_channel(channel: np.ndarray) -> np.ndarray:
 def _blend_grid_chroma_channel(original: np.ndarray, cleaned: np.ndarray, alpha: np.ndarray) -> np.ndarray:
     blended = original.astype(np.float32) * (1.0 - alpha) + cleaned.astype(np.float32) * alpha
     return np.clip(blended, 0, 255).astype(np.uint8)
+
+
+def _suppress_denoise_introduced_dark_mesh(
+    source_rgb: np.ndarray,
+    processed_rgb: np.ndarray,
+    strength: DenoiseStrength,
+) -> np.ndarray:
+    if strength is DenoiseStrength.NONE:
+        return processed_rgb
+    import cv2
+
+    source_u8 = np.clip(source_rgb * 255.0, 0, 255).astype(np.uint8)
+    processed_u8 = np.clip(processed_rgb * 255.0, 0, 255).astype(np.uint8)
+    source_ycc = cv2.cvtColor(source_u8, cv2.COLOR_RGB2YCrCb).astype(np.float32)
+    processed_ycc = cv2.cvtColor(processed_u8, cv2.COLOR_RGB2YCrCb).astype(np.float32)
+    source_y = source_ycc[:, :, 0]
+    source_cr = source_ycc[:, :, 1]
+    source_cb = source_ycc[:, :, 2]
+    processed_y = processed_ycc[:, :, 0]
+    processed_cr = processed_ycc[:, :, 1]
+    processed_cb = processed_ycc[:, :, 2]
+
+    source_luma_hf = np.abs(source_y - cv2.GaussianBlur(source_y, (0, 0), sigmaX=1.0))
+    processed_luma_hf = np.abs(processed_y - cv2.GaussianBlur(processed_y, (0, 0), sigmaX=1.0))
+    source_chroma_hf = np.sqrt(
+        ((source_cr - cv2.GaussianBlur(source_cr, (0, 0), sigmaX=1.0)) ** 2)
+        + ((source_cb - cv2.GaussianBlur(source_cb, (0, 0), sigmaX=1.0)) ** 2)
+    )
+    source_texture = np.maximum(source_luma_hf, source_chroma_hf)
+    introduced_texture = np.maximum(processed_luma_hf - source_luma_hf, 0.0)
+
+    source_chroma_magnitude = np.sqrt(((source_cr - 128.0) ** 2) + ((source_cb - 128.0) ** 2))
+    dark_weight = np.clip((DENOISE_MESH_VALUE_LIMIT - source_y) / DENOISE_MESH_VALUE_RANGE, 0.0, 1.0)
+    flat_weight = 1.0 - np.clip(
+        (source_texture - DENOISE_MESH_SOURCE_TEXTURE_LIMIT) / DENOISE_MESH_SOURCE_TEXTURE_RANGE,
+        0.0,
+        1.0,
+    )
+    neutral_weight = np.clip(
+        (DENOISE_MESH_SOURCE_CHROMA_LIMIT - source_chroma_magnitude) / DENOISE_MESH_SOURCE_CHROMA_LIMIT,
+        0.0,
+        1.0,
+    )
+    coarse_y = cv2.GaussianBlur(source_y, (0, 0), sigmaX=3.0)
+    grad_x = cv2.Sobel(coarse_y, cv2.CV_32F, 1, 0, ksize=3)
+    grad_y = cv2.Sobel(coarse_y, cv2.CV_32F, 0, 1, ksize=3)
+    structure = np.sqrt((grad_x * grad_x) + (grad_y * grad_y))
+    structure_protect = np.clip(
+        (structure - DENOISE_MESH_STRUCTURE_FLOOR) / DENOISE_MESH_STRUCTURE_RANGE,
+        0.0,
+        1.0,
+    )
+    artifact_weight = np.clip(
+        (introduced_texture - DENOISE_MESH_ARTIFACT_FLOOR) / DENOISE_MESH_ARTIFACT_RANGE,
+        0.0,
+        1.0,
+    )
+
+    alpha = dark_weight * flat_weight * neutral_weight * artifact_weight * (1.0 - structure_protect)
+    if float(alpha.max(initial=0.0)) <= 0.0:
+        return processed_rgb
+    alpha = cv2.GaussianBlur(alpha, (0, 0), sigmaX=1.0)
+    alpha *= dark_weight * flat_weight * neutral_weight * (1.0 - structure_protect)
+    alpha = np.clip(alpha, 0.0, 1.0)
+    processed_ycc[:, :, 0] = source_y * alpha + processed_y * (1.0 - alpha)
+    processed_ycc[:, :, 1] = source_cr * alpha + processed_cr * (1.0 - alpha)
+    processed_ycc[:, :, 2] = source_cb * alpha + processed_cb * (1.0 - alpha)
+    return cv2.cvtColor(np.clip(processed_ycc, 0, 255).astype(np.uint8), cv2.COLOR_YCrCb2RGB).astype(np.float32) / 255.0
 
 
 def _detail_protection_mask(rgb: np.ndarray) -> np.ndarray:
