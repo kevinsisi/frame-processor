@@ -115,10 +115,14 @@
 - Reflection Removal 玻璃場景分離 / 還原白爆細節 — 非本 phase 範疇
 
 對應提案：
-- `openspec/changes/2026-05-10-batch-version-control/`（39/42，剩 backend 測試）
-- `openspec/changes/2026-05-11-car-interior-cpl-look/`（8/8，可 archive）
+- `openspec/changes/2026-05-10-batch-version-control/`（feature 完成；integration tests deferred 到 `add-frame-test-harness`）
+- `openspec/changes/archive/2026-05-11-car-interior-cpl-look/`（已 archive）
 - `openspec/changes/add-frame-ci-cd/`（15/16，剩 GPU worker 部署驗證）
 - Chroma Clean / Detail Preserve / per-photo queue / downloaded mark / GPU worker split 走 commit-level，未開獨立 OpenSpec。
+
+對應 ADR：
+- `docs/adr/0003-batch-versioning.md` — immutable `batch-vN` 路徑 + archive 語意 + project-scoped version 編號的選擇理由
+- `docs/adr/0004-gpu-worker-split.md` — AI worker 拆 CUDA image，沒 GPU 直接 fail 不降級（量化 CPU 8-12 min vs GPU < 90s）
 
 子版本（web/package.json + api/main.py + web/src/version.ts 同步）：
 - **0.4.0** — AI Batch Version Control 首發（commit `3eba8e3`）
@@ -182,6 +186,16 @@ v0.2.0 已經把 pipeline 串完，v0.6 處理「使用體驗」層：
 - v0.x 期間 schema 不保證向下相容，alembic migration 直接 destructive 改 schema 也可。v1.0 之後才開始守 backwards compat。
 - 所有照片儲存路徑慣例見 `ARCHITECTURE.md` § Storage Layout。
 - 模型權重不入 git，由 deploy 流程或第一次啟動 lazy-download。
+
+### ADR 索引
+
+重大架構決策都留 ADR 在 `docs/adr/`：
+
+- `0002-bundled-v0.2.0-processing.md` — v0.2 / v0.3 / v0.4 / v0.5 合併成單一 release 的理由
+- `0003-batch-versioning.md` — v0.4.0 `AI vN` immutable batch path + archive 語意 + 為什麼 version 是 project-scoped
+- `0004-gpu-worker-split.md` — v0.4.9 AI worker 拆 CUDA image、沒 GPU 直接 fail 不降級的量化理由
+
+新增重大架構變更請補 ADR，採用同一份格式：Date / Status / Context / Decision / Consequences / Alternatives / References。
 
 ### 版本號碼說明
 
