@@ -3,14 +3,17 @@ import type {
   ChromaCleanStrength,
   ColorGradePreset,
   CplStrength,
+  DetailPreserveStrength,
   DenoiseStrength,
   ProcessingJobCreate,
+  ProcessingVersion,
 } from "../types";
 
 export const DEFAULT_PIPELINE_PRESET: ColorGradePreset = "showroom_white";
 export const DEFAULT_PIPELINE_DENOISE: DenoiseStrength = "medium";
 export const DEFAULT_PIPELINE_CPL: CplStrength = "none";
 export const DEFAULT_PIPELINE_CHROMA_CLEAN: ChromaCleanStrength = "medium";
+export const DEFAULT_PIPELINE_DETAIL_PRESERVE: DetailPreserveStrength = "low";
 
 const COLOR_GRADE_PRESETS: ColorGradePreset[] = [
   "showroom_white",
@@ -28,6 +31,7 @@ export interface PipelineSettingsState {
   aspect: AspectRatio;
   cplStrength: CplStrength;
   chromaCleanStrength: ChromaCleanStrength;
+  detailPreserveStrength: DetailPreserveStrength;
 }
 
 export function isColorGradePreset(value: string | null): value is ColorGradePreset {
@@ -73,5 +77,22 @@ export function buildPipelinePayload(settings: PipelineSettingsState): Processin
     auto_crop_aspect: settings.aspect === "original" ? null : settings.aspect,
     cpl_strength: settings.cplStrength,
     chroma_clean_strength: settings.chromaCleanStrength,
+    detail_preserve_strength: settings.detailPreserveStrength,
   };
+}
+
+export function pipelinePayloadMatchesVersion(
+  version: ProcessingVersion,
+  payload: ProcessingJobCreate,
+): boolean {
+  return (
+    version.preset === payload.preset &&
+    version.denoise_strength === (payload.denoise_strength ?? "none") &&
+    version.lens_distort_correct === (payload.lens_distort_correct ?? false) &&
+    version.level_correct === (payload.level_correct ?? false) &&
+    version.auto_crop_aspect === (payload.auto_crop_aspect ?? null) &&
+    version.cpl_strength === (payload.cpl_strength ?? "none") &&
+    version.chroma_clean_strength === (payload.chroma_clean_strength ?? "none") &&
+    version.detail_preserve_strength === (payload.detail_preserve_strength ?? "none")
+  );
 }

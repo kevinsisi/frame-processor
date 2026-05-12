@@ -80,7 +80,7 @@ FE ──GET /photos/{id}/thumbnail──▶ API
 ### 批次處理
 
 ```
-FE ──POST /projects/{id}/process { preset, photo_ids?, level_correct, auto_crop_aspect, cpl_strength, chroma_clean_strength }──▶ API
+FE ──POST /projects/{id}/process { preset, photo_ids?, level_correct, auto_crop_aspect, cpl_strength, chroma_clean_strength, detail_preserve_strength }──▶ API
                                                                                               ├─ INSERT ProcessingJob (status=pending, total=N)
                                                                                               ├─ rq.enqueue("worker.jobs.processing_job", job_id, photo_id_strs)
                                                                                               └─ return ProcessingJob (202)
@@ -88,7 +88,7 @@ FE ──POST /projects/{id}/process { preset, photo_ids?, level_correct, auto_c
 worker picks up job:
    ├─ UPDATE ProcessingJob.status = "running"
    ├─ for photo in target photos:
-   │     ├─ pipeline: denoise → chroma_clean → lens_distort → level_correct → auto_crop → cpl_look → color_grade
+   │     ├─ pipeline: denoise → chroma_clean → detail_preserve → lens_distort → level_correct → auto_crop → cpl_look → color_grade
    │     ├─ save jpg to <storage>/projects/<pid>/processed/<photo_id>.<preset>.jpg
    │     ├─ UPDATE Photo.processed_paths[preset] = relative_path
    │     └─ UPDATE ProcessingJob.progress_done += 1
@@ -105,6 +105,7 @@ FE ──GET /photos/{id}/processed/{preset}──▶ API ── stream processe
    ↓ ImageOps.exif_transpose（修正 iPhone / DJI 直拍 orientation）
    ↓ denoise（NAFNet + OpenCV edge-aware fallback）
    ↓ chroma_clean（暗部偽色與彩色雜訊修正；保護高飽和細節）
+   ↓ detail_preserve（只回填原圖可信 luma 紋理；不生成假細節、不回填 chroma noise）
    ↓ lens_distort（桶形畸變 + 自動垂直透視矯正）
    ↓ level_correct（Gemini Vision / Hough fallback 水平校正）
    ↓ auto_crop（YOLOv8 + aspect crop；original 比例為 no-op）
@@ -186,6 +187,7 @@ FE ──GET /photos/{id}/processed/{preset}──▶ API ── stream processe
 | auto_crop_aspect | enum nullable | `aspect_ratio` 或 NULL = 跳過 crop |
 | cpl_strength | enum(none, low, medium, high) | 車內 CPL Look / 反光抑制強度 |
 | chroma_clean_strength | enum(none, low, medium, high) | 暗部偽色 / 彩色雜訊修正強度 |
+| detail_preserve_strength | enum(none, low, medium, high) | 亮度細節保留 / 原圖可信紋理回填強度 |
 | photo_ids | UUID[] | 處理的 photo id list |
 | progress | int | 已完成張數 |
 | total | int | 總張數 |
@@ -197,15 +199,16 @@ FE ──GET /photos/{id}/processed/{preset}──▶ API ── stream processe
 
 ## Pipeline 順序
 
-固定：`denoise → chroma_clean → lens_distort → level_correct → auto_crop → cpl_look → color_grade`
+固定：`denoise → chroma_clean → detail_preserve → lens_distort → level_correct → auto_crop → cpl_look → color_grade`
 
 1. denoise 最先 — geometric ops 會放大噪點
 2. chroma_clean 第二 — 只平滑暗部 chroma，避免後續幾何/銳化放大紅綠紫偽色
-3. lens_distort 第三 — 廣角修平後 level/crop 才對得到真水平 / 真主體
-4. level_correct 第四 — 用 Gemini Vision 估角度（無上限）+ `cv2.warpAffine`
-5. auto_crop 第五 — YOLOv8n 偵測車輛 bbox + rule-of-thirds
-6. cpl_look 在色調前 — 先壓低車內亮面飾板、儀表玻璃、中控螢幕與車窗反光
-7. color_grade 最後 — 純像素操作
+3. detail_preserve 第三 — 只回填 bounded luma high-frequency，保留可信紋理但不生成細節、不回填 chroma noise
+4. lens_distort 第四 — 廣角修平後 level/crop 才對得到真水平 / 真主體
+5. level_correct 第五 — 用 Gemini Vision 估角度（無上限）+ `cv2.warpAffine`
+6. auto_crop 第六 — YOLOv8n 偵測車輛 bbox + rule-of-thirds
+7. cpl_look 在色調前 — 先壓低車內亮面飾板、儀表玻璃、中控螢幕與車窗反光
+8. color_grade 最後 — 純像素操作
 
 ## 處理資料流（v0.2.0）
 

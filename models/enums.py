@@ -62,6 +62,15 @@ class ChromaCleanStrength(str, Enum):
     HIGH = "high"
 
 
+class DetailPreserveStrength(str, Enum):
+    """亮度細節保留/回填強度。NONE = 跳過 luma detail restore step。"""
+
+    NONE = "none"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
 class ProcessingJobStatus(str, Enum):
     PENDING = "pending"
     RUNNING = "running"

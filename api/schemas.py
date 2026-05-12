@@ -10,6 +10,7 @@ from models.enums import (
     ColorGradePreset,
     CplStrength,
     DenoiseStrength,
+    DetailPreserveStrength,
     ExportStatus,
     ProcessingJobStatus,
 )
@@ -81,6 +82,7 @@ class ProcessingVersionOut(BaseModel):
     auto_crop_aspect: AspectRatio | None
     cpl_strength: CplStrength
     chroma_clean_strength: ChromaCleanStrength
+    detail_preserve_strength: DetailPreserveStrength
     photo_ids: list[UUID]
     progress: int
     total: int
@@ -122,6 +124,7 @@ class ProcessingJobCreate(BaseModel):
     auto_crop_aspect: AspectRatio | None = None
     cpl_strength: CplStrength = CplStrength.NONE
     chroma_clean_strength: ChromaCleanStrength = ChromaCleanStrength.NONE
+    detail_preserve_strength: DetailPreserveStrength = DetailPreserveStrength.NONE
     force: bool = False
     retry_scope: Literal["none", "full", "missing_only"] = "none"
     retry_of_job_id: UUID | None = None
@@ -145,6 +148,7 @@ class ProcessingJobOut(BaseModel):
     auto_crop_aspect: AspectRatio | None
     cpl_strength: CplStrength
     chroma_clean_strength: ChromaCleanStrength
+    detail_preserve_strength: DetailPreserveStrength
     photo_ids: list[UUID]
     progress: int
     total: int

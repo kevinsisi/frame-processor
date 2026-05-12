@@ -63,6 +63,8 @@ export type CplStrength = "none" | "low" | "medium" | "high";
 
 export type ChromaCleanStrength = "none" | "low" | "medium" | "high";
 
+export type DetailPreserveStrength = "none" | "low" | "medium" | "high";
+
 export type ProcessingJobStatus = "pending" | "running" | "done" | "failed";
 
 export type ProcessingRetryScope = "none" | "full" | "missing_only";
@@ -79,6 +81,7 @@ export type ProcessingJob = {
   auto_crop_aspect: AspectRatio | null;
   cpl_strength: CplStrength;
   chroma_clean_strength: ChromaCleanStrength;
+  detail_preserve_strength: DetailPreserveStrength;
   photo_ids: string[];
   progress: number;
   total: number;
@@ -108,6 +111,7 @@ export type ProcessingJobCreate = {
   auto_crop_aspect?: AspectRatio | null;
   cpl_strength?: CplStrength;
   chroma_clean_strength?: ChromaCleanStrength;
+  detail_preserve_strength?: DetailPreserveStrength;
   photo_ids?: string[];
   force?: boolean;
   retry_scope?: ProcessingRetryScope;

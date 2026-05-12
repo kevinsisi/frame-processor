@@ -216,7 +216,7 @@ export function buildPhotoVersionOptions(
     const job = processingVersions.find((item) => item.id === version.processing_job_id);
     options.push({
       value: `processing:${version.processing_job_id}`,
-      label: job ? `AI v${job.version_number}：${presetLabel(job.preset)} / ${denoiseLabel(job.denoise_strength)} / ${chromaCleanLabel(job.chroma_clean_strength)} / ${cplLabel(job.cpl_strength)}` : `AI v${version.version_number}`,
+      label: job ? `AI v${job.version_number}：${presetLabel(job.preset)} / ${denoiseLabel(job.denoise_strength)} / ${chromaCleanLabel(job.chroma_clean_strength)} / ${detailPreserveLabel(job.detail_preserve_strength)} / ${cplLabel(job.cpl_strength)}` : `AI v${version.version_number}`,
       url: api.processingVersionUrl(photo.id, version.processing_job_id),
       source: { kind: "processing", value: version.processing_job_id },
     });
@@ -271,5 +271,13 @@ function chromaCleanLabel(strength: string): string {
   if (strength === "low") return "偽色輕度";
   if (strength === "medium") return "偽色中度";
   if (strength === "high") return "偽色重度";
+  return strength;
+}
+
+function detailPreserveLabel(strength: string): string {
+  if (strength === "none") return "不保留細節";
+  if (strength === "low") return "細節輕度";
+  if (strength === "medium") return "細節中度";
+  if (strength === "high") return "細節重度";
   return strength;
 }

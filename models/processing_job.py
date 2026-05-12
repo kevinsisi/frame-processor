@@ -13,6 +13,7 @@ from models.enums import (
     ColorGradePreset,
     CplStrength,
     DenoiseStrength,
+    DetailPreserveStrength,
     ProcessingJobStatus,
 )
 
@@ -85,6 +86,15 @@ class ProcessingJob(Base):
         ),
         nullable=False,
         default=ChromaCleanStrength.NONE,
+    )
+    detail_preserve_strength: Mapped[DetailPreserveStrength] = mapped_column(
+        SAEnum(
+            DetailPreserveStrength,
+            name="detail_preserve_strength",
+            values_callable=lambda enum_cls: [m.value for m in enum_cls],
+        ),
+        nullable=False,
+        default=DetailPreserveStrength.NONE,
     )
     version_number: Mapped[int] = mapped_column(Integer, nullable=False)
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

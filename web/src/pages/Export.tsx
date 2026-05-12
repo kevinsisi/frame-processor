@@ -4,7 +4,7 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { api } from "@/api/client";
 import { Spinner } from "@/components/Spinner";
 import { useToast } from "@/components/Toast";
-import type { ChromaCleanStrength, CplStrength, DenoiseStrength, Export, ExportStatus, ProcessingVersion, ProjectDetail } from "@/types";
+import type { ChromaCleanStrength, CplStrength, DetailPreserveStrength, DenoiseStrength, Export, ExportStatus, ProcessingVersion, ProjectDetail } from "@/types";
 import { formatServiceTime } from "@/utils/time";
 
 import "./Export.css";
@@ -37,8 +37,21 @@ const CHROMA_CLEAN_LABELS: Record<ChromaCleanStrength, string> = {
   high: "偽色重度",
 };
 
+const PRESET_LABELS: Record<ProcessingVersion["preset"], string> = {
+  showroom_white: "展示間白",
+  outdoor_warm: "戶外暖調",
+  night_cold: "夜拍冷調",
+};
+
+const DETAIL_PRESERVE_LABELS: Record<DetailPreserveStrength, string> = {
+  none: "不保留細節",
+  low: "細節輕度",
+  medium: "細節中度",
+  high: "細節重度",
+};
+
 function processingVersionLabel(version: ProcessingVersion): string {
-  return `AI v${version.version_number} · ${version.preset} · ${DENOISE_LABELS[version.denoise_strength]} · ${CHROMA_CLEAN_LABELS[version.chroma_clean_strength]} · ${CPL_LABELS[version.cpl_strength]} · ${version.status}`;
+  return `AI v${version.version_number} · ${PRESET_LABELS[version.preset]} · ${DENOISE_LABELS[version.denoise_strength]} · ${CHROMA_CLEAN_LABELS[version.chroma_clean_strength]} · ${DETAIL_PRESERVE_LABELS[version.detail_preserve_strength]} · ${CPL_LABELS[version.cpl_strength]} · ${version.status}`;
 }
 
 export default function ExportPage() {

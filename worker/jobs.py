@@ -165,6 +165,7 @@ def process_photos_job(job_id: str) -> int:
                         auto_crop_aspect=job.auto_crop_aspect,
                         cpl_strength=job.cpl_strength,
                         chroma_clean_strength=job.chroma_clean_strength,
+                        detail_preserve_strength=job.detail_preserve_strength,
                         version_number=job.version_number,
                     )
                     row = _photo_processing_version(db, job, photo.id)
@@ -252,6 +253,7 @@ def process_photo_version_job(job_id: str, photo_id: str) -> str:
                 auto_crop_aspect=job.auto_crop_aspect,
                 cpl_strength=job.cpl_strength,
                 chroma_clean_strength=job.chroma_clean_strength,
+                detail_preserve_strength=job.detail_preserve_strength,
                 version_number=job.version_number,
             )
             row = _photo_processing_version(db, job, photo.id)

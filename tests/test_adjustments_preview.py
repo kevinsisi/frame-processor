@@ -6,13 +6,20 @@ from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageStat
 
 from api.config import settings
 from api.routers.adjustments import AdjustmentSource as AdjustmentApiSource
-from models.enums import ChromaCleanStrength, ColorGradePreset, CplStrength, DenoiseStrength
+from models.enums import (
+    ChromaCleanStrength,
+    ColorGradePreset,
+    CplStrength,
+    DenoiseStrength,
+    DetailPreserveStrength,
+)
 from services import (
     adjustments,
     chroma_clean,
     color_grade,
     cpl_look,
     denoise,
+    detail_preserve,
     lens_distort,
     photo_processor,
 )
@@ -255,6 +262,56 @@ def test_chroma_clean_preserves_dark_saturated_details() -> None:
 
     ambient_light_box = (50, 10, 72, 38)
     assert _mean_squared_error(result, image, ambient_light_box) < 3
+
+
+def test_detail_preserve_none_preserves_processed_pixels() -> None:
+    source = Image.new("RGB", (32, 24), (120, 120, 120))
+    processed = Image.new("RGB", (32, 24), (96, 104, 112))
+
+    result = detail_preserve.apply_detail_preserve(source, processed, DetailPreserveStrength.NONE)
+
+    assert _difference_sum(processed, result) == 0
+
+
+def test_detail_preserve_does_not_sharpen_already_preserved_detail() -> None:
+    source = Image.new("RGB", (96, 64), (92, 92, 92))
+    draw = ImageDraw.Draw(source)
+    for x in range(14, 82, 12):
+        draw.line((x, 8, x, 56), fill=(138, 138, 138), width=2)
+
+    result = detail_preserve.apply_detail_preserve(source, source, DetailPreserveStrength.LOW)
+
+    assert _difference_sum(source, result) == 0
+
+
+def test_detail_preserve_recovers_structured_luma_from_source() -> None:
+    source = Image.new("RGB", (96, 64), (92, 92, 92))
+    draw = ImageDraw.Draw(source)
+    for x in range(14, 82, 12):
+        draw.line((x, 8, x, 56), fill=(138, 138, 138), width=2)
+    processed = source.filter(ImageFilter.GaussianBlur(radius=1.4))
+
+    result = detail_preserve.apply_detail_preserve(source, processed, DetailPreserveStrength.MEDIUM)
+
+    structured_box = (8, 6, 88, 58)
+    assert _edge_mean(result.crop(structured_box)) > _edge_mean(processed.crop(structured_box))
+    assert _mean_chroma_spread(result, structured_box) == _mean_chroma_spread(processed, structured_box)
+
+
+def test_detail_preserve_does_not_reintroduce_flat_dark_chroma_noise() -> None:
+    rng = np.random.default_rng(17)
+    source_pixels = np.full((64, 96, 3), 28, dtype=np.int16)
+    source_pixels[:, :72, :] = np.clip(
+        source_pixels[:, :72, :] + rng.normal(0, 26, (64, 72, 3)), 0, 255
+    )
+    source = Image.fromarray(source_pixels.astype(np.uint8), mode="RGB")
+    processed = Image.new("RGB", source.size, (28, 28, 28))
+
+    result = detail_preserve.apply_detail_preserve(source, processed, DetailPreserveStrength.HIGH)
+
+    flat_box = (0, 0, 72, 64)
+    assert _mean_chroma_spread(result, flat_box) <= _mean_chroma_spread(processed, flat_box) + 0.01
+    assert _luma_std(result, flat_box) <= _luma_std(processed, flat_box) + 0.01
 
 
 def test_adjustment_source_accepts_processing_versions() -> None:
