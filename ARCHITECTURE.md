@@ -244,7 +244,7 @@ FE ──GET /photos/{id}/file?variant=processed&preset=...──▶ API ── 
 | postgres | postgres:16-alpine | 5432 | dev 對外暴露方便接 DBeaver |
 | redis | redis:7-alpine | 6379 | 同上 |
 | api | 自 build | 8000 → 8000 | uvicorn `api.main:app` |
-| worker | 自 build（共用 api Dockerfile） | — | `python -m worker.main` |
+| worker | 自 build（共用 Dockerfile，dedicated CUDA image） | — | `python -m worker.main` |
 | web | 自 build（dev 是 vite dev；prod 是 nginx） | 5173 / 80 | |
 
 prod 多接一層 reverse proxy（Cloudflare Tunnel 或 Caddy），參見部署 ADR（v1.0 寫）。
@@ -253,12 +253,12 @@ prod 多接一層 reverse proxy（Cloudflare Tunnel 或 Caddy），參見部署 
 
 `.github/workflows/ci.yml`：backend ruff + `python -m pytest tests` + import smoke + alembic offline check、frontend typecheck/build、api/web Docker build validation。
 
-`.github/workflows/docker-publish.yml`：push `main` 或手動 dispatch 時 build/push `kevin950805/frame-processor-api:<commit-sha>`、`kevin950805/frame-processor-web:<commit-sha>`，並更新 `latest` alias。worker 服務重用 api image，僅用不同 command 啟動 RQ worker。
+`.github/workflows/docker-publish.yml`：push `main` 或手動 dispatch 時 build/push `kevin950805/frame-processor-api:<commit-sha>`、`kevin950805/frame-processor-worker:<commit-sha>`、`kevin950805/frame-processor-web:<commit-sha>`，並更新 `latest` alias。API image 使用 CPU torch；worker image 使用 CUDA torch，並由 compose GPU device request 提供 GPU。
 
-`.github/workflows/deploy-dev.yml`：Docker publish 成功後跑在 kevinhome GitHub self-hosted runner `DESK-KEVINHOME-frame-processor`（labels: `self-hosted`, `Windows`, `X64`, `frame-processor-prod`），直接在 Windows desktop `100.83.112.20` 本機部署，不依賴 Windows OpenSSH Server 或 Tailscale SSH。Workflow 會複製 `deploy/docker-compose.yml` 到 `D:/GitClone/_HomeProject/frame-processor/deploy/docker-compose.yml`，merge host-side `deploy/.env` 的 commit SHA image tag，保留未由 GitHub secrets 提供的既有 runtime secrets，驗證 `SETTINGS_ADMIN_TOKEN` 仍存在，驗證 `G:/frame-processor/{postgres-data,storage-data,redis-data}` 皆存在且 compose/runtime mounts 都是 G 槽 bind mounts，用臨時 Docker auth config 逐一 pull postgres/redis/api/web images，執行 `docker compose up -d --pull never --no-build`，確認 runtime images 使用該 commit tag，最後檢查 `http://100.83.112.20:18533/api/health` 回傳預期 app version。`GEMINI_API_KEY` 不再是 deploy blocker；它只是 DB key pool 之外的 runtime fallback。Production web host port 使用 `18533` 並搭配 `restart: unless-stopped`，避開 Windows/Hyper-V reboot 後可能保留 `85xx/86xx` port ranges 導致容器無法綁定。
+`.github/workflows/deploy-dev.yml`：Docker publish 成功後跑在 kevinhome GitHub self-hosted runner `DESK-KEVINHOME-frame-processor`（labels: `self-hosted`, `Windows`, `X64`, `frame-processor-prod`），直接在 Windows desktop `100.83.112.20` 本機部署，不依賴 Windows OpenSSH Server 或 Tailscale SSH。Workflow 會複製 `deploy/docker-compose.yml` 到 `D:/GitClone/_HomeProject/frame-processor/deploy/docker-compose.yml`，merge host-side `deploy/.env` 的 commit SHA image tag，保留未由 GitHub secrets 提供的既有 runtime secrets，驗證 `SETTINGS_ADMIN_TOKEN` 仍存在，驗證 `G:/frame-processor/{postgres-data,storage-data,redis-data}` 皆存在且 compose/runtime mounts 都是 G 槽 bind mounts，用臨時 Docker auth config 逐一 pull postgres/redis/api/worker/web images，執行 `docker compose up -d --pull never --no-build`，確認 runtime images 使用該 commit tag、worker 使用 dedicated CUDA image 且 `torch.cuda.is_available()` 為 true，最後檢查 `http://100.83.112.20:18533/api/health` 回傳預期 app version。`GEMINI_API_KEY` 不再是 deploy blocker；它只是 DB key pool 之外的 runtime fallback。Production web host port 使用 `18533` 並搭配 `restart: unless-stopped`，避開 Windows/Hyper-V reboot 後可能保留 `85xx/86xx` port ranges 導致容器無法綁定。
 
 ## 後續演進指引
 
 - v0.2 加 `services/photo_processor.py` 為 pipeline 主入口；單一 preset 是純 Pillow，可以在 worker 直接執行
-- v0.3 加 NAFNet 需要 GPU runtime，docker-compose 會分出 `worker-cpu` 與 `worker-gpu`（參考 media-processor 的 multi-worker fan-out 模式）
+- v0.4.9 起 batch worker 使用獨立 CUDA PyTorch image 與 compose GPU device request；API image 仍使用 CPU torch，避免 web/API deploy 變重。
 - 大型 AI 模型權重路徑見 `models-weights/`（Docker volume），不入 git

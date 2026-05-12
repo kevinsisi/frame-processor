@@ -4,7 +4,7 @@
 
 ## What Changes
 
-- 新增正式 Docker publish workflow，push `main` 時建置並發布 api/worker 共用 image 與 web image。
+- 新增正式 Docker publish workflow，push `main` 時建置並發布 CPU API image、CUDA worker image 與 web image。
 - 取代 placeholder dev deploy workflow，改為 Tailscale SSH 到 Windows desktop `100.83.112.20`，複製 `deploy/docker-compose.yml`，用臨時 Docker auth config 逐一 pull images 後執行 `docker compose up -d --pull never --no-build`，再跑 health check。
 - 調整 production compose 支援 registry image 與 `${IMAGE_TAG}`，同時保留本機 build context 供手動開發使用。
 - 在 CD 內加入部署前 guard：確認 `G:/frame-processor/postgres-data`、`G:/frame-processor/storage-data`、`G:/frame-processor/redis-data` 已存在，且 compose 內容明確使用 G 槽 bind mounts。

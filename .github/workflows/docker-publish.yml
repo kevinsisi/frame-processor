@@ -33,7 +33,13 @@ jobs:
           - service: api
             image: frame-processor-api
             file: deploy/api.Dockerfile
-            build-args: ""
+            build-args: |
+              TORCH_WHEEL_INDEX=https://download.pytorch.org/whl/cpu
+          - service: worker
+            image: frame-processor-worker
+            file: deploy/api.Dockerfile
+            build-args: |
+              TORCH_WHEEL_INDEX=https://download.pytorch.org/whl/cu126
           - service: web
             image: frame-processor-web
             file: deploy/web.Dockerfile

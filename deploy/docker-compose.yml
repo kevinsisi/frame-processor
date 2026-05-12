@@ -59,8 +59,9 @@ services:
     command: ["sh", "-c", "alembic upgrade head && uvicorn api.main:app --host 0.0.0.0 --port 8000"]
 
   worker:
-    image: ${DOCKERHUB_USERNAME:-kevin950805}/frame-processor-api:${IMAGE_TAG:-latest}
+    image: ${DOCKERHUB_USERNAME:-kevin950805}/frame-processor-worker:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    gpus: all
     environment:
       TZ: Asia/Taipei
       DATABASE_URL: postgresql+psycopg://frame:frame@postgres:5432/frame_processor

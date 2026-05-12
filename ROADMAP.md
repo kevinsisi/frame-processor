@@ -50,14 +50,14 @@
 - `GET /photos/{id}/file?variant=processed&preset=...`
 - worker `process_photos_job` + `zip_export_job` 改成優先打包處理後檔案
 - alembic 0002 建 enums + processing_jobs + photos.processed_paths
-- Docker：CPU-only torch wheel + libgl + Gemini key env + 模型權重 volume mount
+- Docker：API 使用 CPU-only torch wheel；batch worker 使用 CUDA torch wheel + GPU runtime；libgl + Gemini key env + 模型權重 volume mount
 - FE：`PipelinePanel` (preset / denoise 強度 / lens 開關 / level 開關 / aspect) + 進度條 polling + `BeforeAfter` 拖拉對比
 
 非範圍（defer）：
 - 自訂 preset / 自訂裁剪框微調 — v0.7+
 - 處理進度即時 push (SSE/WebSocket) — 仍 polling
 - 多 preset 平行輸出
-- GPU worker 拆分（單 image 用 `torch.cuda.is_available()` 自動偵測）
+- GPU worker 拆分：API/worker images 分離，worker compose 掛 GPU，部署驗證 `torch.cuda.is_available()`
 
 對應提案：`openspec/changes/archive/2026-05-07-v0.2.0-processing-pipeline/`（已 archive）
 

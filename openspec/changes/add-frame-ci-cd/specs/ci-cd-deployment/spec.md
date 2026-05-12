@@ -1,15 +1,16 @@
 ## ADDED Requirements
 
 ### Requirement: Docker images are published for deployment
-The system SHALL publish Docker images for `frame-processor-api` and `frame-processor-web` on push to `main` and on manual dispatch. The worker service MUST reuse the api image unless a future requirement introduces worker-only dependencies.
+The system SHALL publish Docker images for `frame-processor-api`, `frame-processor-worker`, and `frame-processor-web` on push to `main` and on manual dispatch. The API image MUST use CPU torch, and the worker image MUST use CUDA torch for GPU-enabled batch processing.
 
 #### Scenario: Main branch image publish
 - **WHEN** changes are pushed to `main` for application code, Dockerfiles, compose, or CI/CD workflows
-- **THEN** GitHub Actions builds `linux/amd64` images for api and web and pushes them to Docker Hub with the commit SHA tag plus a `latest` alias
+- **THEN** GitHub Actions builds `linux/amd64` images for api, worker, and web and pushes them to Docker Hub with the commit SHA tag plus a `latest` alias
 
-#### Scenario: Worker uses api image
+#### Scenario: Worker uses CUDA worker image
 - **WHEN** production compose resolves the worker service image
-- **THEN** the image source is the same api image used by the api service and the worker command starts `python -m worker.main`
+- **THEN** the image source is `frame-processor-worker` for the same commit SHA tag
+- **AND** the worker service requests GPU access and starts `python -m worker.main`
 
 ### Requirement: CI validates backend, frontend, and container builds
 The system SHALL run backend lint, backend import smoke checks, alembic offline migration checks, Python tests, frontend typecheck/build, and Docker image build validation before changes are accepted.

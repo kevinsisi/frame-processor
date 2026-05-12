@@ -1,13 +1,13 @@
 ## 1. Compose And Image Publishing
 
 - [x] 1.1 Add production image names and `${IMAGE_TAG}` support to `deploy/docker-compose.yml` while preserving local `build:` blocks and G drive bind mounts.
-- [x] 1.2 Add `.github/workflows/docker-publish.yml` to build and push amd64 api and web images to Docker Hub.
+- [x] 1.2 Add `.github/workflows/docker-publish.yml` to build and push amd64 api, worker, and web images to Docker Hub.
 - [x] 1.3 Add `.dockerignore` so Docker build context excludes local env files, caches, data, docs, and generated frontend artifacts.
 
 ## 2. CI Validation
 
 - [x] 2.1 Update `.github/workflows/ci.yml` to install pytest and run `pytest tests`.
-- [x] 2.2 Add CI Docker build validation for api and web images without pushing.
+- [x] 2.2 Add CI Docker build validation for api and web images without pushing; the CUDA worker image is built and validated by Docker publish before deployment.
 
 ## 3. Desktop Deployment
 

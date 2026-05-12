@@ -14,7 +14,7 @@ env:
   IMAGE_TAG: ${{ github.event.workflow_run.head_sha || github.sha }}
   GEMINI_MODEL: gemini-2.5-flash
   HEALTH_URL: http://100.83.112.20:18533/api/health
-  EXPECTED_APP_VERSION: "0.4.8"
+  EXPECTED_APP_VERSION: "0.4.9"
   EXPECTED_POSTGRES_DIR: G:/frame-processor/postgres-data
   EXPECTED_STORAGE_DIR: G:/frame-processor/storage-data
   EXPECTED_REDIS_DIR: G:/frame-processor/redis-data
@@ -174,6 +174,7 @@ jobs:
               'postgres:16-alpine',
               'redis:7-alpine',
               ($env:DOCKERHUB_USERNAME + '/frame-processor-api:' + $env:IMAGE_TAG),
+              ($env:DOCKERHUB_USERNAME + '/frame-processor-worker:' + $env:IMAGE_TAG),
               ($env:DOCKERHUB_USERNAME + '/frame-processor-web:' + $env:IMAGE_TAG)
             )
             foreach ($image in $images) {
@@ -239,9 +240,10 @@ jobs:
           }
 
           $expectedApiImage = $env:DOCKERHUB_USERNAME + '/frame-processor-api:' + $env:IMAGE_TAG
+          $expectedWorkerImage = $env:DOCKERHUB_USERNAME + '/frame-processor-worker:' + $env:IMAGE_TAG
           $expectedWebImage = $env:DOCKERHUB_USERNAME + '/frame-processor-web:' + $env:IMAGE_TAG
           Assert-ContainerImage 'frame-processor-api-1' $expectedApiImage
-          Assert-ContainerImage 'frame-processor-worker-1' $expectedApiImage
+          Assert-ContainerImage 'frame-processor-worker-1' $expectedWorkerImage
           Assert-ContainerImage 'frame-processor-web-1' $expectedWebImage
 
           foreach ($container in @('frame-processor-api-1', 'frame-processor-worker-1', 'frame-processor-web-1', 'frame-processor-postgres-1', 'frame-processor-redis-1')) {
@@ -252,6 +254,10 @@ jobs:
           Assert-ContainerBind 'frame-processor-redis-1' '/data' $env:EXPECTED_REDIS_DIR
           Assert-ContainerBind 'frame-processor-api-1' '/data' $env:EXPECTED_STORAGE_DIR
           Assert-ContainerBind 'frame-processor-worker-1' '/data' $env:EXPECTED_STORAGE_DIR
+
+          $cudaCheck = docker exec frame-processor-worker-1 python -c "import torch; print(torch.cuda.is_available())"
+          if ($LASTEXITCODE -ne 0) { throw 'Worker CUDA check command failed.' }
+          if (($cudaCheck -join '').Trim() -ne 'True') { throw ('Worker must see CUDA, got: ' + ($cudaCheck -join ' ')) }
 
       - name: Health check through web proxy
         shell: powershell

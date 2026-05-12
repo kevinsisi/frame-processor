@@ -14,7 +14,7 @@ The current deploy workflow is a placeholder, so production updates still depend
 
 - Use the HomeProject two-workflow pattern: Docker publish after `main` changes, then deploy after publish succeeds.
 - Build `linux/amd64` images for the Windows desktop Docker runtime.
-- Reuse the api image for the worker service to avoid duplicate Python image builds.
+- Publish a dedicated CUDA worker image while keeping the API image CPU-only.
 - Keep `deploy/docker-compose.yml` usable for local manual `docker compose up --build` while also supporting registry image pull in CD.
 - Make deployment fail before `docker compose up` if the required G drive directories are missing or compose no longer uses G drive bind mounts.
 - Make deployment fail after `docker compose up` if running containers use named volumes or non-G drive mount sources.
@@ -31,14 +31,15 @@ The current deploy workflow is a placeholder, so production updates still depend
 
 ### Docker images
 
-Publish two images to Docker Hub:
+Publish three images to Docker Hub:
 
-- `kevin950805/frame-processor-api:<commit-sha>` plus `latest`
+- `kevin950805/frame-processor-api:<commit-sha>` plus `latest` using CPU torch
+- `kevin950805/frame-processor-worker:<commit-sha>` plus `latest` using CUDA torch
 - `kevin950805/frame-processor-web:<commit-sha>` plus `latest`
 
-The `worker` compose service uses the api image with a different command. This avoids rebuilding the same Python image twice and keeps the worker dependency set identical to api.
+The `worker` compose service uses the dedicated worker image with `gpus: all` and a `python -m worker.main` command. Deploy verification confirms the worker container uses the worker image and sees CUDA before the release is considered healthy.
 
-Alternative considered: publish a separate worker image from the same Dockerfile. That adds build time and image storage without changing runtime behavior.
+Alternative considered: keep reusing the API image for worker. That keeps builds smaller but leaves production AI batch processing on CPU-only torch and can silently waste the desktop GPU.
 
 ### Compose image and build compatibility
 
@@ -94,13 +95,13 @@ Alternative considered: string search the compose file only. That catches obviou
 - Windows/Docker Desktop may report bind mount sources as Linux VM paths -> normalize known Docker Desktop host mount prefixes before comparing.
 - Multiline remote shell parsing can skip intended Docker commands -> upload PowerShell scripts and execute script files instead of relying on inline multiline SSH strings.
 - Windows SSH sessions may not have an interactive Docker credential-helper logon session -> generate a temporary Docker auth config from GitHub `DOCKERHUB_TOKEN`, upload it to the desktop deploy directory, copy it into a temp Docker config directory for explicit `docker pull` calls, then run `docker compose up --pull never` and clean up local/remote auth config files.
-- The first api image build is heavy because it installs torch/ultralytics -> use GitHub Actions build cache and publish only amd64 for the desktop target.
+- The first worker image build is heavy because it installs CUDA torch/ultralytics -> use GitHub Actions build cache and publish only amd64 for the desktop target.
 - Web image cannot receive runtime env after build -> do not bake `SETTINGS_ADMIN_TOKEN`; keep the Settings page manual-token path for admin mutations.
 
 ## Migration Plan
 
 1. Add CI pytest and Docker build validation.
-2. Add Docker publish workflow for api/web images.
+2. Add Docker publish workflow for api/worker/web images.
 3. Update compose image fields while preserving build fields and G drive bind mounts.
 4. Replace deploy scaffold with Windows desktop deploy workflow.
 5. Update project docs and memory with the CI/CD contract.
