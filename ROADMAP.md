@@ -4,6 +4,30 @@
 
 每個 phase 都有對應的 `openspec/changes/<change-id>/` 提案；提案 archive 後填入「狀態 / 對應提案」連結。
 
+## Active OpenSpec changes（含 backlog）
+
+進行中：
+
+- `2026-05-07-v0.3.0-adjustment-panel` — 主功能 ship，剩 iPhone Safari mobile QA / showroom_white smoke / 單張下載驗證。
+- `2026-05-10-batch-version-control` — feature 完成；integration tests 標 deferred，待 `add-frame-test-harness` 解。
+- `add-frame-ci-cd` — 15/16，剩 GPU worker 部署實機驗證。
+
+Backlog（已寫 spec，未開工）：
+
+- `add-frame-test-harness` — backend 整合測試 harness（testcontainers Postgres + TestClient + fake RQ）。解 batch-version-control 的 deferred verification + 後續整合測試需求。**優先**。
+- `add-frame-eslint-v9-migration` — ESLint 從 `.eslintrc` 遷到 v9 flat config；`npm run lint` 目前直接炸。
+- `add-frame-pipeline-step-docs` — ARCHITECTURE.md 補 chroma_clean / detail_preserve / cpl_look 三節對齊既有 service。
+- `add-frame-error-reporting-frontend` — Preview.tsx 5 個 console.warn 換成 user-visible toast + 共用 errorReporting util。
+- `add-frame-job-timeout-config` — RQ `job_timeout=1800` 寫死的兩處拉到 settings + per-photo budget 文件化。**依賴** `add-frame-test-harness` 才能測。
+- `add-frame-processed-paths-typing` — `processed_paths: dict[str, str]` 收緊到 `ColorGradePreset` key + validator + 統一 writer helper。
+
+未來 phase（ROADMAP 段落已述，OpenSpec 開工時才建檔）：
+
+- v0.6.0 — Preset Bundle UI
+- v0.7.0 — 自訂 preset
+- v0.8.0 — 認證 + 8891 整合
+- v1.0.0 — Production Ready（HTTPS / 監控 / 備份 / carsmeet 入口）
+
 ---
 
 ## v0.1.x — Walking Skeleton ✅ (shipped)
