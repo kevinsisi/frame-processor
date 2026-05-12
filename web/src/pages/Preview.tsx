@@ -43,6 +43,8 @@ import {
   DEFAULT_PIPELINE_CHROMA_CLEAN,
   DEFAULT_PIPELINE_CPL,
   DEFAULT_PIPELINE_DETAIL_PRESERVE,
+  DEFAULT_PIPELINE_LENS_DISTORT,
+  DEFAULT_PIPELINE_LEVEL_CORRECT,
   DEFAULT_PIPELINE_PRESET,
   buildPipelinePayload,
   pipelinePayloadMatchesVersion,
@@ -182,8 +184,8 @@ export default function PreviewPage() {
   const [adjustmentJob, setAdjustmentJob] = useState<AdjustmentJob | null>(null);
   const [pipelineBusy, setPipelineBusy] = useState(false);
   const [pipelineDenoise, setPipelineDenoise] = useState<DenoiseStrength>(DEFAULT_PIPELINE_DENOISE);
-  const [pipelineLensDistort, setPipelineLensDistort] = useState(true);
-  const [pipelineLevelCorrect, setPipelineLevelCorrect] = useState(true);
+  const [pipelineLensDistort, setPipelineLensDistort] = useState(DEFAULT_PIPELINE_LENS_DISTORT);
+  const [pipelineLevelCorrect, setPipelineLevelCorrect] = useState(DEFAULT_PIPELINE_LEVEL_CORRECT);
   const [pipelineAspect, setPipelineAspect] = useState<AspectRatio>("original");
   const [pipelineCplStrength, setPipelineCplStrength] = useState<CplStrength>(DEFAULT_PIPELINE_CPL);
   const [pipelineChromaCleanStrength, setPipelineChromaCleanStrength] = useState<ChromaCleanStrength>(DEFAULT_PIPELINE_CHROMA_CLEAN);
@@ -301,6 +303,13 @@ export default function PreviewPage() {
       adjustmentPollRef.current = null;
     }
     setPipelinePreset(readProjectPipelinePreset(projectId) ?? DEFAULT_PIPELINE_PRESET);
+    setPipelineDenoise(DEFAULT_PIPELINE_DENOISE);
+    setPipelineLensDistort(DEFAULT_PIPELINE_LENS_DISTORT);
+    setPipelineLevelCorrect(DEFAULT_PIPELINE_LEVEL_CORRECT);
+    setPipelineAspect("original");
+    setPipelineCplStrength(DEFAULT_PIPELINE_CPL);
+    setPipelineChromaCleanStrength(DEFAULT_PIPELINE_CHROMA_CLEAN);
+    setPipelineDetailPreserveStrength(DEFAULT_PIPELINE_DETAIL_PRESERVE);
     const requestedProjectId = projectId;
     api
       .getProject(requestedProjectId)

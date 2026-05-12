@@ -14,6 +14,8 @@ export const DEFAULT_PIPELINE_DENOISE: DenoiseStrength = "medium";
 export const DEFAULT_PIPELINE_CPL: CplStrength = "none";
 export const DEFAULT_PIPELINE_CHROMA_CLEAN: ChromaCleanStrength = "medium";
 export const DEFAULT_PIPELINE_DETAIL_PRESERVE: DetailPreserveStrength = "low";
+export const DEFAULT_PIPELINE_LENS_DISTORT = false;
+export const DEFAULT_PIPELINE_LEVEL_CORRECT = false;
 
 const COLOR_GRADE_PRESETS: ColorGradePreset[] = [
   "showroom_white",

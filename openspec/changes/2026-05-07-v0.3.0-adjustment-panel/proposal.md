@@ -95,9 +95,9 @@ v0.2.0 ship 後晴晴實際使用發現：preset + auto-pipeline 出來的結果
 - 「套用到全部」→ 進度條跑、處理完每張的 processed_paths.adjusted 都更新
 - 使用者可先套用到全部，再切單張做獨立微調；單張 override 不影響其他照片
 - 套用過的 photo 在 PhotoGrid 上有「已調整」mark
-- export zip 優先用 adjusted（若無）→ preset processed → 原圖
+- export zip 優先用 adjusted（若無）→ 最新完成 AI 版本 → preset processed cache → 原圖
 - Photo card version dropdown changes the visible card image and active editing/download base for that photo.
-- Pipeline defaults are medium denoise, lens distortion correction on, and level correction on.
+- Pipeline defaults are medium denoise with lens distortion correction and level correction off; geometry correction is optional because pre-corrected photos can be overcorrected.
 - Before/After warns when the active original has no generated pipeline output yet, because AI denoise only runs after "開始產生".
 - Before/After auto-generates missing preset outputs while preserving the original as the comparison baseline.
 - Heavy denoise keeps flat regions clean while preserving architecture/body-line detail, and wide-angle correction visibly handles vertical perspective convergence in addition to barrel distortion.

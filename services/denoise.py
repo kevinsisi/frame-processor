@@ -49,28 +49,28 @@ NAFNET_WEIGHTS_FILENAME = "NAFNet-SIDD-width32.pth"
 STRENGTH_BLEND: dict[DenoiseStrength, float] = {
     DenoiseStrength.NONE: 0.0,
     DenoiseStrength.LIGHT: 0.35,
-    DenoiseStrength.MEDIUM: 0.8,
-    DenoiseStrength.HEAVY: 0.8,
+    DenoiseStrength.MEDIUM: 0.70,
+    DenoiseStrength.HEAVY: 0.78,
 }
 
 CLASSICAL_POST_BLEND: dict[DenoiseStrength, float] = {
     DenoiseStrength.NONE: 0.0,
     DenoiseStrength.LIGHT: 0.0,
-    DenoiseStrength.MEDIUM: 0.65,
-    DenoiseStrength.HEAVY: 0.6,
+    DenoiseStrength.MEDIUM: 0.45,
+    DenoiseStrength.HEAVY: 0.55,
 }
 
 DETAIL_PROTECTION: dict[DenoiseStrength, float] = {
     DenoiseStrength.NONE: 0.0,
     DenoiseStrength.LIGHT: 0.25,
-    DenoiseStrength.MEDIUM: 0.55,
-    DenoiseStrength.HEAVY: 0.72,
+    DenoiseStrength.MEDIUM: 0.92,
+    DenoiseStrength.HEAVY: 0.78,
 }
 
 CHROMA_EXTRA_BLEND: dict[DenoiseStrength, float] = {
     DenoiseStrength.NONE: 0.0,
     DenoiseStrength.LIGHT: 0.1,
-    DenoiseStrength.MEDIUM: 0.18,
+    DenoiseStrength.MEDIUM: 0.08,
     DenoiseStrength.HEAVY: 0.1,
 }
 
@@ -223,9 +223,26 @@ def _run_nafnet(rgb: np.ndarray) -> np.ndarray:
             x1 = max(0, x2 - tile)
             patch = rgb[y1:y2, x1:x2]
             denoised_patch = _infer_tile(model, device, patch)
-            output[y1:y2, x1:x2] += denoised_patch
-            weight[y1:y2, x1:x2] += 1.0
+            patch_weight = _tile_blend_weight(y2 - y1, x2 - x1, overlap)
+            output[y1:y2, x1:x2] += denoised_patch * patch_weight
+            weight[y1:y2, x1:x2] += patch_weight
     return output / np.maximum(weight, 1e-6)
+
+
+def _tile_blend_weight(height: int, width: int, overlap: int) -> np.ndarray:
+    y_weight = np.ones(height, dtype=np.float32)
+    x_weight = np.ones(width, dtype=np.float32)
+    y_ramp = min(overlap, height // 2)
+    x_ramp = min(overlap, width // 2)
+    if y_ramp > 0:
+        ramp = np.linspace(0.05, 1.0, y_ramp, dtype=np.float32)
+        y_weight[:y_ramp] = ramp
+        y_weight[-y_ramp:] = ramp[::-1]
+    if x_ramp > 0:
+        ramp = np.linspace(0.05, 1.0, x_ramp, dtype=np.float32)
+        x_weight[:x_ramp] = ramp
+        x_weight[-x_ramp:] = ramp[::-1]
+    return (y_weight[:, np.newaxis] * x_weight[np.newaxis, :])[:, :, np.newaxis]
 
 
 def _infer_tile(model, device, rgb: np.ndarray) -> np.ndarray:

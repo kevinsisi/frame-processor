@@ -3,9 +3,9 @@
 策略：
 1. 把照片縮成 long-edge 768px 的 JPEG（節省 token）送給 Gemini
 2. Prompt：要求回傳「順時針旋轉幾度才會把地平線轉到水平」，限制 -90 ~ 90，回傳純數字
-3. 解析數字 → ``cv2.warpAffine`` 旋轉（無上限，30° 就轉 30°）
+3. 解析數字 → ``cv2.warpAffine`` 旋轉（Gemini 回傳超出 -90~90 時跳過旋轉）
 4. 旋轉後用反推內接矩形裁掉黑邊
-5. Gemini API key 缺失或回應無法解析時 raise，讓 worker 標 fail（不靜默 fallback）
+5. Gemini API key 缺失或回應無法解析時 raise，讓 worker 標 fail（不靜默 fallback）；超出範圍角度視為不可信估計並略過
 
 錯誤分類與重試（``_classify_gemini_error`` / ``_backoff_seconds``）：
 - AUTH（401 / 403）：不重試，直接 fail；換 key 才可能解
@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import io
+import logging
 import re
 import time
 from enum import Enum
@@ -40,6 +41,7 @@ _PROMPT = (
 )
 
 _NUMBER_RE = re.compile(r"-?\d+(?:\.\d+)?")
+LOGGER = logging.getLogger(__name__)
 
 # Per-call timeout (秒) — Gemini Flash 處理 768px 圖通常 1-3s，30s 已留足容錯
 GEMINI_REQUEST_TIMEOUT_SECONDS = 30
@@ -153,7 +155,8 @@ def _generate_angle(model, payload: bytes) -> float:
         raise LevelCorrectError(f"Gemini returned non-numeric angle: {text!r}")
     angle = float(match.group(0))
     if angle < -90 or angle > 90:
-        raise LevelCorrectError(f"Gemini angle out of range: {angle}")
+        LOGGER.warning("Gemini level_correct returned out-of-range angle; skipping rotation: %s", angle)
+        return 0.0
     return angle
 
 

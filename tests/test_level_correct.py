@@ -17,6 +17,7 @@ from services.level_correct import (
     _backoff_seconds,
     _call_gemini_with_retry,
     _classify_gemini_error,
+    _generate_angle,
 )
 
 
@@ -46,6 +47,19 @@ class InternalServerError(Exception):
 
 class InvalidArgument(Exception):
     pass
+
+
+class FakeResponse:
+    def __init__(self, text: str) -> None:
+        self.text = text
+
+
+class FakeAngleModel:
+    def __init__(self, text: str) -> None:
+        self.text = text
+
+    def generate_content(self, *_args, **_kwargs) -> FakeResponse:
+        return FakeResponse(self.text)
 
 
 def test_classify_quota_errors() -> None:
@@ -188,3 +202,12 @@ def test_retry_timeout_then_quota_uses_kind_specific_backoff() -> None:
     # attempt 0: timeout → 2.0; attempt 1: quota → 30.0; attempt 2: quota → stop.
     assert sleeps == [2.0, 30.0]
     assert "quota" in str(exc_info.value)
+
+
+def test_generate_angle_skips_out_of_range_gemini_response() -> None:
+    assert _generate_angle(FakeAngleModel("260.0"), b"jpeg") == 0.0
+
+
+def test_generate_angle_still_fails_for_non_numeric_response() -> None:
+    with pytest.raises(LevelCorrectError, match="non-numeric"):
+        _generate_angle(FakeAngleModel("not sure"), b"jpeg")

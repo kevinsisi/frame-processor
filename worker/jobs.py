@@ -52,22 +52,64 @@ def zip_export_job(export_id: str) -> str:
             raise
 
 
-def _pick_export_path(stored_path: str, processed_paths: dict[str, str] | None) -> str:
-    """有手動調整優先用 adjusted，否則用任一處理結果，最後 fallback 原圖。"""
+def _pick_export_path(
+    stored_path: str,
+    processed_paths: dict[str, str] | None,
+    latest_processing_path: str | None = None,
+) -> str:
+    """有手動調整優先用 adjusted，否則用最新 AI 版本，最後 fallback 原圖。"""
     if processed_paths:
         adjusted = processed_paths.get("adjusted")
         if adjusted:
             return adjusted
+    if latest_processing_path:
+        return latest_processing_path
+    if processed_paths:
         for value in processed_paths.values():
             if value:
                 return value
     return stored_path
 
 
+def _latest_processing_paths(
+    db,
+    project_id: UUID,
+    photo_ids: list[UUID],
+) -> dict[UUID, str]:
+    if not photo_ids:
+        return {}
+    rows = (
+        db.execute(
+            select(PhotoProcessingVersion.photo_id, PhotoProcessingVersion.path)
+            .join(ProcessingJob, ProcessingJob.id == PhotoProcessingVersion.processing_job_id)
+            .where(
+                ProcessingJob.project_id == project_id,
+                ProcessingJob.status == ProcessingJobStatus.DONE,
+                ProcessingJob.archived_at.is_(None),
+                PhotoProcessingVersion.photo_id.in_(photo_ids),
+                PhotoProcessingVersion.status == processing_versions.PHOTO_VERSION_DONE,
+                PhotoProcessingVersion.path.is_not(None),
+            )
+            .order_by(
+                ProcessingJob.version_number.desc(),
+                PhotoProcessingVersion.created_at.desc(),
+            )
+        )
+        .tuples()
+        .all()
+    )
+    latest: dict[UUID, str] = {}
+    for photo_id, path in rows:
+        if path and photo_id not in latest:
+            latest[photo_id] = path
+    return latest
+
+
 def _legacy_export_payload(db, export: Export) -> list[tuple[str, str]]:
     photos = (
         db.execute(
             select(
+                Photo.id,
                 Photo.original_filename,
                 Photo.stored_path,
                 Photo.processed_paths,
@@ -76,9 +118,18 @@ def _legacy_export_payload(db, export: Export) -> list[tuple[str, str]]:
         .tuples()
         .all()
     )
+    latest_paths = _latest_processing_paths(
+        db,
+        export.project_id,
+        [photo_id for photo_id, *_ in photos],
+    )
     payload: list[tuple[str, str]] = []
-    for original_name, stored_path, processed_paths in photos:
-        relative = _pick_export_path(stored_path, processed_paths)
+    for photo_id, original_name, stored_path, processed_paths in photos:
+        relative = _pick_export_path(
+            stored_path,
+            processed_paths,
+            latest_paths.get(photo_id),
+        )
         payload.append((original_name, relative))
     return payload
 

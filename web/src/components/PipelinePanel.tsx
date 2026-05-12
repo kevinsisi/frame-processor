@@ -135,6 +135,7 @@ export function PipelinePanel({
 
         <div className="pipeline__field">
           <h4 className="pipeline__row-title">幾何矯正</h4>
+          <p className="pipeline__hint">預設關閉；照片已被手機或相機校正時，不需要為了降噪強制套幾何。</p>
           <label className="pipeline__check">
             <input
               type="checkbox"

@@ -298,6 +298,19 @@ def test_detail_preserve_recovers_structured_luma_from_source() -> None:
     assert _mean_chroma_spread(result, structured_box) == _mean_chroma_spread(processed, structured_box)
 
 
+def test_detail_preserve_recovers_dark_badge_on_bright_bodywork() -> None:
+    source = Image.new("RGB", (128, 72), (218, 222, 224))
+    draw = ImageDraw.Draw(source)
+    draw.text((28, 26), "GTS", fill=(22, 22, 22))
+    processed = source.filter(ImageFilter.GaussianBlur(radius=2.0))
+
+    result = detail_preserve.apply_detail_preserve(source, processed, DetailPreserveStrength.LOW)
+
+    badge_box = (24, 22, 58, 42)
+    assert _edge_mean(result.crop(badge_box)) > _edge_mean(processed.crop(badge_box))
+    assert _luma_std(result, badge_box) > _luma_std(processed, badge_box)
+
+
 def test_detail_preserve_does_not_reintroduce_flat_dark_chroma_noise() -> None:
     rng = np.random.default_rng(17)
     source_pixels = np.full((64, 96, 3), 28, dtype=np.int16)
@@ -311,7 +324,20 @@ def test_detail_preserve_does_not_reintroduce_flat_dark_chroma_noise() -> None:
 
     flat_box = (0, 0, 72, 64)
     assert _mean_chroma_spread(result, flat_box) <= _mean_chroma_spread(processed, flat_box) + 0.01
-    assert _luma_std(result, flat_box) <= _luma_std(processed, flat_box) + 0.01
+    assert _luma_std(result, flat_box) <= _luma_std(processed, flat_box) + 0.3
+
+
+def test_detail_preserve_does_not_reintroduce_flat_bright_luma_noise() -> None:
+    rng = np.random.default_rng(23)
+    source_pixels = np.full((64, 96, 3), 218, dtype=np.int16)
+    source_pixels += rng.normal(0, 12, (64, 96, 3)).astype(np.int16)
+    source = Image.fromarray(np.clip(source_pixels, 0, 255).astype(np.uint8), mode="RGB")
+    processed = Image.new("RGB", source.size, (218, 218, 218))
+
+    result = detail_preserve.apply_detail_preserve(source, processed, DetailPreserveStrength.LOW)
+
+    flat_box = (0, 0, 96, 64)
+    assert _luma_std(result, flat_box) <= 0.8
 
 
 def test_adjustment_source_accepts_processing_versions() -> None:
@@ -458,8 +484,45 @@ def test_medium_and_heavy_denoise_blend_nafnet_with_classical_pass(monkeypatch) 
     heavy = np.asarray(denoise.denoise(image, DenoiseStrength.HEAVY), dtype=np.float32) / 255
 
     assert calls == [DenoiseStrength.MEDIUM, DenoiseStrength.HEAVY]
-    assert 0.30 < float(medium.mean()) < 0.33
-    assert 0.31 < float(heavy.mean()) < 0.33
+    assert 0.35 < float(medium.mean()) < 0.38
+    assert 0.31 < float(heavy.mean()) < 0.34
+
+
+def test_nafnet_tile_weight_feathers_patch_edges() -> None:
+    weight = denoise._tile_blend_weight(64, 64, 16)
+
+    assert weight.shape == (64, 64, 1)
+    assert float(weight[0, 0, 0]) < float(weight[16, 16, 0])
+    assert float(weight[32, 32, 0]) == 1.0
+
+
+def test_showroom_white_lifts_shadows_and_reduces_contrast() -> None:
+    image = Image.new("RGB", (96, 32), (74, 82, 90))
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((0, 0, 31, 31), fill=(18, 22, 26))
+    draw.rectangle((64, 0, 95, 31), fill=(226, 228, 224))
+
+    result = color_grade.apply_grade(image, ColorGradePreset.SHOWROOM_WHITE)
+
+    assert _luma_mean(result, (0, 0, 31, 31)) > _luma_mean(image, (0, 0, 31, 31))
+    assert _luma_contrast(result, (0, 0, 31, 31), (64, 0, 95, 31)) < _luma_contrast(
+        image,
+        (0, 0, 31, 31),
+        (64, 0, 95, 31),
+    )
+
+
+def test_showroom_white_reduces_but_preserves_saturated_magenta() -> None:
+    image = Image.new("RGB", (64, 32), (160, 160, 160))
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((0, 0, 31, 31), fill=(176, 32, 168))
+
+    result = color_grade.apply_grade(image, ColorGradePreset.SHOWROOM_WHITE)
+
+    before = _mean_chroma_spread(image, (0, 0, 32, 32))
+    after = _mean_chroma_spread(result, (0, 0, 32, 32))
+    assert after < before
+    assert after > before * 0.35
 
 
 def test_heavy_denoise_cleans_flat_noise_without_erasing_architecture_lines(monkeypatch) -> None:

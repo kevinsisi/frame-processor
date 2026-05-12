@@ -1,5 +1,7 @@
 # Tasks — ESLint v9 Flat Config Migration
 
+Note: v0.4.10 added a minimal `web/eslint.config.js` so `npm run lint` can run during the hotfix release. The full migration below remains open until type-aware lint, recommended/react-refresh rules, CI wiring, and related fixes are completed.
+
 ## Configuration
 
 - [ ] 盤點目前是否還有 `web/.eslintrc.*` 殘留檔；若有，做 git mv 備份再刪。

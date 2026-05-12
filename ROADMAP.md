@@ -10,12 +10,12 @@
 
 - `2026-05-07-v0.3.0-adjustment-panel` — 主功能 ship，剩 iPhone Safari mobile QA / showroom_white smoke / 單張下載驗證。
 - `2026-05-10-batch-version-control` — feature 完成；integration tests 標 deferred，待 `add-frame-test-harness` 解。
-- `add-frame-ci-cd` — 15/16，剩 GPU worker 部署實機驗證。
+- `add-frame-ci-cd` — implementation complete; ready to archive after final spec sync.
 
 Backlog（已寫 spec，未開工）：
 
 - `add-frame-test-harness` — backend 整合測試 harness（testcontainers Postgres + TestClient + fake RQ）。解 batch-version-control 的 deferred verification + 後續整合測試需求。**優先**。
-- `add-frame-eslint-v9-migration` — ESLint 從 `.eslintrc` 遷到 v9 flat config；`npm run lint` 目前直接炸。
+- `add-frame-eslint-v9-migration` — v0.4.10 已加最小 flat config 讓 `npm run lint` 可執行；仍需補 type-aware / recommended / react-refresh 規則與 CI lint step。
 - `add-frame-pipeline-step-docs` — ARCHITECTURE.md 補 chroma_clean / detail_preserve / cpl_look 三節對齊既有 service。
 - `add-frame-error-reporting-frontend` — Preview.tsx 5 個 console.warn 換成 user-visible toast + 共用 errorReporting util。
 - `add-frame-job-timeout-config` — RQ `job_timeout=1800` 寫死的兩處拉到 settings + per-photo budget 文件化。**依賴** `add-frame-test-harness` 才能測。
@@ -109,7 +109,7 @@ Backlog（已寫 spec，未開工）：
 對應提案：`openspec/changes/2026-05-07-v0.3.0-adjustment-panel/`
 
 子版本（app version 0.3.0–0.3.29，皆已 ship；版號定義見「版本號碼說明」）：
-- **0.3.x（FE 主導）** — adjustment panel 收斂：generated `manual-vN` 版本獨立於 draft、live preview 縮圖速度修正、全螢幕構圖工作區、手動水平/垂直透視拆分、版本下拉同步 Before/After 與下載目標、預設 medium 降噪/lens on/level on、iPhone Safari 預覽即時感、強化 medium / heavy 降噪 edge-aware blend、低光肖像 regression 修正、自動 batch 補產缺漏版本、Upload→Preview pipeline 設定串接、sticky 開始產生列、Before/After 切換上一張/下一張、preview-ux-audit 文件。
+- **0.3.x（FE 主導）** — adjustment panel 收斂：generated `manual-vN` 版本獨立於 draft、live preview 縮圖速度修正、全螢幕構圖工作區、手動水平/垂直透視拆分、版本下拉同步 Before/After 與下載目標、預設 medium 降噪、iPhone Safari 預覽即時感、強化 medium / heavy 降噪 edge-aware blend、低光肖像 regression 修正、自動 batch 補產缺漏版本、Upload→Preview pipeline 設定串接、sticky 開始產生列、Before/After 切換上一張/下一張、preview-ux-audit 文件。
 - **0.3.25** — chore: app + deploy health gate 對齊到 0.3.25，讓 desktop runner 可驗證 runtime app version。
 
 ---
@@ -159,6 +159,7 @@ Backlog（已寫 spec，未開工）：
 - **0.4.7** — Detail Preserve 細節保留 batch step（`11b3849`）
 - **0.4.8** — fix: 避免預設 pipeline identity 改變導致舊 AI 輸出被重跑（`23cf20c`）
 - **0.4.9** — GPU worker split：worker CUDA image、`docker compose` 掛 GPU、deploy 驗證 `torch.cuda.is_available()`、geometry 校正文件改寫（`1e7a38a` + `293e61e`）
+- **0.4.10** — safe geometry defaults + export/detail hotfixes：Preview 預設關閉 lens/Gemini level 幾何校正，只保留 AI denoise/chroma/detail；Gemini 回傳超出範圍角度時跳過旋轉，不讓整批失敗；ZIP 相容匯出會在 cache 為空時查最新完成 AI 版本；NAFNet tile feather、Detail Preserve source-structure 回補與 `showroom_white` Lightroom `01.CH偏光色` 方向調整，修正 911 專案 logo/輪框細節流失與格狀 artifact 風險。
 
 ---
 

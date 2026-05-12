@@ -10,7 +10,9 @@
 
 from __future__ import annotations
 
-from PIL import Image, ImageEnhance, ImageOps
+import cv2
+import numpy as np
+from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 
 from models.enums import ColorGradePreset
 
@@ -28,11 +30,35 @@ def apply_grade(image: Image.Image, preset: ColorGradePreset) -> Image.Image:
 
 def _showroom_white(image: Image.Image) -> Image.Image:
     balanced = _gray_world_white_balance(image)
-    neutral = _channel_shift(balanced, r_delta=-8, g_delta=0, b_delta=12)
-    brighter = ImageEnhance.Brightness(neutral).enhance(1.08)
-    contrasted = ImageEnhance.Contrast(brighter).enhance(1.08)
-    desaturated = ImageEnhance.Color(contrasted).enhance(0.72)
-    return desaturated
+    neutral = _channel_shift(balanced, r_delta=5, g_delta=-3, b_delta=-2)
+    toned = _showroom_tone_curve(neutral)
+    softened = ImageEnhance.Contrast(toned).enhance(0.86)
+    clarified = softened.filter(ImageFilter.UnsharpMask(radius=1.4, percent=38, threshold=6))
+    return _reduce_purple_magenta(clarified)
+
+
+def _showroom_tone_curve(image: Image.Image) -> Image.Image:
+    rgb = np.asarray(image.convert("RGB"), dtype=np.float32) / 255.0
+    luma = 0.299 * rgb[..., 0] + 0.587 * rgb[..., 1] + 0.114 * rgb[..., 2]
+    shadows = np.clip((0.78 - luma) / 0.78, 0.0, 1.0) ** 1.7
+    whites = np.clip((luma - 0.62) / 0.38, 0.0, 1.0) ** 1.4
+    rgb = rgb * 1.10
+    rgb = rgb + shadows[..., np.newaxis] * 0.10
+    rgb = rgb + whites[..., np.newaxis] * 0.035
+    return Image.fromarray(np.clip(rgb * 255.0, 0, 255).astype(np.uint8), "RGB")
+
+
+def _reduce_purple_magenta(image: Image.Image) -> Image.Image:
+    rgb = np.asarray(image.convert("RGB"), dtype=np.float32) / 255.0
+    hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
+    hue = hsv[..., 0]
+    saturation = hsv[..., 1]
+    purple_magenta = ((hue >= 260.0) & (hue <= 335.0)).astype(np.float32)
+    saturated_color = np.clip((saturation - 0.18) / 0.42, 0.0, 1.0)
+    reduction = 1.0 - (purple_magenta * saturated_color * 0.45)
+    hsv[..., 1] = saturation * reduction
+    out = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
+    return Image.fromarray(np.clip(out * 255.0, 0, 255).astype(np.uint8), "RGB")
 
 
 def _outdoor_warm(image: Image.Image) -> Image.Image:

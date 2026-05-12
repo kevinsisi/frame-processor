@@ -9,6 +9,8 @@ import {
   DEFAULT_PIPELINE_CHROMA_CLEAN,
   DEFAULT_PIPELINE_CPL,
   DEFAULT_PIPELINE_DETAIL_PRESERVE,
+  DEFAULT_PIPELINE_LENS_DISTORT,
+  DEFAULT_PIPELINE_LEVEL_CORRECT,
   buildPipelinePayload,
   isColorGradePreset,
   pipelinePayloadMatchesVersion,
@@ -123,6 +125,14 @@ if (DEFAULT_PIPELINE_CHROMA_CLEAN !== "medium") {
 
 if (DEFAULT_PIPELINE_DETAIL_PRESERVE !== "low") {
   throw new Error(`DEFAULT_PIPELINE_DETAIL_PRESERVE: expected low, got ${DEFAULT_PIPELINE_DETAIL_PRESERVE}`);
+}
+
+if (DEFAULT_PIPELINE_LENS_DISTORT !== false) {
+  throw new Error(`DEFAULT_PIPELINE_LENS_DISTORT: expected false, got ${DEFAULT_PIPELINE_LENS_DISTORT}`);
+}
+
+if (DEFAULT_PIPELINE_LEVEL_CORRECT !== false) {
+  throw new Error(`DEFAULT_PIPELINE_LEVEL_CORRECT: expected false, got ${DEFAULT_PIPELINE_LEVEL_CORRECT}`);
 }
 
 const store = new Map<string, string>();
