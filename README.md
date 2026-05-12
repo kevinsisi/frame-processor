@@ -21,6 +21,18 @@ docker compose up -d --build
 > Production on `kevinhome` stores persistent Docker data under `G:\frame-processor\` (`postgres-data`, `storage-data`, `redis-data`) to avoid filling the C drive.
 > For migration or disaster recovery, create these directories first and copy the existing Docker volume contents into them before starting the stack; starting with empty directories creates an empty PostgreSQL/storage state.
 
+### 版本號碼
+
+App version 是單一 canonical 值，發版時必須在這五處同步 bump：
+
+1. `api/main.py` `APP_VERSION` — `/health` 與 FastAPI title
+2. `web/src/version.ts` `APP_VERSION` — 前端顯示
+3. `web/package.json` `version` — npm 套件 metadata
+4. `.github/workflows/deploy-dev.yml` `EXPECTED_APP_VERSION` — CD 部署後 health gate
+5. `pyproject.toml` `version` — Python 套件 metadata
+
+v0.4.x 系列曾漏 bump `pyproject.toml`，已於 v0.4.9 後對齊；之後每次發版五處一起改。版號定義與子版本對應見 `ROADMAP.md`。
+
 ### 必要環境變數
 
 `deploy/docker-compose.yml` 從同目錄 `deploy/.env` 讀取（或主機 env 直接 inject）：

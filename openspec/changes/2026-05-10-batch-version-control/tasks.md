@@ -44,9 +44,8 @@
 
 ## Verification
 
-- [ ] Backend unit/integration tests for version numbering, duplicate blocking, force creation, worker outputs, and project detail projection.
-- [ ] Tests for failed/partial version visibility and archive behavior.
-- [ ] Tests for migration initial version numbering, `force=true`, failed error display projection, per-photo error projection, selected-version export missing-output 409, partial export, processed_paths cache recomputation, settings detail projection, full retry, retry-missing-only, raw-field label generation, and file/DB consistency cleanup.
+- [x] Pure-function projection tests for `_photo_out` / `_processing_version_out`：done version、failed version 帶 error、多版本順序、processing + adjustment 共存、retry metadata、pending 無 completed_at（`tests/test_project_detail.py`）。
+- [ ] **Deferred — needs integration test harness**：DB-bound 測試（`refresh_processing_job_progress`、`recompute_latest_processed_cache`、`update_latest_processed_cache_for_job`）、FastAPI TestClient 測試（`POST /projects/{id}/process` duplicate 409、`force=true`、photo missing 400、`DELETE …/version` archive 行為、selected-version export missing-output 409、partial export、settings detail projection）、worker output 落 immutable path、alembic 0007 migration 初始 version numbering、frontend label 生成 snapshot、file/DB consistency cleanup。整批拆到後續 `add-frame-test-harness` change 才處理（目前 `tests/` 只有 pure-function 測試慣例，沒有 fixture / TestClient / sqlite shim）。
 - [x] Frontend typecheck and production build.
 - [x] Python lint and full test suite.
 - [x] Compose config validation.
