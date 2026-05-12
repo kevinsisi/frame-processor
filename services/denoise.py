@@ -74,6 +74,21 @@ CHROMA_EXTRA_BLEND: dict[DenoiseStrength, float] = {
     DenoiseStrength.HEAVY: 0.1,
 }
 
+DARK_CHROMA_GRID_BLEND: dict[DenoiseStrength, float] = {
+    DenoiseStrength.NONE: 0.0,
+    DenoiseStrength.LIGHT: 0.45,
+    DenoiseStrength.MEDIUM: 1.0,
+    DenoiseStrength.HEAVY: 1.0,
+}
+
+DARK_CHROMA_GRID_VALUE_LIMIT = 118.0
+DARK_CHROMA_GRID_VALUE_RANGE = 74.0
+DARK_CHROMA_GRID_CHROMA_LIMIT = 36.0
+DARK_CHROMA_GRID_STRUCTURE_FLOOR = 4.0
+DARK_CHROMA_GRID_STRUCTURE_RANGE = 22.0
+DARK_CHROMA_GRID_RESIDUAL_FLOOR = 0.8
+DARK_CHROMA_GRID_RESIDUAL_RANGE = 5.5
+
 DETAIL_STRUCTURE_BLUR_SIGMA = 1.8
 DETAIL_CANNY_LOW = 55
 DETAIL_CANNY_HIGH = 140
@@ -108,6 +123,7 @@ def denoise(image: Image.Image, strength: DenoiseStrength) -> Image.Image:
         )
         denoised = _run_opencv_denoise(rgb, strength)
     blended = _blend_preserving_detail(rgb, denoised, strength)
+    blended = _suppress_dark_chroma_grid(blended, strength)
     blended = np.clip(blended * 255.0, 0, 255).astype(np.uint8)
     return Image.fromarray(blended)
 
@@ -168,6 +184,73 @@ def _blend_preserving_detail(
         chroma_alpha * denoised_ycc[..., 1:] + (1.0 - chroma_alpha) * original_ycc[..., 1:]
     )
     return np.clip(cv2.cvtColor(blended_ycc, cv2.COLOR_YCrCb2RGB), 0.0, 1.0)
+
+
+def _suppress_dark_chroma_grid(rgb: np.ndarray, strength: DenoiseStrength) -> np.ndarray:
+    import cv2
+
+    blend = DARK_CHROMA_GRID_BLEND[strength]
+    if blend <= 0:
+        return rgb
+
+    rgb_u8 = np.clip(rgb * 255.0, 0, 255).astype(np.uint8)
+    ycrcb = cv2.cvtColor(rgb_u8, cv2.COLOR_RGB2YCrCb)
+    y = ycrcb[:, :, 0].astype(np.float32)
+    cr = ycrcb[:, :, 1]
+    cb = ycrcb[:, :, 2]
+    chroma_magnitude = np.sqrt(
+        ((cr.astype(np.float32) - 128.0) ** 2) + ((cb.astype(np.float32) - 128.0) ** 2)
+    )
+
+    dark_weight = np.clip((DARK_CHROMA_GRID_VALUE_LIMIT - y) / DARK_CHROMA_GRID_VALUE_RANGE, 0.0, 1.0)
+    neutral_weight = np.clip(
+        (DARK_CHROMA_GRID_CHROMA_LIMIT - chroma_magnitude) / DARK_CHROMA_GRID_CHROMA_LIMIT,
+        0.0,
+        1.0,
+    )
+
+    smoothed_y = cv2.GaussianBlur(y, (0, 0), sigmaX=1.1)
+    grad_x = cv2.Sobel(smoothed_y, cv2.CV_32F, 1, 0, ksize=3)
+    grad_y = cv2.Sobel(smoothed_y, cv2.CV_32F, 0, 1, ksize=3)
+    structure = np.sqrt((grad_x * grad_x) + (grad_y * grad_y))
+    flat_weight = 1.0 - np.clip(
+        (structure - DARK_CHROMA_GRID_STRUCTURE_FLOOR) / DARK_CHROMA_GRID_STRUCTURE_RANGE,
+        0.0,
+        1.0,
+    )
+
+    cr_clean = _clean_grid_chroma_channel(cr)
+    cb_clean = _clean_grid_chroma_channel(cb)
+    cr_residual = np.abs(cr.astype(np.float32) - cr_clean.astype(np.float32))
+    cb_residual = np.abs(cb.astype(np.float32) - cb_clean.astype(np.float32))
+    residual = np.sqrt((cr_residual * cr_residual) + (cb_residual * cb_residual))
+    artifact_weight = np.clip(
+        (residual - DARK_CHROMA_GRID_RESIDUAL_FLOOR) / DARK_CHROMA_GRID_RESIDUAL_RANGE,
+        0.0,
+        1.0,
+    )
+
+    alpha = dark_weight * neutral_weight * flat_weight * artifact_weight * blend
+    if float(alpha.max(initial=0.0)) <= 0.0:
+        return rgb
+    alpha = cv2.GaussianBlur(alpha, (0, 0), sigmaX=0.7)
+    alpha *= dark_weight * neutral_weight * flat_weight
+    ycrcb[:, :, 1] = _blend_grid_chroma_channel(cr, cr_clean, alpha)
+    ycrcb[:, :, 2] = _blend_grid_chroma_channel(cb, cb_clean, alpha)
+    return cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2RGB).astype(np.float32) / 255.0
+
+
+def _clean_grid_chroma_channel(channel: np.ndarray) -> np.ndarray:
+    import cv2
+
+    filtered = cv2.GaussianBlur(channel, (0, 0), sigmaX=1.2)
+    filtered = cv2.medianBlur(filtered, 3)
+    return cv2.bilateralFilter(filtered, d=5, sigmaColor=18, sigmaSpace=7)
+
+
+def _blend_grid_chroma_channel(original: np.ndarray, cleaned: np.ndarray, alpha: np.ndarray) -> np.ndarray:
+    blended = original.astype(np.float32) * (1.0 - alpha) + cleaned.astype(np.float32) * alpha
+    return np.clip(blended, 0, 255).astype(np.uint8)
 
 
 def _detail_protection_mask(rgb: np.ndarray) -> np.ndarray:

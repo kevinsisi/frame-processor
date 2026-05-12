@@ -30,10 +30,10 @@ def apply_grade(image: Image.Image, preset: ColorGradePreset) -> Image.Image:
 
 def _showroom_white(image: Image.Image) -> Image.Image:
     balanced = _gray_world_white_balance(image)
-    neutral = _channel_shift(balanced, r_delta=5, g_delta=-3, b_delta=-2)
+    neutral = _channel_shift(balanced, r_delta=-1, g_delta=1, b_delta=2)
     toned = _showroom_tone_curve(neutral)
     softened = ImageEnhance.Contrast(toned).enhance(0.86)
-    clarified = softened.filter(ImageFilter.UnsharpMask(radius=1.4, percent=38, threshold=6))
+    clarified = _clarify_luma_only(softened)
     return _reduce_purple_magenta(clarified)
 
 
@@ -59,6 +59,14 @@ def _reduce_purple_magenta(image: Image.Image) -> Image.Image:
     hsv[..., 1] = saturation * reduction
     out = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
     return Image.fromarray(np.clip(out * 255.0, 0, 255).astype(np.uint8), "RGB")
+
+
+def _clarify_luma_only(image: Image.Image) -> Image.Image:
+    rgb = np.asarray(image.convert("RGB"), dtype=np.uint8)
+    ycrcb = cv2.cvtColor(rgb, cv2.COLOR_RGB2YCrCb)
+    y = Image.fromarray(ycrcb[:, :, 0], mode="L")
+    ycrcb[:, :, 0] = np.asarray(y.filter(ImageFilter.UnsharpMask(radius=1.4, percent=34, threshold=7)))
+    return Image.fromarray(cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2RGB), "RGB")
 
 
 def _outdoor_warm(image: Image.Image) -> Image.Image:

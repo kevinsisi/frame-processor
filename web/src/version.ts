@@ -1,2 +1,2 @@
-// v0.4.10 - keeps AI defaults from forcing geometry correction.
-export const APP_VERSION = "0.4.10";
+// v0.4.11 - suppresses dark chroma grid artifacts and neutralizes showroom white.
+export const APP_VERSION = "0.4.11";

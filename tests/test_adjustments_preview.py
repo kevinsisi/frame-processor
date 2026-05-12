@@ -1,6 +1,7 @@
 import uuid
 from io import BytesIO
 
+import cv2
 import numpy as np
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageStat
 
@@ -46,9 +47,25 @@ def _luma_mean(image: Image.Image, box: tuple[int, int, int, int]) -> float:
     return float(np.asarray(image.convert("L").crop(box)).mean())
 
 
+def _luma_mse(left: Image.Image, right: Image.Image, box: tuple[int, int, int, int]) -> float:
+    left_arr = np.asarray(left.convert("L").crop(box), dtype=np.float32)
+    right_arr = np.asarray(right.convert("L").crop(box), dtype=np.float32)
+    return float(((left_arr - right_arr) ** 2).mean())
+
+
 def _mean_chroma_spread(image: Image.Image, box: tuple[int, int, int, int]) -> float:
     arr = np.asarray(image.convert("RGB").crop(box), dtype=np.float32)
     return float((np.abs(arr[:, :, 0] - arr[:, :, 1]) + np.abs(arr[:, :, 2] - arr[:, :, 1])).mean())
+
+
+def _chroma_hf_mean(image: Image.Image, box: tuple[int, int, int, int]) -> float:
+    arr = np.asarray(image.convert("RGB").crop(box), dtype=np.uint8)
+    ycrcb = cv2.cvtColor(arr, cv2.COLOR_RGB2YCrCb).astype(np.float32)
+    cr = ycrcb[:, :, 1]
+    cb = ycrcb[:, :, 2]
+    cr_residual = cr - cv2.GaussianBlur(cr, (0, 0), 1.0)
+    cb_residual = cb - cv2.GaussianBlur(cb, (0, 0), 1.0)
+    return float(np.sqrt((cr_residual * cr_residual) + (cb_residual * cb_residual)).mean())
 
 
 def _luma_contrast(
@@ -262,6 +279,98 @@ def test_chroma_clean_preserves_dark_saturated_details() -> None:
 
     ambient_light_box = (50, 10, 72, 38)
     assert _mean_squared_error(result, image, ambient_light_box) < 3
+
+
+def test_chroma_clean_suppresses_dark_chroma_grid() -> None:
+    height = 64
+    width = 96
+    ycrcb = np.full((height, width, 3), (44, 128, 128), dtype=np.uint8)
+    yy, xx = np.indices((height, width))
+    checker = ((xx + yy) % 2 == 0)
+    ycrcb[:, :, 1] = np.where(checker, 136, 120).astype(np.uint8)
+    ycrcb[:, :, 2] = np.where(checker, 121, 135).astype(np.uint8)
+    image = Image.fromarray(cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2RGB), mode="RGB")
+
+    result = chroma_clean.apply_chroma_clean(image, ChromaCleanStrength.MEDIUM)
+
+    box = (0, 0, width, height)
+    assert _chroma_hf_mean(result, box) < _chroma_hf_mean(image, box) * 0.65
+
+
+def test_chroma_clean_degrid_does_not_bleed_into_saturated_detail() -> None:
+    height = 64
+    width = 128
+    ycrcb = np.full((height, width, 3), (44, 128, 128), dtype=np.uint8)
+    yy, xx = np.indices((height, width))
+    checker = ((xx + yy) % 2 == 0)
+    ycrcb[:, :76, 1] = np.where(checker[:, :76], 136, 120).astype(np.uint8)
+    ycrcb[:, :76, 2] = np.where(checker[:, :76], 121, 135).astype(np.uint8)
+    image = Image.fromarray(cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2RGB), mode="RGB")
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((84, 14, 118, 50), fill=(18, 45, 115))
+
+    result = chroma_clean.apply_chroma_clean(image, ChromaCleanStrength.MEDIUM)
+
+    grid_box = (0, 0, 76, height)
+    detail_box = (86, 16, 116, 48)
+    assert _chroma_hf_mean(result, grid_box) < _chroma_hf_mean(image, grid_box) * 0.70
+    assert _mean_squared_error(result, image, detail_box) < 3
+    assert _luma_mse(result, image, grid_box) < 0.8
+
+
+def test_denoise_suppresses_dark_chroma_grid_artifacts(monkeypatch) -> None:
+    image = Image.new("RGB", (96, 64), (44, 44, 44))
+
+    def grid_nafnet(rgb: np.ndarray) -> np.ndarray:
+        height, width, _ = rgb.shape
+        ycrcb = np.full((height, width, 3), (44, 128, 128), dtype=np.uint8)
+        yy, xx = np.indices((height, width))
+        checker = ((xx + yy) % 2 == 0)
+        ycrcb[:, :, 1] = np.where(checker, 136, 120).astype(np.uint8)
+        ycrcb[:, :, 2] = np.where(checker, 121, 135).astype(np.uint8)
+        return cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2RGB).astype(np.float32) / 255.0
+
+    monkeypatch.setattr(denoise, "_run_nafnet", grid_nafnet)
+    monkeypatch.setattr(denoise, "_run_opencv_denoise", lambda rgb, _strength: grid_nafnet(rgb))
+
+    artifact = Image.fromarray(np.clip(grid_nafnet(np.asarray(image, dtype=np.float32) / 255.0) * 255, 0, 255).astype(np.uint8))
+    result = denoise.denoise(image, DenoiseStrength.MEDIUM)
+
+    box = (0, 0, 96, 64)
+    assert _chroma_hf_mean(result, box) < _chroma_hf_mean(artifact, box) * 0.50
+    assert _luma_std(result, box) <= _luma_std(artifact, box) + 0.8
+
+
+def test_denoise_degrid_preserves_adjacent_saturated_detail_luma() -> None:
+    height = 64
+    width = 128
+    ycrcb = np.full((height, width, 3), (44, 128, 128), dtype=np.uint8)
+    yy, xx = np.indices((height, width))
+    checker = ((xx + yy) % 2 == 0)
+    ycrcb[:, :76, 1] = np.where(checker[:, :76], 136, 120).astype(np.uint8)
+    ycrcb[:, :76, 2] = np.where(checker[:, :76], 121, 135).astype(np.uint8)
+    image = Image.fromarray(cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2RGB), mode="RGB")
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((84, 14, 118, 50), fill=(18, 45, 115))
+
+    result = Image.fromarray(
+        np.clip(
+            denoise._suppress_dark_chroma_grid(
+                np.asarray(image, dtype=np.float32) / 255.0,
+                DenoiseStrength.MEDIUM,
+            )
+            * 255.0,
+            0,
+            255,
+        ).astype(np.uint8),
+        mode="RGB",
+    )
+
+    grid_box = (0, 0, 76, height)
+    detail_box = (86, 16, 116, 48)
+    assert _chroma_hf_mean(result, grid_box) < _chroma_hf_mean(image, grid_box) * 0.75
+    assert _mean_squared_error(result, image, detail_box) < 3
+    assert _luma_mse(result, image, grid_box) < 0.8
 
 
 def test_detail_preserve_none_preserves_processed_pixels() -> None:
@@ -523,6 +632,32 @@ def test_showroom_white_reduces_but_preserves_saturated_magenta() -> None:
     after = _mean_chroma_spread(result, (0, 0, 32, 32))
     assert after < before
     assert after > before * 0.35
+
+
+def test_showroom_white_keeps_neutral_cast_from_turning_magenta() -> None:
+    image = Image.new("RGB", (64, 32), (152, 152, 152))
+
+    result = color_grade.apply_grade(image, ColorGradePreset.SHOWROOM_WHITE)
+
+    mean = ImageStat.Stat(result).mean
+    assert mean[1] >= mean[0] - 1.0
+    assert mean[2] >= mean[0]
+
+
+def test_showroom_white_luma_clarity_does_not_amplify_chroma_grid() -> None:
+    height = 64
+    width = 96
+    ycrcb = np.full((height, width, 3), (44, 128, 128), dtype=np.uint8)
+    yy, xx = np.indices((height, width))
+    checker = ((xx + yy) % 2 == 0)
+    ycrcb[:, :, 1] = np.where(checker, 136, 120).astype(np.uint8)
+    ycrcb[:, :, 2] = np.where(checker, 121, 135).astype(np.uint8)
+    image = Image.fromarray(cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2RGB), mode="RGB")
+
+    result = color_grade.apply_grade(image, ColorGradePreset.SHOWROOM_WHITE)
+
+    box = (0, 0, width, height)
+    assert _chroma_hf_mean(result, box) <= _chroma_hf_mean(image, box)
 
 
 def test_heavy_denoise_cleans_flat_noise_without_erasing_architecture_lines(monkeypatch) -> None:

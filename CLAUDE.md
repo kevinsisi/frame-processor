@@ -67,6 +67,8 @@ docs/        Architecture、ADR、設計筆記
 - 手動產生版本存在 `photo_adjustment_versions`；照片卡片版本下拉必須可選原圖、pipeline preset、各手動版本，並同步切換卡片圖、上方 Before/After 基準、手動調整來源與下載目標。未手動指定版本時，live preview 預設從原圖套用目前 pipeline 色調選擇；批次處理完成後才自動切到剛產生的 preset 版本。UI 不可暴露 `adjusted`、`latest`、raw preset key 等內部狀態名稱。
 - PipelinePanel 預設值：AI 降噪中度、Chroma Clean 偽色雜色修正中度、Detail Preserve 細節保留輕度、廣角畸變矯正關閉、Gemini Vision 水平校正關閉、自動裁剪原圖比例、CPL Look 關閉；Upload 選擇的色調 preset 必須延續到 Preview 處理設定、自動 batch job 與手動「開始產生」payload。主要「開始產生」動作必須在 Preview 固定底部摘要列可見，pending/running 時停用產生按鈕與 pipeline controls，避免重複建立 job。色調 preset 必須有可見差異，OpenCV fallback 降噪不得弱到使用者在中度/重度模式看不出效果。Chroma Clean 只處理暗部 chroma，以壓低紅綠紫偽色與彩色顆粒，並保護黃色安全帶、Logo 與氛圍燈。Detail Preserve 第一版不得使用生成式 AI 或 hallucinate 車況細節，只能回填原圖可信亮度紋理，不得把 chroma noise 加回來。CPL Look 是車內反光抑制試作，主要針對汽車內裝黑色亮面飾板、儀表玻璃、中控螢幕與車窗反光；不得宣稱可還原白爆細節或做 Adobe Reflection Removal 式玻璃場景分離。
 - 中度/重度降噪不得只依賴 NAFNet 輸出；NAFNet 對高 ISO / 彩色顆粒太保守時，medium/heavy 需要混合 OpenCV 強化 pass，production 權重缺失 fallback 也必須有肉眼可見差異。Medium 是預設值，必須明顯清掉天空、牆面、暗部等平坦區域的噪點，同時保留建築線條、窗框與車身邊緣；Heavy 不得全圖全量抹平或把畫面磨成油畫，且必須額外保護低光人像的臉部輪廓、頭髮與衣服摺痕。
+- denoise 與 Chroma Clean 的暗部修正只能改 chroma，不得模糊 luma；黑牆、玻璃與低彩平坦區的規律棋盤格 artifact 要用 dark/neutral/flat mask 壓掉，同時保護氛圍燈、黃色安全帶、Logo 與車身線條。
+- `showroom_white` 目標是乾淨通透的中性偏冷白，不再主動加入暖洋紅 cast；clarity / unsharp 只能銳化 luma，避免 RGB 銳化把暗部 chroma grid 或彩色顆粒放大。
 - 降噪後細節補償只套用 heavy：medium 不做後段 unsharp，避免把已清掉的平坦區噪點再銳化回來；heavy pipeline 在降噪與幾何後、CPL Look 前做 thresholded unsharp mask，避免建築線條或車身細節糊掉。
 - 廣角矯正目前包含兩段：固定通用 Brown-Conrady 桶形係數，以及 Hough line 偵測左右側近垂直線向上收斂時的自動垂直透視修正。不要把「桶形畸變」與「建築垂直線透視」混為同一種問題；兩者都由 batch 的廣角矯正 toggle 觸發。
 - 匯出 zip 順序必須是 `adjusted` → 最新完成 AI 版本 → 任一 pipeline processed preset cache → original；指定 `processing_job_id` 時只匯出該 AI 版本的完成輸出。
