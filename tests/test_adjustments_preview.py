@@ -64,7 +64,7 @@ def _luma_clip_fraction(
 
 def _unique_luma_values(image: Image.Image, box: tuple[int, int, int, int]) -> int:
     arr = np.asarray(image.convert("L").crop(box), dtype=np.uint8)
-    return int(len(np.unique(arr)))
+    return len(np.unique(arr))
 
 
 def _luma_mse(left: Image.Image, right: Image.Image, box: tuple[int, int, int, int]) -> float:
