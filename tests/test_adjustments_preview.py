@@ -785,6 +785,24 @@ def test_showroom_white_preserves_true_white_anchor_without_flattening_near_whit
     assert _unique_luma_values(result, near_white_box) >= 6
 
 
+def test_showroom_white_protects_smooth_neutral_near_white_panels() -> None:
+    width = 160
+    height = 96
+    arr = np.full((height, width, 3), (42, 44, 46), dtype=np.uint8)
+    for x in range(width // 2, width):
+        value = 230 + ((x - (width // 2)) % 21)
+        arr[:, x, :] = (value, min(255, value + 1), value)
+    image = Image.fromarray(arr, "RGB")
+
+    result = color_grade.apply_grade(image, ColorGradePreset.SHOWROOM_WHITE)
+    panel_box = (width // 2, 0, width, height)
+
+    assert _luma_mean(result, panel_box) > _luma_mean(image, panel_box)
+    assert _luma_mean(result, panel_box) <= 246
+    assert _luma_clip_fraction(result, panel_box, high=252) == 0.0
+    assert _unique_luma_values(result, panel_box) >= 8
+
+
 def test_showroom_white_adds_subtle_luma_dither_to_smooth_neutral_panels() -> None:
     image = Image.new("RGB", (96, 48), (142, 146, 146))
 

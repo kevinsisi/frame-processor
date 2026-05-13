@@ -42,6 +42,7 @@ def _showroom_white(image: Image.Image) -> Image.Image:
     rgb = _reduce_purple_magenta(rgb)
     pre_boost_y = 0.299 * rgb[..., 0] + 0.587 * rgb[..., 1] + 0.114 * rgb[..., 2]
     rgb = _boost_luma_contrast(rgb, factor=SHOWROOM_WHITE_POST_CONTRAST_FACTOR)
+    rgb = _protect_smooth_neutral_highlights(rgb, source_rgb=source_rgb)
     rgb = _dither_smooth_neutral_luma(rgb, pre_boost_y=pre_boost_y)
     rgb = _preserve_true_white_anchor(rgb, source_rgb=source_rgb)
     return Image.fromarray(np.clip(rgb * 255.0, 0, 255).astype(np.uint8), "RGB")
@@ -53,7 +54,7 @@ def _showroom_tone_curve(rgb: np.ndarray) -> np.ndarray:
     whites = np.clip((luma - 0.62) / 0.38, 0.0, 1.0) ** 1.4
     highlight_guard = _smoothstep(0.78, 0.98, luma)
     out = rgb * (1.10 - (0.19 * highlight_guard[..., np.newaxis]))
-    out = out + shadows[..., np.newaxis] * 0.10
+    out = out + shadows[..., np.newaxis] * 0.09
     out = out + whites[..., np.newaxis] * (1.0 - highlight_guard[..., np.newaxis]) * 0.028
     return np.clip(out, 0.0, 0.995)
 
@@ -128,6 +129,26 @@ def _preserve_true_white_anchor(rgb: np.ndarray, *, source_rgb: np.ndarray) -> n
     anchor_floor = 0.985 + (0.015 * _smoothstep(0.995, 1.0, source_y))
     floored_y = np.maximum(current_y, anchor_floor)
     ycrcb[..., 0] = (current_y * (1.0 - white_weight)) + (floored_y * white_weight)
+    out = cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2RGB)
+    return np.clip(out, 0.0, 1.0)
+
+
+def _protect_smooth_neutral_highlights(rgb: np.ndarray, *, source_rgb: np.ndarray) -> np.ndarray:
+    source_y = 0.299 * source_rgb[..., 0] + 0.587 * source_rgb[..., 1] + 0.114 * source_rgb[..., 2]
+    source_chroma = np.max(source_rgb, axis=2) - np.min(source_rgb, axis=2)
+    local_detail = np.abs(source_y - cv2.GaussianBlur(source_y, (0, 0), sigmaX=1.4))
+    neutral_weight = 1.0 - np.clip((source_chroma - 0.015) / 0.055, 0.0, 1.0)
+    smooth_weight = 1.0 - np.clip((local_detail - 0.004) / 0.035, 0.0, 1.0)
+    near_white_weight = _smoothstep(0.84, 0.93, source_y) * (1.0 - _smoothstep(0.985, 0.998, source_y))
+    weight = neutral_weight * smooth_weight * near_white_weight
+    if float(weight.max(initial=0.0)) <= 0.0:
+        return rgb
+
+    ycrcb = cv2.cvtColor(np.clip(rgb, 0.0, 1.0), cv2.COLOR_RGB2YCrCb)
+    current_y = ycrcb[..., 0]
+    highlight_cap = 0.925 + (0.052 * _smoothstep(0.88, 0.985, source_y))
+    compressed_y = np.minimum(current_y, highlight_cap)
+    ycrcb[..., 0] = (current_y * (1.0 - weight)) + (compressed_y * weight)
     out = cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2RGB)
     return np.clip(out, 0.0, 1.0)
 
