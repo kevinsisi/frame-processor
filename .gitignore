@@ -59,5 +59,8 @@ logs/
 # Local AI review artifacts
 .ai-review/
 
+# Superpowers brainstorming visual companion
+.superpowers/
+
 # Alembic
 # (versions/ is committed; only env-specific stuff excluded)
