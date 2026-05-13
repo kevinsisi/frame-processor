@@ -164,6 +164,7 @@ Backlog（已寫 spec，未開工）：
 - **0.4.12** — dark mesh de-moire：Chroma Clean 中度新增暗部低彩/低變化 mesh pass，在受保護 mask 內同時壓低 luma 與 chroma 細密網格，並避免處理文字、車標、紅色物件與大面積飽和氛圍燈。
 - **0.4.13** — denoise dark mesh guard：修正 NAFNet/OpenCV medium denoise 在乾淨暗部大平面製造規律 luma/chroma mesh；若原圖暗部平坦而 denoise 後新增高頻網格，受保護 mask 內回退到原圖乾淨像素。
 - **0.4.14** — showroom white contrast + gradient smoothing：`showroom_white` 追加等同手動對比 +55 的 luma-only 對比提升；平滑低彩車身面加入極輕微 luma dither，並提高 batch/manual/preview JPEG 品質，降低大面積同色區 posterization / 色階斷層。
+- **0.4.15** — showroom white float32 grade chain：`_showroom_white` 改為 float32 全鏈，砍掉鏈內 7 次中途 uint8 量化，1.55× 對比拉伸與所有 tone/HSV/YCrCb 運算都在連續空間執行；`_dither_smooth_neutral_luma` 改用 *拉伸前* 的 luma 算 smooth mask（修掉舊 mask 把拉伸自己產生的階差當 detail 而排除 dither 的盲點），dither 強度 0.75 → 2.5（±1.25 LSB），破掉 denoise 移除自然顆粒後暴露的 8-bit 量化色階。1.55 對比強度與所有 v0.4.11–v0.4.14 守的暗部 chroma grid / mesh / 中性偏冷 / 紫紅減飽和 / luma-only clarity invariant 保留不動。
 
 ---
 

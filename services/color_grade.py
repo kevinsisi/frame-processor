@@ -17,7 +17,7 @@ from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 from models.enums import ColorGradePreset
 
 SHOWROOM_WHITE_POST_CONTRAST_FACTOR = 1.55
-SHOWROOM_WHITE_DITHER_STRENGTH = 0.75
+SHOWROOM_WHITE_DITHER_STRENGTH = 2.5
 
 
 def apply_grade(image: Image.Image, preset: ColorGradePreset) -> Image.Image:
@@ -34,28 +34,35 @@ def apply_grade(image: Image.Image, preset: ColorGradePreset) -> Image.Image:
 def _showroom_white(image: Image.Image) -> Image.Image:
     balanced = _gray_world_white_balance(image)
     neutral = _channel_shift(balanced, r_delta=-1, g_delta=1, b_delta=2)
-    toned = _showroom_tone_curve(neutral)
-    softened = ImageEnhance.Contrast(toned).enhance(0.86)
-    clarified = _clarify_luma_only(softened)
-    reduced = _reduce_purple_magenta(clarified)
-    contrasted = _boost_luma_contrast(reduced, factor=SHOWROOM_WHITE_POST_CONTRAST_FACTOR)
-    return _dither_smooth_neutral_luma(contrasted)
-
-
-def _showroom_tone_curve(image: Image.Image) -> Image.Image:
-    rgb = np.asarray(image.convert("RGB"), dtype=np.float32) / 255.0
-    luma = 0.299 * rgb[..., 0] + 0.587 * rgb[..., 1] + 0.114 * rgb[..., 2]
-    shadows = np.clip((0.78 - luma) / 0.78, 0.0, 1.0) ** 1.7
-    whites = np.clip((luma - 0.62) / 0.38, 0.0, 1.0) ** 1.4
-    rgb = rgb * 1.10
-    rgb = rgb + shadows[..., np.newaxis] * 0.10
-    rgb = rgb + whites[..., np.newaxis] * 0.035
+    rgb = np.asarray(neutral.convert("RGB"), dtype=np.float32) / 255.0
+    rgb = _showroom_tone_curve(rgb)
+    rgb = _pil_contrast_factor(rgb, factor=0.86)
+    rgb = _clarify_luma_only(rgb)
+    rgb = _reduce_purple_magenta(rgb)
+    pre_boost_y = 0.299 * rgb[..., 0] + 0.587 * rgb[..., 1] + 0.114 * rgb[..., 2]
+    rgb = _boost_luma_contrast(rgb, factor=SHOWROOM_WHITE_POST_CONTRAST_FACTOR)
+    rgb = _dither_smooth_neutral_luma(rgb, pre_boost_y=pre_boost_y)
     return Image.fromarray(np.clip(rgb * 255.0, 0, 255).astype(np.uint8), "RGB")
 
 
-def _reduce_purple_magenta(image: Image.Image) -> Image.Image:
-    rgb = np.asarray(image.convert("RGB"), dtype=np.float32) / 255.0
-    hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
+def _showroom_tone_curve(rgb: np.ndarray) -> np.ndarray:
+    luma = 0.299 * rgb[..., 0] + 0.587 * rgb[..., 1] + 0.114 * rgb[..., 2]
+    shadows = np.clip((0.78 - luma) / 0.78, 0.0, 1.0) ** 1.7
+    whites = np.clip((luma - 0.62) / 0.38, 0.0, 1.0) ** 1.4
+    out = rgb * 1.10
+    out = out + shadows[..., np.newaxis] * 0.10
+    out = out + whites[..., np.newaxis] * 0.035
+    return np.clip(out, 0.0, 1.0)
+
+
+def _pil_contrast_factor(rgb: np.ndarray, *, factor: float) -> np.ndarray:
+    luma = 0.299 * rgb[..., 0] + 0.587 * rgb[..., 1] + 0.114 * rgb[..., 2]
+    mean = float(luma.mean())
+    return np.clip(rgb * factor + mean * (1.0 - factor), 0.0, 1.0)
+
+
+def _reduce_purple_magenta(rgb: np.ndarray) -> np.ndarray:
+    hsv = cv2.cvtColor(np.clip(rgb, 0.0, 1.0), cv2.COLOR_RGB2HSV)
     hue = hsv[..., 0]
     saturation = hsv[..., 1]
     purple_magenta = ((hue >= 260.0) & (hue <= 335.0)).astype(np.float32)
@@ -63,44 +70,46 @@ def _reduce_purple_magenta(image: Image.Image) -> Image.Image:
     reduction = 1.0 - (purple_magenta * saturated_color * 0.45)
     hsv[..., 1] = saturation * reduction
     out = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
-    return Image.fromarray(np.clip(out * 255.0, 0, 255).astype(np.uint8), "RGB")
+    return np.clip(out, 0.0, 1.0)
 
 
-def _clarify_luma_only(image: Image.Image) -> Image.Image:
-    rgb = np.asarray(image.convert("RGB"), dtype=np.uint8)
-    ycrcb = cv2.cvtColor(rgb, cv2.COLOR_RGB2YCrCb)
+def _clarify_luma_only(rgb: np.ndarray) -> np.ndarray:
+    rgb_u8 = np.clip(rgb * 255.0, 0, 255).astype(np.uint8)
+    ycrcb = cv2.cvtColor(rgb_u8, cv2.COLOR_RGB2YCrCb)
     y = Image.fromarray(ycrcb[:, :, 0], mode="L")
     ycrcb[:, :, 0] = np.asarray(y.filter(ImageFilter.UnsharpMask(radius=1.4, percent=34, threshold=7)))
-    return Image.fromarray(cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2RGB), "RGB")
+    out = cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2RGB)
+    return out.astype(np.float32) / 255.0
 
 
-def _boost_luma_contrast(image: Image.Image, *, factor: float) -> Image.Image:
-    rgb = np.asarray(image.convert("RGB"), dtype=np.uint8)
-    ycrcb = cv2.cvtColor(rgb, cv2.COLOR_RGB2YCrCb).astype(np.float32)
-    y = ycrcb[:, :, 0]
+def _boost_luma_contrast(rgb: np.ndarray, *, factor: float) -> np.ndarray:
+    ycrcb = cv2.cvtColor(np.clip(rgb, 0.0, 1.0), cv2.COLOR_RGB2YCrCb)
+    y = ycrcb[..., 0]
     pivot = float(y.mean())
-    ycrcb[:, :, 0] = np.clip(pivot + ((y - pivot) * factor), 0, 255)
-    return Image.fromarray(cv2.cvtColor(ycrcb.astype(np.uint8), cv2.COLOR_YCrCb2RGB), "RGB")
+    ycrcb[..., 0] = np.clip(pivot + ((y - pivot) * factor), 0.0, 1.0)
+    out = cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2RGB)
+    return np.clip(out, 0.0, 1.0)
 
 
-def _dither_smooth_neutral_luma(image: Image.Image) -> Image.Image:
-    rgb = np.asarray(image.convert("RGB"), dtype=np.uint8)
-    ycrcb = cv2.cvtColor(rgb, cv2.COLOR_RGB2YCrCb).astype(np.float32)
-    y = ycrcb[:, :, 0]
-    cr = ycrcb[:, :, 1]
-    cb = ycrcb[:, :, 2]
-    local_detail = np.abs(y - cv2.GaussianBlur(y, (0, 0), sigmaX=1.2))
-    chroma = np.sqrt(((cr - 128.0) ** 2) + ((cb - 128.0) ** 2))
+def _dither_smooth_neutral_luma(rgb: np.ndarray, *, pre_boost_y: np.ndarray) -> np.ndarray:
+    ycrcb = cv2.cvtColor(np.clip(rgb, 0.0, 1.0), cv2.COLOR_RGB2YCrCb)
+    y = ycrcb[..., 0]
+    cr = ycrcb[..., 1]
+    cb = ycrcb[..., 2]
+    pre_boost_u8_scale = pre_boost_y * 255.0
+    local_detail = np.abs(pre_boost_u8_scale - cv2.GaussianBlur(pre_boost_u8_scale, (0, 0), sigmaX=1.2))
+    chroma_u8_scale = np.sqrt((((cr - 0.5) * 255.0) ** 2) + (((cb - 0.5) * 255.0) ** 2))
     smooth_weight = 1.0 - np.clip(local_detail / 3.0, 0.0, 1.0)
-    neutral_weight = 1.0 - np.clip((chroma - 4.0) / 26.0, 0.0, 1.0)
+    neutral_weight = 1.0 - np.clip((chroma_u8_scale - 4.0) / 26.0, 0.0, 1.0)
     weight = smooth_weight * neutral_weight
     if float(weight.max(initial=0.0)) <= 0.0:
-        return image
+        return rgb
     yy, xx = np.indices(y.shape)
-    noise = np.sin((xx * 12.9898) + (yy * 78.233)) * 43758.5453
-    noise = (noise - np.floor(noise) - 0.5) * SHOWROOM_WHITE_DITHER_STRENGTH
-    ycrcb[:, :, 0] = np.clip(y + noise * weight, 0, 255)
-    return Image.fromarray(cv2.cvtColor(np.clip(ycrcb, 0, 255).astype(np.uint8), cv2.COLOR_YCrCb2RGB), "RGB")
+    noise_raw = np.sin((xx * 12.9898) + (yy * 78.233)) * 43758.5453
+    noise = (noise_raw - np.floor(noise_raw) - 0.5) * (SHOWROOM_WHITE_DITHER_STRENGTH / 255.0)
+    ycrcb[..., 0] = np.clip(y + noise * weight, 0.0, 1.0)
+    out = cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2RGB)
+    return np.clip(out, 0.0, 1.0)
 
 
 def _outdoor_warm(image: Image.Image) -> Image.Image:
