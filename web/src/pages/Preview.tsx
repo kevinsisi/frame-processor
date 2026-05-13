@@ -713,16 +713,19 @@ export default function PreviewPage() {
   function selectProcessingVersion(jobId: string, sourceProject?: ProjectDetail) {
     const targetProject = sourceProject ?? project;
     if (!targetProject) return;
+    const photosWithVersion = targetProject.photos.filter((photo) => photoHasDoneProcessingVersion(photo, jobId));
     const nextValues = Object.fromEntries(
-      targetProject.photos
-        .filter((photo) => photoHasDoneProcessingVersion(photo, jobId))
-        .map((photo) => [photo.id, `processing:${jobId}`]),
+      photosWithVersion.map((photo) => [photo.id, `processing:${jobId}`]),
     );
     setPhotoVersionValues((prev) => ({
       ...prev,
       ...nextValues,
     }));
-    if (activePhotoId && nextValues[activePhotoId]) {
+    const nextActivePhotoId = activePhotoId && nextValues[activePhotoId] ? activePhotoId : photosWithVersion[0]?.id;
+    if (nextActivePhotoId && nextActivePhotoId !== activePhotoId) {
+      setActivePhotoId(nextActivePhotoId);
+    }
+    if (nextActivePhotoId) {
       updateAdjustmentParams(
         {
           ...adjustmentParamsRef.current,
