@@ -70,7 +70,7 @@ docs/        Architecture、ADR、設計筆記
 - denoise 的暗部修正維持 chroma-only；Chroma Clean 可在 dark/neutral/flat/low-variation mask 內對規律細密 mesh 做有限 luma+chroma 平滑。黑牆、玻璃與低彩平坦區的規律棋盤格/moire artifact 要用受保護 mask 壓掉，同時保護氛圍燈、黃色安全帶、Logo、文字與車身線條。
 - AI denoise 不得在原圖乾淨的暗部大平面製造規律 luma/chroma mesh；若 denoise 後比原圖多出高頻網格，必須在 dark/flat/neutral/source-clean mask 內回退到原圖像素，而不是只靠後段 Chroma Clean 補救。
 - `showroom_white` 目標是乾淨通透的中性偏冷白，不再主動加入暖洋紅 cast；clarity / unsharp 只能銳化 luma，避免 RGB 銳化把暗部 chroma grid 或彩色顆粒放大。
-- `showroom_white` 需內建足夠對比，不要依賴使用者每張再手動加 contrast；對比提升應優先做 luma-only，避免 RGB contrast 放大 chroma grid 或改變車色。大面積白/灰車身平滑漸層若因 8-bit 色調運算、降噪移除自然顆粒或 JPEG preview 壓縮產生 posterization，優先用高品質 JPEG 與極輕微 luma dither 緩解，而不是加強銳化或 chroma noise。
+- `showroom_white` 需內建足夠對比，不要依賴使用者每張再手動加 contrast；對比提升應優先做 luma-only，避免 RGB contrast 放大 chroma grid 或改變車色。大面積白/灰車身平滑漸層若因 8-bit 色調運算、降噪移除自然顆粒或 JPEG preview 壓縮產生 posterization，主要靠 `_showroom_white` 鏈在 float32 連續空間執行（避免中途 uint8 round-trip 累積階差）+ 最後一次量化前的 luma dither（pre-boost mask + 約 ±1 LSB 強度，破得了 1.55× stretch 的階差）+ 高品質 JPEG 緩解，而不是加強銳化或 chroma noise。
 - 降噪後細節補償只套用 heavy：medium 不做後段 unsharp，避免把已清掉的平坦區噪點再銳化回來；heavy pipeline 在降噪與幾何後、CPL Look 前做 thresholded unsharp mask，避免建築線條或車身細節糊掉。
 - 廣角矯正目前包含兩段：固定通用 Brown-Conrady 桶形係數，以及 Hough line 偵測左右側近垂直線向上收斂時的自動垂直透視修正。不要把「桶形畸變」與「建築垂直線透視」混為同一種問題；兩者都由 batch 的廣角矯正 toggle 觸發。
 - 匯出 zip 順序必須是 `adjusted` → 最新完成 AI 版本 → 任一 pipeline processed preset cache → original；指定 `processing_job_id` 時只匯出該 AI 版本的完成輸出。
