@@ -1,2 +1,2 @@
-// v0.5.5 - Showroom white compresses near-white car panels more aggressively.
-export const APP_VERSION = "0.5.5";
+// v0.5.6 - Showroom white makes near-white highlight compression visibly stronger.
+export const APP_VERSION = "0.5.6";

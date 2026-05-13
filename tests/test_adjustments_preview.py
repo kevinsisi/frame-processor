@@ -760,7 +760,7 @@ def test_showroom_white_preserves_extreme_highlight_and_shadow_detail() -> None:
         image,
         shadow_box,
         highlight_box,
-    ) - 3
+    ) - 4
     assert _luma_clip_fraction(result, highlight_box, high=252) < 0.35
     assert _luma_clip_fraction(result, shadow_box, low=5) < 0.05
     assert _luma_std(result, highlight_box) > _luma_std(image, highlight_box) * 0.25
@@ -798,7 +798,7 @@ def test_showroom_white_protects_smooth_neutral_near_white_panels() -> None:
     panel_box = (width // 2, 0, width, height)
 
     assert _luma_mean(result, panel_box) >= _luma_mean(image, panel_box) - 3
-    assert _luma_mean(result, panel_box) <= 243
+    assert _luma_mean(result, panel_box) <= 239
     assert _luma_clip_fraction(result, panel_box, high=252) == 0.0
     assert _unique_luma_values(result, panel_box) >= 8
 
@@ -827,7 +827,7 @@ def test_showroom_white_compresses_near_clipped_vehicle_highlights() -> None:
 
     assert _luma_mean(result, pure_reflection_box) >= 252
     assert _luma_mean(result, panel_box) >= 230
-    assert _luma_mean(result, panel_box) <= 240
+    assert _luma_mean(result, panel_box) <= 237
     assert _luma_clip_fraction(result, panel_box, high=245) == 0.0
     assert _unique_luma_values(result, panel_box) >= 8
 

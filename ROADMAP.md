@@ -203,6 +203,7 @@ Backlog（已寫 spec，未開工）：
 - **0.5.3** — showroom white near-white panel protection：針對暗場景中的大面積低彩度近白區，依原圖 luma/chroma/local-detail 加上 highlight cap，避免白車身、白地板或白牆被對比拉伸成視覺爆白；純白錨點仍保留。
 - **0.5.4** — Preview 查看 AI 版本時，如果目前比較圖照片沒有該 AI 版本輸出，會自動切到第一張有該版本輸出的照片，避免 Before/After 留在舊版本造成誤判。
 - **0.5.5** — showroom white stronger near-white compression：實測 AI v12 顯示硬 clipping 已下降但近白車身/白地板仍太刺眼，因此把 smooth neutral near-white 保護範圍往下延伸、降低 highlight cap，且只對真正接近純白的 source pixel 做 true-white anchor。
+- **0.5.6** — showroom white visible near-white compression：v0.5.5 的實際輸出差異太小，改為同時依 source 與輸出後 luma/chroma/detail 偵測平滑低彩度近白區，讓白車身/白地板壓縮幅度達到肉眼可見，同時保留純白反射錨點。
 
 ---
 
