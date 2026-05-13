@@ -58,7 +58,7 @@
 - [ ] 7.3 Smoke test on local dev: full flow (upload → AI process → load preset → apply → clear → delete preset) — pending user / staging verification
 - [x] 7.4 Update ROADMAP.md with v0.5.0 ship entry under the appropriate phase heading
 - [x] 7.5 Bump app version: `api/main.py`, `web/src/version.ts`, `web/package.json`, `pyproject.toml`, `.github/workflows/deploy-dev.yml:EXPECTED_APP_VERSION` to `0.5.0`
-- [ ] 7.6 Commit with `feat: redesign preset and adjustment UX (v0.5.0)` and the Co-Authored-By line; push to main
+- [x] 7.6 Commit with `feat: redesign preset and adjustment UX (v0.5.0)` and the Co-Authored-By line; push to main (commit `1620142`)
 - [ ] 7.7 Watch CI/CD workflows: docker-publish then deploy-dev; verify `/api/health` returns `version=0.5.0`
 - [ ] 7.8 Production smoke test on `https://frame.sisihome.org`: full flow + verify mobile BeforeAfter header fallback works
 - [x] 7.9 Update CLAUDE.md with v0.5.0 operational invariants (preset = template, clear = hard delete, vocabulary split, state visibility, action consequence hints)

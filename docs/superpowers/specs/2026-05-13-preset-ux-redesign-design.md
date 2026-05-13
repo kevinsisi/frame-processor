@@ -1,10 +1,15 @@
 # Preset UX 重設計 — 設計文件
 
 - **日期**: 2026-05-13
-- **狀態**: Draft（brainstorming 產出，待使用者 review → 進 OpenSpec proposal → 實作）
+- **狀態**: **Shipped v0.5.0**（OpenSpec change `preset-ux-redesign` 實作完成、commit `1620142` 已 push 到 main）
 - **目標版本**: v0.5.0
 - **作者**: Kevin × Claude (Opus 4.7)
 - **Brainstorm session**: `.superpowers/brainstorm/2769-1778650676/`
+- **OpenSpec change**: `openspec/changes/preset-ux-redesign/`（archive 後會搬到 `archive/`）
+
+## 0. 實作後修訂
+
+實作時發現原設計 §4.4 假設 `photo_adjustment_versions` 有 `archived_at` 欄位（與 AI 版本 `processing_jobs` 對稱）— 但 schema 沒有。OpenSpec design.md `Decision 2` 從「archive」翻成「hard delete」並更新 §8 開放問題；與使用者「preset 就是快速設定，清空就是清空」的語意更一致。DB schema 仍維持完全不動。詳細決策過程見 `openspec/changes/preset-ux-redesign/design.md` Decision 2。
 
 ## 1. 背景
 
