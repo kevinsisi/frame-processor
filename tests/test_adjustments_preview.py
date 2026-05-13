@@ -756,11 +756,11 @@ def test_showroom_white_preserves_extreme_highlight_and_shadow_detail() -> None:
     shadow_box = (0, 0, width // 2, height)
     highlight_box = (width // 2, 0, width, height)
 
-    assert _luma_contrast(result, shadow_box, highlight_box) > _luma_contrast(
+    assert _luma_contrast(result, shadow_box, highlight_box) >= _luma_contrast(
         image,
         shadow_box,
         highlight_box,
-    )
+    ) - 3
     assert _luma_clip_fraction(result, highlight_box, high=252) < 0.35
     assert _luma_clip_fraction(result, shadow_box, low=5) < 0.05
     assert _luma_std(result, highlight_box) > _luma_std(image, highlight_box) * 0.25
@@ -797,10 +797,55 @@ def test_showroom_white_protects_smooth_neutral_near_white_panels() -> None:
     result = color_grade.apply_grade(image, ColorGradePreset.SHOWROOM_WHITE)
     panel_box = (width // 2, 0, width, height)
 
-    assert _luma_mean(result, panel_box) > _luma_mean(image, panel_box)
-    assert _luma_mean(result, panel_box) <= 246
+    assert _luma_mean(result, panel_box) >= _luma_mean(image, panel_box) - 3
+    assert _luma_mean(result, panel_box) <= 243
     assert _luma_clip_fraction(result, panel_box, high=252) == 0.0
     assert _unique_luma_values(result, panel_box) >= 8
+
+
+def test_showroom_white_compresses_near_clipped_vehicle_highlights() -> None:
+    width = 180
+    height = 96
+    arr = np.full((height, width, 3), (24, 27, 30), dtype=np.uint8)
+    _, xx = np.indices((height, width))
+    panel = xx >= 44
+    gradient = 232 + ((xx - 44) / 136 * 22)
+    arr[panel] = np.stack(
+        [
+            gradient[panel],
+            np.minimum(255, gradient[panel] + 1),
+            gradient[panel],
+        ],
+        axis=1,
+    ).astype(np.uint8)
+    arr[28:58, 76:128, :] = (255, 255, 255)
+    image = Image.fromarray(arr, "RGB")
+
+    result = color_grade.apply_grade(image, ColorGradePreset.SHOWROOM_WHITE)
+    panel_box = (128, 0, width, height)
+    pure_reflection_box = (76, 28, 128, 58)
+
+    assert _luma_mean(result, pure_reflection_box) >= 252
+    assert _luma_mean(result, panel_box) >= 230
+    assert _luma_mean(result, panel_box) <= 240
+    assert _luma_clip_fraction(result, panel_box, high=245) == 0.0
+    assert _unique_luma_values(result, panel_box) >= 8
+
+
+def test_showroom_white_keeps_near_clipped_edges_bright_but_not_pure_white() -> None:
+    image = Image.new("RGB", (96, 48), (32, 34, 36))
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((24, 0, 59, 47), fill=(254, 254, 254))
+    draw.rectangle((60, 0, 95, 47), fill=(255, 255, 255))
+
+    result = color_grade.apply_grade(image, ColorGradePreset.SHOWROOM_WHITE)
+    near_clipped_box = (24, 0, 60, 48)
+    pure_white_box = (60, 0, 96, 48)
+
+    assert _luma_mean(result, near_clipped_box) >= 242
+    assert _luma_mean(result, near_clipped_box) <= 249
+    assert _luma_mean(result, pure_white_box) >= 252
+    assert _luma_mean(result, pure_white_box) > _luma_mean(result, near_clipped_box)
 
 
 def test_showroom_white_adds_subtle_luma_dither_to_smooth_neutral_panels() -> None:

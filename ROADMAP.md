@@ -202,6 +202,7 @@ Backlog（已寫 spec，未開工）：
 - **0.5.2** — draft preview visibility + extra highlight guard：舊的手動 draft 仍會載入 sliders，但不再自動蓋過剛選中的 AI 版本；只有使用者本輪真的動過 slider / 載入 preset / 旋轉 / 幾何後，右側才切成「目前微調預覽」。同時 `showroom_white` 再下修極亮區 lift，降低偶發爆白。
 - **0.5.3** — showroom white near-white panel protection：針對暗場景中的大面積低彩度近白區，依原圖 luma/chroma/local-detail 加上 highlight cap，避免白車身、白地板或白牆被對比拉伸成視覺爆白；純白錨點仍保留。
 - **0.5.4** — Preview 查看 AI 版本時，如果目前比較圖照片沒有該 AI 版本輸出，會自動切到第一張有該版本輸出的照片，避免 Before/After 留在舊版本造成誤判。
+- **0.5.5** — showroom white stronger near-white compression：實測 AI v12 顯示硬 clipping 已下降但近白車身/白地板仍太刺眼，因此把 smooth neutral near-white 保護範圍往下延伸、降低 highlight cap，且只對真正接近純白的 source pixel 做 true-white anchor。
 
 ---
 

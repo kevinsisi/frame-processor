@@ -121,12 +121,12 @@ def _soft_clip_luma(y: np.ndarray) -> np.ndarray:
 def _preserve_true_white_anchor(rgb: np.ndarray, *, source_rgb: np.ndarray) -> np.ndarray:
     source_y = 0.299 * source_rgb[..., 0] + 0.587 * source_rgb[..., 1] + 0.114 * source_rgb[..., 2]
     source_chroma = np.max(source_rgb, axis=2) - np.min(source_rgb, axis=2)
-    white_weight = _smoothstep(0.992, 1.0, source_y) * (1.0 - np.clip(source_chroma / 0.04, 0.0, 1.0))
+    white_weight = _smoothstep(0.992, 0.997, source_y) * (1.0 - np.clip(source_chroma / 0.04, 0.0, 1.0))
     if float(white_weight.max(initial=0.0)) <= 0.0:
         return rgb
     ycrcb = cv2.cvtColor(np.clip(rgb, 0.0, 1.0), cv2.COLOR_RGB2YCrCb)
     current_y = ycrcb[..., 0]
-    anchor_floor = 0.985 + (0.015 * _smoothstep(0.995, 1.0, source_y))
+    anchor_floor = 0.965 + (0.035 * _smoothstep(0.997, 1.0, source_y))
     floored_y = np.maximum(current_y, anchor_floor)
     ycrcb[..., 0] = (current_y * (1.0 - white_weight)) + (floored_y * white_weight)
     out = cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2RGB)
@@ -139,14 +139,14 @@ def _protect_smooth_neutral_highlights(rgb: np.ndarray, *, source_rgb: np.ndarra
     local_detail = np.abs(source_y - cv2.GaussianBlur(source_y, (0, 0), sigmaX=1.4))
     neutral_weight = 1.0 - np.clip((source_chroma - 0.015) / 0.055, 0.0, 1.0)
     smooth_weight = 1.0 - np.clip((local_detail - 0.004) / 0.035, 0.0, 1.0)
-    near_white_weight = _smoothstep(0.84, 0.93, source_y) * (1.0 - _smoothstep(0.985, 0.998, source_y))
+    near_white_weight = _smoothstep(0.78, 0.9, source_y) * (1.0 - _smoothstep(0.996, 1.0, source_y))
     weight = neutral_weight * smooth_weight * near_white_weight
     if float(weight.max(initial=0.0)) <= 0.0:
         return rgb
 
     ycrcb = cv2.cvtColor(np.clip(rgb, 0.0, 1.0), cv2.COLOR_RGB2YCrCb)
     current_y = ycrcb[..., 0]
-    highlight_cap = 0.925 + (0.052 * _smoothstep(0.88, 0.985, source_y))
+    highlight_cap = 0.91 + (0.058 * _smoothstep(0.84, 0.996, source_y))
     compressed_y = np.minimum(current_y, highlight_cap)
     ycrcb[..., 0] = (current_y * (1.0 - weight)) + (compressed_y * weight)
     out = cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2RGB)

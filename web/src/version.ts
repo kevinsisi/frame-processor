@@ -1,2 +1,2 @@
-// v0.5.4 - View-version action switches comparison to a photo available in that AI version.
-export const APP_VERSION = "0.5.4";
+// v0.5.5 - Showroom white compresses near-white car panels more aggressively.
+export const APP_VERSION = "0.5.5";
