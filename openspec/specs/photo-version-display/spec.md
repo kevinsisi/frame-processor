@@ -1,7 +1,7 @@
 # photo-version-display Specification
 
 ## Purpose
-TBD - created by archiving change preset-ux-redesign. Update Purpose after archive.
+Defines how Preview surfaces the currently selected photo version, including Before/After source-chain labels, PhotoCard AI/manual chips, version counts, and mobile-safe fallback display.
 ## Requirements
 ### Requirement: BeforeAfter header shows full source chain
 

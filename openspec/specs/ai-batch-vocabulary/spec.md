@@ -1,7 +1,7 @@
 # ai-batch-vocabulary Specification
 
 ## Purpose
-TBD - created by archiving change preset-ux-redesign. Update Purpose after archive.
+Defines user-facing vocabulary that keeps AI batch processing actions, AI color-grade presets, and AI versions distinct from manual adjustment actions, manual versions, and adjustment presets.
 ## Requirements
 ### Requirement: AI batch processing actions use explicit "AI" vocabulary
 
@@ -38,7 +38,7 @@ All user-facing labels, buttons, and hints related to manual adjustment SHALL av
 
 ### Requirement: Action consequence hints accompany every state-changing button
 
-Each user-facing button that creates, archives, or replaces a photo version SHALL have an accompanying inline hint describing what the action will create and what it will NOT affect.
+Each user-facing button that creates, deletes, archives, or replaces a photo version SHALL have an accompanying inline hint describing what the action will create or remove and what it will NOT affect.
 
 #### Scenario: Apply button hint
 - **WHEN** the user views the 「套用微調到目前照片」 button
@@ -50,7 +50,7 @@ Each user-facing button that creates, archives, or replaces a photo version SHAL
 
 #### Scenario: Clear adjustments button hint
 - **WHEN** the user views the 「清空目前照片的微調」 button
-- **THEN** an adjacent hint reads similar to 「會把已產生的手動 v<N> 全部封存，這張回到「沒微調」狀態（仍顯示 AI 版本）。」
+- **THEN** an adjacent hint reads similar to 「會刪除已產生的手動 v<N> 檔案，這張回到「沒微調」狀態（仍顯示 AI 版本）。」
 
 #### Scenario: Delete preset hint inside modal
 - **WHEN** the user views the delete button inside the preset management modal

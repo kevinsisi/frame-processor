@@ -5,11 +5,11 @@
 - **目標版本**: v0.5.0
 - **作者**: Kevin × Claude (Opus 4.7)
 - **Brainstorm session**: `.superpowers/brainstorm/2769-1778650676/`
-- **OpenSpec change**: `openspec/changes/preset-ux-redesign/`（archive 後會搬到 `archive/`）
+- **OpenSpec change**: `openspec/changes/archive/2026-05-13-preset-ux-redesign/`
 
 ## 0. 實作後修訂
 
-實作時發現原設計 §4.4 假設 `photo_adjustment_versions` 有 `archived_at` 欄位（與 AI 版本 `processing_jobs` 對稱）— 但 schema 沒有。OpenSpec design.md `Decision 2` 從「archive」翻成「hard delete」並更新 §8 開放問題；與使用者「preset 就是快速設定，清空就是清空」的語意更一致。DB schema 仍維持完全不動。詳細決策過程見 `openspec/changes/preset-ux-redesign/design.md` Decision 2。
+實作時發現原設計 §4.4 假設 `photo_adjustment_versions` 有 `archived_at` 欄位（與 AI 版本 `processing_jobs` 對稱）— 但 schema 沒有。OpenSpec design.md `Decision 2` 從「archive」翻成「hard delete」並更新 §8 開放問題；與使用者「preset 就是快速設定，清空就是清空」的語意更一致。DB schema 仍維持完全不動。詳細決策過程見 `openspec/changes/archive/2026-05-13-preset-ux-redesign/design.md` Decision 2。
 
 ## 1. 背景
 
@@ -69,7 +69,7 @@
 ```
 
 - 「After」段落顯示完整 source chain（AI 那層 + 手動那層 + 主要 sliders 偏離值）
-- 主要偏離值定義：絕對值 ≥ 預設的兩倍視為「主要」，最多顯示 3 個
+- 主要偏離值定義：取絕對值最大的前三個非零 slider，避免跨 slider 範圍不同造成閾值不公平。
 
 **照片卡片下緣**
 
@@ -108,7 +108,7 @@
 
 行為：
 1. Reset 該照片的 `photo_adjustments` 草稿到 DEFAULT
-2. Archive 該照片所有 `photo_adjustment_versions`（沿用既有 archive 機制；檔案不刪，但下拉列不指它）
+2. Hard-delete 該照片所有 `photo_adjustment_versions` row 與對應 `manual-v<N>.jpg` 檔案
 3. 把版本下拉自動切回該照片最新的 AI vN；若無 AI vN 則切回原圖
 4. 觸發 Before/After 重繪
 
@@ -122,9 +122,9 @@ Response: { "cleared_count": int, "photos": [PhotoOut, ...] }
 
 實作要點：
 - 每張照片：刪 `photo_adjustments` row（或 reset 成預設）
-- 對 `photo_adjustment_versions` 表的對應 row 設 `archived_at`（沿用 v0.4.x archive 慣例）
-- 不真的刪磁碟檔案（保留可回滾）
-- Recompute 各照片的 active version selector（依 v0.4.x 規則：archived 跳過、選最新非 archived 的 AI 或原圖）
+- 刪除 `photo_adjustment_versions` 表的對應 rows
+- DB commit 後 best-effort 刪除對應磁碟檔案；刪檔失敗只 log，不回滾 DB
+- 清掉 `processed_paths["adjusted"]`，讓前端重新載入後切回最新非 archived 的 AI 或原圖
 
 ### 4.6 Upload 頁
 
@@ -146,9 +146,9 @@ Response: { "cleared_count": int, "photos": [PhotoOut, ...] }
 
 ## 6. 測試
 
-- **Backend**：`tests/test_adjustments_clear.py` 新檔，testcontainers Postgres + TestClient + fake RQ（依賴 `add-frame-test-harness`，若未完成則先用 pure-function 測試 archive 邏輯）
+- **Backend**：`tests/test_adjustments_clear.py` 新檔；因 `add-frame-test-harness` 尚未完成，第一版先用 pure-function 測試 clear plan 與 post-commit best-effort 刪檔邏輯
   - 清空後 `photo_adjustments` 為 default
-  - 清空後 `photo_adjustment_versions` 的 `archived_at` 已寫入
+  - 清空後 `photo_adjustment_versions` rows 與對應 `manual-v<N>.jpg` 會被刪除
   - Recompute 後 active version 為最新 AI vN 或原圖
   - Project 內混合「有套微調 / 沒套微調」的照片，只清前者
 - **FE**：
@@ -173,9 +173,9 @@ Response: { "cleared_count": int, "photos": [PhotoOut, ...] }
 ## 8. 風險 / 開放問題
 
 - **手機版 layout**：BeforeAfter header 的完整 source chain 字串可能太長。Fallback：mobile 顯示 `AI v1 + 手動 v2` 不展開 sliders 摘要，desktop 才展開。
-- **多 preset 偏離值顯示閾值**：「主要偏離 sliders」的定義是「絕對值 ≥ 預設兩倍」，這個閾值要實機跑過確認感覺對。
+- **多 preset 偏離值顯示**：目前取絕對值最大的前三個非零 slider，實機跑過後再確認是否需要「+ N 項微調」等 secondary tier。
 - **「清空已選」對混合狀態的處理**：若已選 12 張內有 3 張本來就沒微調、9 張有，新 endpoint 應該對這 3 張 no-op（不算 error），response `cleared_count` 為 9。
-- **Archive 不是 delete**：使用者期待 `manual-v?.jpg` 被「移除」，但實際只 archive。要不要在 modal 提供「永久刪除已 archived 版本」？這版先不做，列入 v0.5.x 後續優化。
+- **Hard delete 無法回復**：使用者點「清空」後不能救回 `manual-v<N>`，因此「清空已選」加確認框，單張清空則靠 hint 文降低誤觸。
 
 ## 9. 開發成本估算
 

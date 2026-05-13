@@ -1,7 +1,7 @@
 # manual-adjustment-workflow Specification
 
 ## Purpose
-TBD - created by archiving change preset-ux-redesign. Update Purpose after archive.
+Defines the manual adjustment workflow: applying slider drafts into explicit manual versions, clearing manual adjustments by hard-deleting manual outputs, and managing `AdjustmentPreset` templates without binding presets to photos.
 ## Requirements
 ### Requirement: Apply manual adjustments to current photo
 
