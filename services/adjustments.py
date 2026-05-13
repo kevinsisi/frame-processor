@@ -147,7 +147,7 @@ def preview_jpeg(image: Image.Image, params: dict[str, Any], *, long_edge: int =
     img = apply_adjustments(img, params)
     img.thumbnail((long_edge, long_edge), Image.Resampling.LANCZOS)
     out = BytesIO()
-    img.save(out, format="JPEG", quality=88, optimize=True)
+    img.save(out, format="JPEG", quality=94, optimize=True, subsampling=0)
     return out.getvalue()
 
 

@@ -704,7 +704,7 @@ def test_nafnet_tile_weight_feathers_patch_edges() -> None:
     assert float(weight[32, 32, 0]) == 1.0
 
 
-def test_showroom_white_lifts_shadows_and_reduces_contrast() -> None:
+def test_showroom_white_lifts_whites_and_adds_requested_contrast() -> None:
     image = Image.new("RGB", (96, 32), (74, 82, 90))
     draw = ImageDraw.Draw(image)
     draw.rectangle((0, 0, 31, 31), fill=(18, 22, 26))
@@ -712,12 +712,22 @@ def test_showroom_white_lifts_shadows_and_reduces_contrast() -> None:
 
     result = color_grade.apply_grade(image, ColorGradePreset.SHOWROOM_WHITE)
 
-    assert _luma_mean(result, (0, 0, 31, 31)) > _luma_mean(image, (0, 0, 31, 31))
-    assert _luma_contrast(result, (0, 0, 31, 31), (64, 0, 95, 31)) < _luma_contrast(
+    assert _luma_mean(result, (64, 0, 95, 31)) > _luma_mean(image, (64, 0, 95, 31))
+    assert _luma_contrast(result, (0, 0, 31, 31), (64, 0, 95, 31)) > _luma_contrast(
         image,
         (0, 0, 31, 31),
         (64, 0, 95, 31),
     )
+
+
+def test_showroom_white_adds_subtle_luma_dither_to_smooth_neutral_panels() -> None:
+    image = Image.new("RGB", (96, 48), (142, 146, 146))
+
+    result = color_grade.apply_grade(image, ColorGradePreset.SHOWROOM_WHITE)
+
+    ycrcb = cv2.cvtColor(np.asarray(result), cv2.COLOR_RGB2YCrCb)
+    assert float(ycrcb[:, :, 0].std()) > 0.05
+    assert float(ycrcb[:, :, 0].std()) < 2.0
 
 
 def test_showroom_white_reduces_but_preserves_saturated_magenta() -> None:

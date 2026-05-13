@@ -87,7 +87,7 @@ def render_adjusted(
         else storage.adjusted_path(photo.project_id, photo.id)
     )
     target.parent.mkdir(parents=True, exist_ok=True)
-    img.save(target, format="JPEG", quality=92, optimize=True)
+    img.save(target, format="JPEG", quality=95, optimize=True, subsampling=0)
     return storage.relative_to_storage(target)
 
 

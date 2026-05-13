@@ -100,7 +100,7 @@ def process_photo(
     )
     target_abs.parent.mkdir(parents=True, exist_ok=True)
     tmp_abs = target_abs.with_suffix(target_abs.suffix + ".part")
-    img.save(tmp_abs, format="JPEG", quality=92, optimize=True)
+    img.save(tmp_abs, format="JPEG", quality=95, optimize=True, subsampling=0)
     tmp_abs.replace(target_abs)
     relative = storage.relative_to_storage(target_abs)
     return ProcessedPhoto(

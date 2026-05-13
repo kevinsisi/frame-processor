@@ -163,6 +163,7 @@ Backlog（已寫 spec，未開工）：
 - **0.4.11** — dark chroma de-grid + neutral showroom white：denoise / Chroma Clean 對暗部低彩平坦區做 luma-safe chroma de-grid，壓低黑牆、玻璃與暗部的彩色棋盤格 artifact；`showroom_white` 改為中性偏冷白，並將 clarity 改成只銳化亮度，避免 RGB unsharp 放大暗部 chroma pattern。
 - **0.4.12** — dark mesh de-moire：Chroma Clean 中度新增暗部低彩/低變化 mesh pass，在受保護 mask 內同時壓低 luma 與 chroma 細密網格，並避免處理文字、車標、紅色物件與大面積飽和氛圍燈。
 - **0.4.13** — denoise dark mesh guard：修正 NAFNet/OpenCV medium denoise 在乾淨暗部大平面製造規律 luma/chroma mesh；若原圖暗部平坦而 denoise 後新增高頻網格，受保護 mask 內回退到原圖乾淨像素。
+- **0.4.14** — showroom white contrast + gradient smoothing：`showroom_white` 追加等同手動對比 +55 的 luma-only 對比提升；平滑低彩車身面加入極輕微 luma dither，並提高 batch/manual/preview JPEG 品質，降低大面積同色區 posterization / 色階斷層。
 
 ---
 
