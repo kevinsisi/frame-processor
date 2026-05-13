@@ -54,7 +54,7 @@ def _showroom_tone_curve(rgb: np.ndarray) -> np.ndarray:
     highlight_guard = _smoothstep(0.78, 0.98, luma)
     out = rgb * (1.10 - (0.19 * highlight_guard[..., np.newaxis]))
     out = out + shadows[..., np.newaxis] * 0.10
-    out = out + whites[..., np.newaxis] * (1.0 - highlight_guard[..., np.newaxis]) * 0.035
+    out = out + whites[..., np.newaxis] * (1.0 - highlight_guard[..., np.newaxis]) * 0.028
     return np.clip(out, 0.0, 0.995)
 
 

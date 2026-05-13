@@ -199,6 +199,7 @@ Backlog（已寫 spec，未開工）：
 
 子版本：
 - **0.5.1** — showroom white highlight/shadow-safe contrast：保留 v0.4.14 起的 luma-only 對比方向，但把最後對比拉伸改成 midtone-weighted + soft-knee luma mapping，避免展示間白牆、白地、白車身亮部被推成大片純白，也避免黑內裝、輪拱、背景被壓成死黑。
+- **0.5.2** — draft preview visibility + extra highlight guard：舊的手動 draft 仍會載入 sliders，但不再自動蓋過剛選中的 AI 版本；只有使用者本輪真的動過 slider / 載入 preset / 旋轉 / 幾何後，右側才切成「目前微調預覽」。同時 `showroom_white` 再下修極亮區 lift，降低偶發爆白。
 
 ---
 

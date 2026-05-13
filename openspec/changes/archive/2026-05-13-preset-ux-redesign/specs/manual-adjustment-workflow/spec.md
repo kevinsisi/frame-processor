@@ -78,6 +78,18 @@ The system SHALL allow users to load a saved `AdjustmentPreset` by selecting it 
 - **THEN** `photo_a` does not retain a reference to `preset_X` (no `applied_preset_id` is set)
 - **AND** subsequent deletion of `preset_X` has no effect on `photo_a`
 
+### Requirement: Persisted drafts must not silently replace the selected version preview
+
+The system SHALL load persisted `photo_adjustments` draft values back into the AdjustmentPanel sliders when the user reopens Preview, but it SHALL NOT automatically replace the currently selected AI/manual version display with a live draft preview until the user performs a new manual-edit action in the current session.
+
+#### Scenario: Existing draft loads without hijacking selected AI version
+- **GIVEN** a photo has a persisted draft with `contrast = +55`
+- **AND** the currently selected visible version is `AI v10`
+- **WHEN** the user opens Preview or the app auto-switches the photo to `AI v10` after a new batch completes
+- **THEN** the sliders load the persisted draft values
+- **BUT** the Before/After right side continues showing `AI v10`
+- **AND** the header does not say 「目前微調預覽」 until the user changes a slider, loads a preset, rotates, or changes geometry in the current session
+
 ### Requirement: Save current sliders as new preset
 
 The system SHALL allow users to save the active photo's current draft slider values as a new `AdjustmentPreset` row via 「儲存目前數值」.

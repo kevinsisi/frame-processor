@@ -195,13 +195,16 @@ export default function PreviewPage() {
   const [pipelineDetailPreserveStrength, setPipelineDetailPreserveStrength] = useState<DetailPreserveStrength>(DEFAULT_PIPELINE_DETAIL_PRESERVE);
   const [adjustmentBusy, setAdjustmentBusy] = useState(false);
   const [draftDirty, setDraftDirty] = useState(false);
+  const [draftPreviewActive, setDraftPreviewActive] = useState(false);
   const pollRef = useRef<number | null>(null);
   const adjustmentPollRef = useRef<number | null>(null);
   const previewRequestRef = useRef(0);
+  const previewRequestKeyRef = useRef<string | null>(null);
   const basePreviewRequestRef = useRef(0);
   const draftRequestRef = useRef(0);
   const adjustmentPollGenerationRef = useRef(0);
   const adjustmentParamsRef = useRef(adjustmentParams);
+  const draftHydrationContextRef = useRef<string | null>(null);
   const autoProcessRef = useRef<Set<string>>(new Set());
   const pipelineEditedByUserRef = useRef(false);
   const processingSubmitRef = useRef(false);
@@ -211,11 +214,17 @@ export default function PreviewPage() {
 
   function updateAdjustmentParams(
     params: AdjustmentParams,
-    options: { persist?: boolean } = {},
+    options: { persist?: boolean; activatePreview?: boolean } = {},
   ) {
     adjustmentParamsRef.current = params;
     setAdjustmentParams(params);
-    if (options.persist !== false) setDraftDirty(true);
+    const shouldPersist = options.persist !== false;
+    const shouldActivatePreview = options.activatePreview ?? shouldPersist;
+    if (shouldPersist) setDraftDirty(true);
+    if (shouldActivatePreview) {
+      if (!draftPreviewActive) setPreview(null);
+      setDraftPreviewActive(true);
+    }
   }
 
   async function reload(): Promise<ProjectDetail | null> {
@@ -278,6 +287,7 @@ export default function PreviewPage() {
       setBasePreview(null);
       setPipelineBusy(false);
       setAdjustmentBusy(false);
+      setDraftPreviewActive(false);
       return;
     }
     setProject(null);
@@ -289,6 +299,7 @@ export default function PreviewPage() {
     setBasePreview(null);
     setPipelineBusy(false);
     setAdjustmentBusy(false);
+    setDraftPreviewActive(false);
     processingSubmitRef.current = false;
     autoProcessRef.current.clear();
     pipelineEditedByUserRef.current = false;
@@ -341,16 +352,21 @@ export default function PreviewPage() {
     if (!project || !activePhotoId) return;
     const active = project.photos.find((photo) => photo.id === activePhotoId);
     if (!active) return;
-    const source = selectedPhotoVersion(active).source;
+    const selectedVersion = selectedPhotoVersion(active);
+    const hydrationContext = `${active.id}:${selectedVersion.value}`;
+    if (draftPreviewActive && draftHydrationContextRef.current === hydrationContext) return;
+    const source = selectedVersion.source;
     const gradePreset = source.kind === "original" ? pipelinePreset : null;
+    draftHydrationContextRef.current = hydrationContext;
     updateAdjustmentParams(
       active.adjustment_params
         ? { ...structuredClone(DEFAULT_ADJUSTMENT_PARAMS), ...active.adjustment_params, source, grade_preset: gradePreset }
         : { ...structuredClone(DEFAULT_ADJUSTMENT_PARAMS), source, grade_preset: gradePreset },
-      { persist: false },
+      { persist: false, activatePreview: false },
     );
     setDraftDirty(false);
-  }, [activePhotoId, project, pipelinePreset, photoVersionValues]);
+    setDraftPreviewActive(false);
+  }, [activePhotoId, draftPreviewActive, project, pipelinePreset, photoVersionValues]);
 
   useEffect(() => {
     if (!project || project.id !== projectId) return;
@@ -372,16 +388,21 @@ export default function PreviewPage() {
   useEffect(() => {
     if (!project || project.id !== projectId) {
       previewRequestRef.current += 1;
+      previewRequestKeyRef.current = null;
       setPreview(null);
       return;
     }
     if (!activePhotoId) {
+      previewRequestKeyRef.current = null;
       setPreview(null);
       return;
     }
     const requestedProjectId = projectId;
     const requestId = ++previewRequestRef.current;
-    setPreview(null);
+    const requestKey = `${activePhotoId}:${JSON.stringify(adjustmentParams)}`;
+    const samePreviewRequest = previewRequestKeyRef.current === requestKey;
+    previewRequestKeyRef.current = requestKey;
+    if (!samePreviewRequest) setPreview(null);
     const handle = window.setTimeout(async () => {
       try {
         if (activeProjectIdRef.current !== requestedProjectId) return;
@@ -439,11 +460,14 @@ export default function PreviewPage() {
   ) {
     setPhotoVersionValues((prev) => ({ ...prev, [photoId]: value }));
     if (photoId === activePhotoId) {
-      updateAdjustmentParams({
-        ...adjustmentParamsRef.current,
-        source: option.source,
-        grade_preset: option.source.kind === "original" ? pipelinePreset : null,
-      });
+      updateAdjustmentParams(
+        {
+          ...adjustmentParamsRef.current,
+          source: option.source,
+          grade_preset: option.source.kind === "original" ? pipelinePreset : null,
+        },
+        { activatePreview: false },
+      );
     }
   }
 
@@ -699,11 +723,14 @@ export default function PreviewPage() {
       ...nextValues,
     }));
     if (activePhotoId && nextValues[activePhotoId]) {
-      updateAdjustmentParams({
-        ...adjustmentParamsRef.current,
-        source: { kind: "processing", value: jobId },
-        grade_preset: null,
-      });
+      updateAdjustmentParams(
+        {
+          ...adjustmentParamsRef.current,
+          source: { kind: "processing", value: jobId },
+          grade_preset: null,
+        },
+        { activatePreview: false },
+      );
     }
   }
 
@@ -924,11 +951,15 @@ export default function PreviewPage() {
     try {
       const result = await api.clearPhotoAdjustments(requestedProjectId, photoIds);
       if (activeProjectIdRef.current !== requestedProjectId) return;
-      updateAdjustmentParams({
-        ...structuredClone(DEFAULT_ADJUSTMENT_PARAMS),
-        source: adjustmentParamsRef.current.source,
-        grade_preset: adjustmentParamsRef.current.grade_preset ?? null,
-      });
+      updateAdjustmentParams(
+        {
+          ...structuredClone(DEFAULT_ADJUSTMENT_PARAMS),
+          source: adjustmentParamsRef.current.source,
+          grade_preset: adjustmentParamsRef.current.grade_preset ?? null,
+        },
+        { persist: false, activatePreview: false },
+      );
+      setDraftPreviewActive(false);
       const skipped = photoIds.length - result.cleared_count;
       if (result.cleared_count > 0 && skipped > 0) {
         toast(`已清空 ${result.cleared_count} 張照片的微調（${skipped} 張本來就沒微調，已略過）`, "success");
@@ -1062,8 +1093,13 @@ export default function PreviewPage() {
   const resolvedPhotoVersionValues = Object.fromEntries(
     project.photos.map((photo) => [photo.id, selectedPhotoVersion(photo).value]),
   );
-  const activePreviewUrl =
-    preview && preview.photoId === samplePhoto?.id ? preview.url : null;
+  const hasLoadedPreview = Boolean(
+    preview && preview.photoId === samplePhoto?.id && preview.url,
+  );
+  const liveDraftPreviewActive = Boolean(
+    draftPreviewActive && preview && preview.photoId === samplePhoto?.id && preview.url,
+  );
+  const activePreviewUrl = liveDraftPreviewActive ? preview?.url ?? null : null;
   const activeBasePreviewUrl =
     basePreview && basePreview.photoId === samplePhoto?.id ? basePreview.url : null;
   const baseDisplayUrl = sampleVersion?.url ?? "";
@@ -1071,7 +1107,7 @@ export default function PreviewPage() {
   const needsPipelineRun = needsPipelineRunNote({
     sourceKind: sampleVersion?.source.kind,
     hasMatchingPipelineOutput: sampleHasMatchingPipelineOutput,
-    hasActivePreview: Boolean(activePreviewUrl),
+      hasActivePreview: hasLoadedPreview,
   });
   const progressPct =
     displayedJob && displayedJob.total > 0 ? Math.round((displayedJob.progress / displayedJob.total) * 100) : 0;
@@ -1269,7 +1305,7 @@ export default function PreviewPage() {
           activeVersionLabel: sampleVersion?.label ?? null,
           processingVersions: project.processing_versions ?? [],
           liveDraftParams: adjustmentParams,
-          isLiveDraft: Boolean(activePreviewUrl),
+          isLiveDraft: liveDraftPreviewActive,
         });
         return (
         <section className="section">
