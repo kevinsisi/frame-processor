@@ -47,6 +47,26 @@ def _luma_mean(image: Image.Image, box: tuple[int, int, int, int]) -> float:
     return float(np.asarray(image.convert("L").crop(box)).mean())
 
 
+def _luma_clip_fraction(
+    image: Image.Image,
+    box: tuple[int, int, int, int],
+    *,
+    low: int | None = None,
+    high: int | None = None,
+) -> float:
+    arr = np.asarray(image.convert("L").crop(box), dtype=np.uint8)
+    if low is not None:
+        return float((arr <= low).mean())
+    if high is not None:
+        return float((arr >= high).mean())
+    raise ValueError("low or high threshold is required")
+
+
+def _unique_luma_values(image: Image.Image, box: tuple[int, int, int, int]) -> int:
+    arr = np.asarray(image.convert("L").crop(box), dtype=np.uint8)
+    return int(len(np.unique(arr)))
+
+
 def _luma_mse(left: Image.Image, right: Image.Image, box: tuple[int, int, int, int]) -> float:
     left_arr = np.asarray(left.convert("L").crop(box), dtype=np.float32)
     right_arr = np.asarray(right.convert("L").crop(box), dtype=np.float32)
@@ -718,6 +738,51 @@ def test_showroom_white_lifts_whites_and_adds_requested_contrast() -> None:
         (0, 0, 31, 31),
         (64, 0, 95, 31),
     )
+
+
+def test_showroom_white_preserves_extreme_highlight_and_shadow_detail() -> None:
+    width = 160
+    height = 96
+    arr = np.zeros((height, width, 3), dtype=np.uint8)
+    for x in range(width // 2):
+        value = 18 + (x % 24)
+        arr[:, x, :] = (value, value + 2, value + 4)
+    for x in range(width // 2, width):
+        value = 229 + ((x - (width // 2)) % 26)
+        arr[:, x, :] = (value, value + 1, value)
+    image = Image.fromarray(arr, "RGB")
+
+    result = color_grade.apply_grade(image, ColorGradePreset.SHOWROOM_WHITE)
+    shadow_box = (0, 0, width // 2, height)
+    highlight_box = (width // 2, 0, width, height)
+
+    assert _luma_contrast(result, shadow_box, highlight_box) > _luma_contrast(
+        image,
+        shadow_box,
+        highlight_box,
+    )
+    assert _luma_clip_fraction(result, highlight_box, high=252) < 0.35
+    assert _luma_clip_fraction(result, shadow_box, low=5) < 0.05
+    assert _luma_std(result, highlight_box) > _luma_std(image, highlight_box) * 0.25
+    assert _luma_std(result, shadow_box) > _luma_std(image, shadow_box) * 0.35
+    assert _unique_luma_values(result, highlight_box) >= 8
+
+
+def test_showroom_white_preserves_true_white_anchor_without_flattening_near_white() -> None:
+    image = Image.new("RGB", (96, 48), (210, 212, 214))
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((0, 0, 31, 47), fill=(255, 255, 255))
+    for x in range(32, 96):
+        value = 232 + ((x - 32) % 18)
+        draw.rectangle((x, 0, x, 47), fill=(value, min(255, value + 1), value))
+
+    result = color_grade.apply_grade(image, ColorGradePreset.SHOWROOM_WHITE)
+    pure_white_box = (0, 0, 32, 48)
+    near_white_box = (32, 0, 96, 48)
+
+    assert _luma_mean(result, pure_white_box) >= 252
+    assert _luma_mean(result, pure_white_box) > _luma_mean(result, near_white_box)
+    assert _unique_luma_values(result, near_white_box) >= 6
 
 
 def test_showroom_white_adds_subtle_luma_dither_to_smooth_neutral_panels() -> None:

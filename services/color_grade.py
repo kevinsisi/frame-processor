@@ -16,7 +16,7 @@ from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 
 from models.enums import ColorGradePreset
 
-SHOWROOM_WHITE_POST_CONTRAST_FACTOR = 1.55
+SHOWROOM_WHITE_POST_CONTRAST_FACTOR = 1.40
 SHOWROOM_WHITE_DITHER_STRENGTH = 2.5
 
 
@@ -32,6 +32,7 @@ def apply_grade(image: Image.Image, preset: ColorGradePreset) -> Image.Image:
 
 
 def _showroom_white(image: Image.Image) -> Image.Image:
+    source_rgb = np.asarray(image.convert("RGB"), dtype=np.float32) / 255.0
     balanced = _gray_world_white_balance(image)
     neutral = _channel_shift(balanced, r_delta=-1, g_delta=1, b_delta=2)
     rgb = np.asarray(neutral.convert("RGB"), dtype=np.float32) / 255.0
@@ -42,6 +43,7 @@ def _showroom_white(image: Image.Image) -> Image.Image:
     pre_boost_y = 0.299 * rgb[..., 0] + 0.587 * rgb[..., 1] + 0.114 * rgb[..., 2]
     rgb = _boost_luma_contrast(rgb, factor=SHOWROOM_WHITE_POST_CONTRAST_FACTOR)
     rgb = _dither_smooth_neutral_luma(rgb, pre_boost_y=pre_boost_y)
+    rgb = _preserve_true_white_anchor(rgb, source_rgb=source_rgb)
     return Image.fromarray(np.clip(rgb * 255.0, 0, 255).astype(np.uint8), "RGB")
 
 
@@ -49,10 +51,11 @@ def _showroom_tone_curve(rgb: np.ndarray) -> np.ndarray:
     luma = 0.299 * rgb[..., 0] + 0.587 * rgb[..., 1] + 0.114 * rgb[..., 2]
     shadows = np.clip((0.78 - luma) / 0.78, 0.0, 1.0) ** 1.7
     whites = np.clip((luma - 0.62) / 0.38, 0.0, 1.0) ** 1.4
-    out = rgb * 1.10
+    highlight_guard = _smoothstep(0.78, 0.98, luma)
+    out = rgb * (1.10 - (0.19 * highlight_guard[..., np.newaxis]))
     out = out + shadows[..., np.newaxis] * 0.10
-    out = out + whites[..., np.newaxis] * 0.035
-    return np.clip(out, 0.0, 1.0)
+    out = out + whites[..., np.newaxis] * (1.0 - highlight_guard[..., np.newaxis]) * 0.035
+    return np.clip(out, 0.0, 0.995)
 
 
 def _pil_contrast_factor(rgb: np.ndarray, *, factor: float) -> np.ndarray:
@@ -86,7 +89,45 @@ def _boost_luma_contrast(rgb: np.ndarray, *, factor: float) -> np.ndarray:
     ycrcb = cv2.cvtColor(np.clip(rgb, 0.0, 1.0), cv2.COLOR_RGB2YCrCb)
     y = ycrcb[..., 0]
     pivot = float(y.mean())
-    ycrcb[..., 0] = np.clip(pivot + ((y - pivot) * factor), 0.0, 1.0)
+    midtone_weight = _smoothstep(0.04, 0.22, y) * (1.0 - _smoothstep(0.84, 0.985, y))
+    local_factor = 1.0 + ((factor - 1.0) * midtone_weight)
+    boosted = pivot + ((y - pivot) * local_factor)
+    ycrcb[..., 0] = _soft_clip_luma(boosted)
+    out = cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2RGB)
+    return np.clip(out, 0.0, 1.0)
+
+
+def _smoothstep(edge0: float, edge1: float, x: np.ndarray) -> np.ndarray:
+    t = np.clip((x - edge0) / (edge1 - edge0), 0.0, 1.0)
+    return t * t * (3.0 - (2.0 * t))
+
+
+def _soft_clip_luma(y: np.ndarray) -> np.ndarray:
+    out = y.copy()
+    high = out > 0.91
+    if np.any(high):
+        high_base = 0.91
+        high_span = 0.082
+        high_scale = 0.07
+        normalized = 1.0 - np.exp(-(out[high] - high_base) / high_scale)
+        normalized_max = 1.0 - np.exp(-(1.0 - high_base) / high_scale)
+        out[high] = high_base + (normalized / normalized_max) * high_span
+    low = out < 0.018
+    out[low] = 0.018 - (1.0 - np.exp(-(0.018 - out[low]) / 0.025)) * 0.012
+    return np.clip(out, 0.0, 0.992)
+
+
+def _preserve_true_white_anchor(rgb: np.ndarray, *, source_rgb: np.ndarray) -> np.ndarray:
+    source_y = 0.299 * source_rgb[..., 0] + 0.587 * source_rgb[..., 1] + 0.114 * source_rgb[..., 2]
+    source_chroma = np.max(source_rgb, axis=2) - np.min(source_rgb, axis=2)
+    white_weight = _smoothstep(0.992, 1.0, source_y) * (1.0 - np.clip(source_chroma / 0.04, 0.0, 1.0))
+    if float(white_weight.max(initial=0.0)) <= 0.0:
+        return rgb
+    ycrcb = cv2.cvtColor(np.clip(rgb, 0.0, 1.0), cv2.COLOR_RGB2YCrCb)
+    current_y = ycrcb[..., 0]
+    anchor_floor = 0.985 + (0.015 * _smoothstep(0.995, 1.0, source_y))
+    floored_y = np.maximum(current_y, anchor_floor)
+    ycrcb[..., 0] = (current_y * (1.0 - white_weight)) + (floored_y * white_weight)
     out = cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2RGB)
     return np.clip(out, 0.0, 1.0)
 

@@ -197,6 +197,9 @@ Backlog（已寫 spec，未開工）：
 
 對應提案：`openspec/changes/preset-ux-redesign/`（含 proposal / design / 3 個 capability specs / tasks）
 
+子版本：
+- **0.5.1** — showroom white highlight/shadow-safe contrast：保留 v0.4.14 起的 luma-only 對比方向，但把最後對比拉伸改成 midtone-weighted + soft-knee luma mapping，避免展示間白牆、白地、白車身亮部被推成大片純白，也避免黑內裝、輪拱、背景被壓成死黑。
+
 ---
 
 ## v0.6.0 — Preset Bundle UI
