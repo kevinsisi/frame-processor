@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from api.config import settings
 from api.database import get_db
 from api.queue import default_queue
+from api.schemas import PhotoOut
 from models.adjustment_job import AdjustmentJob
 from models.adjustment_preset import AdjustmentPreset
 from models.enums import ColorGradePreset, ProcessingJobStatus
@@ -100,6 +101,15 @@ class AdjustmentPresetCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     params: AdjustmentParams
     project_id: UUID | None = None
+
+
+class ClearAdjustmentsRequest(BaseModel):
+    photo_ids: list[UUID] = Field(default_factory=list, min_length=1)
+
+
+class ClearAdjustmentsResponse(BaseModel):
+    cleared_count: int
+    photos: list[PhotoOut]
 
 
 class AdjustmentPresetOut(BaseModel):
@@ -227,6 +237,48 @@ def create_adjustment_job(
     db.refresh(job)
     default_queue.enqueue("worker.jobs.apply_adjustments_job", str(job.id), job_timeout=1800)
     return AdjustmentJobOut.model_validate(job)
+
+
+@router.post(
+    "/projects/{project_id}/adjustments/clear",
+    response_model=ClearAdjustmentsResponse,
+)
+def clear_project_adjustments(
+    project_id: UUID,
+    payload: ClearAdjustmentsRequest,
+    db: Session = Depends(get_db),
+) -> ClearAdjustmentsResponse:
+    project = db.get(Project, project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="project not found")
+    photo_ids = list(payload.photo_ids)
+    existing = (
+        db.execute(
+            select(Photo.id).where(
+                Photo.project_id == project_id,
+                Photo.id.in_(photo_ids),
+            )
+        )
+        .scalars()
+        .all()
+    )
+    missing = set(photo_ids) - set(existing)
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"photos not in project: {sorted(str(m) for m in missing)}",
+        )
+    result = adjustment_renderer.clear_adjustments_for_photos(
+        db, project_id=project_id, photo_ids=photo_ids
+    )
+    db.commit()
+    for photo in result.photos:
+        db.refresh(photo)
+    adjustment_renderer.delete_cleared_paths(result.paths_to_delete)
+    return ClearAdjustmentsResponse(
+        cleared_count=result.cleared_count,
+        photos=[PhotoOut.model_validate(p) for p in result.photos],
+    )
 
 
 @router.get("/adjustment-jobs/{job_id}", response_model=AdjustmentJobOut)

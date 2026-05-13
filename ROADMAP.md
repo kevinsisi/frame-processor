@@ -176,6 +176,29 @@ Backlog（已寫 spec，未開工）：
 
 ---
 
+## v0.5.0 — Preset UX Redesign ✅ (shipped)
+
+**目標**：把 Preview 頁的 preset / 處理動作從「混亂的概念湯」收斂成「Lightroom 標準 + 詞彙分家 + 狀態看得見」，解決使用者最早回報的「我移除 preset 但照片還有對比」這條路徑，讓清空照片微調變成單一明確動作。
+
+範圍（已 ship）：
+- **Lightroom 標準 preset 語意**：preset = template，載入 = 複製數值，刪除 preset 只移除 template，**不影響任何照片**。徹底放棄 `applied_preset_id` FK / cascade delete 的過度設計。
+- **詞彙分家**：AI 那家全部「開始 AI 處理」「AI vN」「AI 色調風格」；手動那家「套用微調」「手動 vN」「Preset」。8 個按鈕全部改名。
+- **狀態看得見**：Before/After header 顯示完整 source chain（`原圖 · 手動 v2 — 基於 AI v1 / 展間白`）+ top-3 slider 偏離摘要；PhotoCard 下緣 AI / 手動 雙 chip + 版本數量。
+- **動作後果可預期**：每個 state-changing 按鈕旁有 hint 文「會新增 / 不會覆蓋」。
+- **「清空照片微調」明確存在**：兩顆按鈕（清空目前 / 清空已選 N 張），新 endpoint `POST /projects/{id}/adjustments/clear` hard-delete `photo_adjustments` + `photo_adjustment_versions` + 磁碟檔 + 清掉 `processed_paths["adjusted"]` cache，視覺切回 AI 版本或原圖。「清空已選 N 張」走 `window.confirm` 二次確認。
+- **Preset 管理 modal**：取代既有「刪除 preset...」下拉，附明確 disclaimer。
+- **DB schema 不動**：考慮過加 `archived_at` 給 `photo_adjustment_versions`，最後採 hard delete 與 Lightroom 標準語意對齊。
+
+非範圍：
+- ❌ `applied_preset_id` 追蹤 / cascade delete
+- ❌ AI 版本與手動版本融合
+- ❌ 跨照片 preset 同步
+- ❌ 永久刪除已 archived AI 版本
+
+對應提案：`openspec/changes/preset-ux-redesign/`（含 proposal / design / 3 個 capability specs / tasks）
+
+---
+
 ## v0.6.0 — Preset Bundle UI
 
 v0.2.0 已經把 pipeline 串完，v0.6 處理「使用體驗」層：

@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { api } from "@/api/client";
+import { PhotoVersionChip } from "@/components/PhotoVersionChip";
 import type { AdjustmentSource, ColorGradePreset, Photo, ProcessingVersion } from "@/types";
 import {
   formatAIVersionFallbackLabel,
@@ -127,6 +128,7 @@ export function PhotoGrid({
               )}
               {photoDownloaded && <span className="photo-tile__downloaded-badge mono">已下載</span>}
             </div>
+            <PhotoVersionChip photo={photo} processingVersions={processingVersions} />
             <div className="photo-tile__actions">
               <a
                 href={api.photoFileUrl(photo.id)}

@@ -1,0 +1,54 @@
+.photo-version-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 6px 8px 0;
+  font-size: 11px;
+}
+
+.photo-version-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--ink-line);
+  background: var(--ink-overlay);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.photo-version-chip--ai {
+  color: #7aa8d8;
+  border-color: rgba(122, 168, 216, 0.55);
+  background: rgba(122, 168, 216, 0.08);
+}
+
+.photo-version-chip--manual {
+  color: #d8a87a;
+  border-color: rgba(216, 168, 122, 0.55);
+  background: rgba(216, 168, 122, 0.08);
+}
+
+.photo-version-chip--original {
+  color: var(--gold);
+  border-color: rgba(201, 169, 97, 0.55);
+  background: rgba(201, 169, 97, 0.08);
+}
+
+.photo-version-chip--muted {
+  color: var(--text-tertiary);
+  border-style: dashed;
+}
+
+.photo-version-chip__count {
+  color: var(--text-tertiary);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  margin-left: auto;
+}

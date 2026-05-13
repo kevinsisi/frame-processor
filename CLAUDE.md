@@ -76,6 +76,14 @@ docs/        Architecture、ADR、設計筆記
 - 匯出 zip 順序必須是 `adjusted` → 最新完成 AI 版本 → 任一 pipeline processed preset cache → original；指定 `processing_job_id` 時只匯出該 AI 版本的完成輸出。
 - 「套用到已選照片」走 `adjustment_jobs` worker job 與輪詢進度。
 
+### v0.5.0 Preset UX 重設計後的規則
+
+- **AdjustmentPreset = template**：載入 preset 只把數值複製到目前照片的 sliders draft，不建立 preset → photo 連結。刪除 preset 只移除 `adjustment_presets` 一個 row，**絕對不要動到任何 `photo_adjustments` / `photo_adjustment_versions` / `processed_paths`**。任何「刪 preset 跟著清照片」的想法都是過度設計（Lightroom 標準語意明確不要）。
+- **清空照片微調 = hard delete**：`POST /projects/{id}/adjustments/clear` 接 `photo_ids[]`，對每張照片：DELETE `photo_adjustments` row + DELETE 所有 `photo_adjustment_versions` row + 刪除磁碟上的 `manual-v<N>.jpg` + 清掉 `processed_paths["adjusted"]`。DB rollback 後磁碟刪檔失敗用 best-effort + log，不阻斷後續照片。**不要重新導入 `archived_at` 給 manual versions**，AI 版本 archive 是因為 GPU 跑一次成本高需要保留 history；手動版本拉幾秒就能重做，hard delete 才符合使用者「清空 = 清空」的語意。
+- **詞彙分家**：AI 那家只用「AI 處理」「AI vN」「AI 色調風格」；手動那家只用「套用微調」「手動 vN」「Preset」。`Upload` 頁的色調風格選擇是 `ColorGradePreset`（AI 批次用），跟 `AdjustmentPreset` 是兩個無關的東西，UI 命名必須帶「AI」字明確分流。
+- **照片狀態必須看得見**：Before/After header 顯示完整 source chain（`原圖 · 手動 v2 — 基於 AI v1 / 展間白`）+ top-3 slider 偏離摘要；PhotoCard 下緣 AI / 手動雙 chip（AI = `#7aa8d8`，manual = `#d8a87a`）。Mobile 隱藏 slider 摘要、保留版本層。
+- **動作後果必須在按鈕旁明示**：任何會 create / delete / archive 版本的按鈕都要在旁邊一行 hint 寫「會新增 / 不會覆蓋 / 無法復原」。「清空已選」加 `window.confirm` 二次確認，「清空目前」不加（單張頻繁操作）。
+
 ### v0.x destructive schema reset playbook
 
 v0.x 期間若 alembic revision id 對不上（例：branch supersede 舊版 0002 後新版 0002 名字不同，DB 版本指向已被刪除的 revision），按以下步驟處理：

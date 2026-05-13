@@ -244,8 +244,11 @@ export function PipelinePanel({
           onClick={handleSubmit}
           disabled={busy || selectedCount === 0}
         >
-          {busy ? "產生中…" : "開始產生"}
+          {busy ? "AI 處理中…" : `開始 AI 處理已選 ${selectedCount} 張`}
         </button>
+        <p className="pipeline__action-hint mono">
+          會新增 AI v?，已存在的 AI 版本與手動微調版本不影響。每張數十秒～數分鐘。
+        </p>
       </footer>
     </section>
   );

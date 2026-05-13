@@ -29,12 +29,13 @@ The system SHALL allow users to render the current AdjustmentPanel slider values
 
 ### Requirement: Clear current photo's manual adjustments
 
-The system SHALL allow users to clear all manual adjustments on the active photo via a dedicated 「清空目前照片的微調」 action that resets slider draft state, archives every existing `photo_adjustment_versions` row for that photo, and switches the active version selector back to the latest non-archived AI version (or original if none).
+The system SHALL allow users to clear all manual adjustments on the active photo via a dedicated 「清空目前照片的微調」 action that resets slider draft state, hard-deletes every existing `photo_adjustment_versions` row (and corresponding disk file) for that photo, clears the `processed_paths["adjusted"]` cache entry, and switches the active version selector back to the latest non-archived AI version (or original if none).
 
-#### Scenario: Clear archives manual versions and resets selector
+#### Scenario: Clear deletes manual versions and resets selector
 - **WHEN** the user clicks 「清空目前照片的微調」 on a photo with `manual-v1` and `manual-v2` and `AI v1` (展間白)
-- **THEN** the system archives both `manual-v1` and `manual-v2` (sets `archived_at`)
+- **THEN** the system deletes both `manual-v1` and `manual-v2` (DB row + disk file)
 - **AND** the photo's `photo_adjustments` row is reset to default values
+- **AND** the photo's `processed_paths["adjusted"]` cache entry is removed
 - **AND** the active version selector switches to `AI v1`
 - **AND** Before/After re-renders to show the AI v1 image as "After"
 
@@ -42,9 +43,10 @@ The system SHALL allow users to clear all manual adjustments on the active photo
 - **WHEN** the user clicks 「清空目前照片的微調」 on a photo with manual versions but no AI version
 - **THEN** the active version selector switches to 「原圖」
 
-#### Scenario: Clear preserves files on disk
-- **WHEN** the system archives `manual-v<N>` rows
-- **THEN** the `manual-v<N>.jpg` files on disk are NOT deleted
+#### Scenario: Clear hard-deletes disk files
+- **WHEN** the system clears manual adjustments for a photo
+- **THEN** the corresponding `manual-v<N>.jpg` files on disk are deleted
+- **AND** disk delete failures are logged but do not abort the operation (DB transaction commits first)
 
 ### Requirement: Clear selected photos' manual adjustments
 

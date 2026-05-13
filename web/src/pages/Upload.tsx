@@ -197,12 +197,13 @@ export default function UploadPage() {
 
         <section className="section">
           <header className="section__head">
-            <h2 className="section__title">色調風格</h2>
-            <span className="section__meta">v0.2 啟用處理</span>
+            <h2 className="section__title">AI 色調風格</h2>
+            <span className="section__meta">AI 批次處理用</span>
           </header>
           <StylePicker value={style} onChange={setStyle} />
           <p className="upload-form__hint">
-            這個風格會帶到預覽頁的處理設定，背景自動產生與手動「開始產生」都會使用同一個選擇。
+            這是 AI 批次處理用的色調 preset，不是手動微調 preset。
+            進預覽頁後自動跑的 AI 批次會用這個風格；之後也能在預覽頁的 AI 處理區再改。
           </p>
         </section>
 

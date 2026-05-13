@@ -5,7 +5,7 @@ from api.config import settings
 from api.routers import adjustments, exports, photos, processing_jobs, projects
 from api.routers import settings as settings_router
 
-APP_VERSION = "0.4.15"
+APP_VERSION = "0.5.0"
 
 app = FastAPI(title="frame-processor API", version=APP_VERSION)
 

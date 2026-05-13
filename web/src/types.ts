@@ -199,6 +199,11 @@ export type AdjustmentApplyResult = {
   params: AdjustmentParams;
 };
 
+export type ClearAdjustmentsResult = {
+  cleared_count: number;
+  photos: Photo[];
+};
+
 export type AdjustmentJob = {
   id: string;
   project_id: string;

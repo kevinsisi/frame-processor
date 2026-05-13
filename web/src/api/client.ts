@@ -5,6 +5,7 @@ import type {
   AdjustmentParams,
   AdjustmentPreset,
   AdjustmentSource,
+  ClearAdjustmentsResult,
   Export,
   Photo,
   ProcessingJob,
@@ -166,6 +167,13 @@ export const api = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ params: payload, photo_ids: photoIds, sources: sources ?? {} }),
+    }),
+
+  clearPhotoAdjustments: (projectId: string, photoIds: string[]) =>
+    request<ClearAdjustmentsResult>(`/projects/${projectId}/adjustments/clear`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ photo_ids: photoIds }),
     }),
 
   getAdjustmentJob: (jobId: string) =>

@@ -61,13 +61,15 @@ type Props = {
   presets: AdjustmentPreset[];
   geometryBaseUrl: string;
   busy: boolean;
+  selectedCount: number;
   onChange: (params: AdjustmentParams) => void;
   onApplyCurrent: () => void;
   onApplySelected: () => void;
-  onReset: () => void;
+  onClearCurrent: () => void;
+  onClearSelected: () => void;
   onSavePreset: (name: string) => void;
   onLoadPreset: (preset: AdjustmentPreset) => void;
-  onDeletePreset: (preset: AdjustmentPreset) => void;
+  onOpenPresetManager: () => void;
   onRotateLeft: () => void;
   onRotateRight: () => void;
 };
@@ -88,13 +90,15 @@ export function AdjustmentPanel({
   presets,
   geometryBaseUrl,
   busy,
+  selectedCount,
   onChange,
   onApplyCurrent,
   onApplySelected,
-  onReset,
+  onClearCurrent,
+  onClearSelected,
   onSavePreset,
   onLoadPreset,
-  onDeletePreset,
+  onOpenPresetManager,
   onRotateLeft,
   onRotateRight,
 }: Props) {
@@ -135,7 +139,7 @@ export function AdjustmentPanel({
             event.target.value = "";
           }}
         >
-          <option value="">載入 preset...</option>
+          <option value="">— 選 preset 載入到目前照片 —</option>
           {presets.map((preset) => (
             <option key={preset.id} value={preset.id}>
               {preset.name}
@@ -151,26 +155,21 @@ export function AdjustmentPanel({
           }}
           disabled={busy}
         >
-          儲存 preset
+          儲存目前數值
         </button>
-        <select
-          className="adjustment-panel__select mono"
-          defaultValue=""
-          onChange={(event) => {
-            const preset = presets.find((item) => item.id === event.target.value);
-            if (preset) onDeletePreset(preset);
-            event.target.value = "";
-          }}
-          disabled={busy || presets.length === 0}
+        <button
+          type="button"
+          className="cta cta--quiet"
+          onClick={onOpenPresetManager}
+          disabled={busy}
         >
-          <option value="">刪除 preset...</option>
-          {presets.map((preset) => (
-            <option key={preset.id} value={preset.id}>
-              {preset.name}
-            </option>
-          ))}
-        </select>
+          ⚙ 管理
+        </button>
       </div>
+      <p className="adjustment-panel__preset-hint">
+        選 preset = 把它的數值複製到目前照片的 sliders。
+        刪除 preset 只移除 template，<strong>不會動到任何照片</strong>。
+      </p>
 
       <div className="adjustment-panel__actions adjustment-panel__actions--rotate">
         <button type="button" className="cta cta--quiet" onClick={onRotateLeft} disabled={busy}>
@@ -238,16 +237,44 @@ export function AdjustmentPanel({
         ))}
       </details>
 
-      <div className="adjustment-panel__actions">
-        <button type="button" className="cta cta--primary" onClick={onApplyCurrent} disabled={busy}>
-          產生目前版本
-        </button>
-        <button type="button" className="cta" onClick={onApplySelected} disabled={busy}>
-          產生已選版本
-        </button>
-        <button type="button" className="cta cta--quiet" onClick={onReset} disabled={busy}>
-          重設
-        </button>
+      <div className="adjustment-panel__action-group">
+        <p className="adjustment-panel__action-label mono">套用微調</p>
+        <div className="adjustment-panel__actions">
+          <button type="button" className="cta cta--primary" onClick={onApplyCurrent} disabled={busy}>
+            套用微調到目前照片
+          </button>
+          <button
+            type="button"
+            className="cta"
+            onClick={onApplySelected}
+            disabled={busy || selectedCount === 0}
+          >
+            套用微調到已選 {selectedCount} 張
+          </button>
+        </div>
+        <p className="adjustment-panel__action-hint">
+          會新增手動 v?，舊版本不會被覆蓋。
+        </p>
+      </div>
+
+      <div className="adjustment-panel__action-group">
+        <p className="adjustment-panel__action-label mono">清空微調</p>
+        <div className="adjustment-panel__actions">
+          <button type="button" className="cta" onClick={onClearCurrent} disabled={busy}>
+            清空目前照片的微調
+          </button>
+          <button
+            type="button"
+            className="cta"
+            onClick={onClearSelected}
+            disabled={busy || selectedCount === 0}
+          >
+            清空已選 {selectedCount} 張的微調
+          </button>
+        </div>
+        <p className="adjustment-panel__action-hint">
+          會刪除這些照片所有手動版本，視覺切回 AI 版本或原圖。<strong>無法復原</strong>。
+        </p>
       </div>
     </section>
   );

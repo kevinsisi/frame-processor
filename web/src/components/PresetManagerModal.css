@@ -1,0 +1,111 @@
+.preset-modal__overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(14, 13, 12, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: var(--space-4);
+}
+
+.preset-modal {
+  background: var(--ink-elevated);
+  border: 1px solid var(--ink-line-strong);
+  border-radius: 3px;
+  width: 100%;
+  max-width: 560px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.preset-modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--ink-line);
+}
+
+.preset-modal__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--t-lg);
+  color: var(--text-primary);
+}
+
+.preset-modal__close {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: var(--t-lg);
+  cursor: pointer;
+  padding: var(--space-1) var(--space-2);
+}
+
+.preset-modal__close:hover {
+  color: var(--text-primary);
+}
+
+.preset-modal__disclaimer {
+  margin: var(--space-4) var(--space-5) var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--gold-soft);
+  border: 1px solid var(--gold);
+  border-radius: 2px;
+  font-size: var(--t-sm);
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+
+.preset-modal__disclaimer strong {
+  display: block;
+  color: var(--gold-bright);
+  margin-bottom: var(--space-1);
+}
+
+.preset-modal__empty {
+  padding: var(--space-5);
+  color: var(--text-tertiary);
+  text-align: center;
+  font-style: italic;
+}
+
+.preset-modal__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.preset-modal__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--ink-line);
+}
+
+.preset-modal__row:last-child {
+  border-bottom: none;
+}
+
+.preset-modal__name {
+  font-size: var(--t-md);
+  color: var(--text-primary);
+}
+
+.preset-modal__delete {
+  color: var(--status-down);
+}
+
+.preset-modal__foot {
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--ink-line);
+  display: flex;
+  justify-content: flex-end;
+}

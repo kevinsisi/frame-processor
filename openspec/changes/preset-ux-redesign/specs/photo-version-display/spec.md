@@ -38,9 +38,11 @@ Each photo card in the Preview grid SHALL display two color-coded chips below th
 - **THEN** the photo card shows a 「原圖」 chip and a 「尚未處理」 hint
 - **AND** no version-count entry is shown
 
-#### Scenario: Archived versions excluded from count
-- **WHEN** a photo had 3 manual versions, of which 2 are archived after a 「清空照片微調」 action
-- **THEN** the 「N 個版本」 count reflects only non-archived versions (e.g. shows 「▼ 2 個版本」 instead of 「▼ 4 個」)
+#### Scenario: Cleared manual versions excluded from count
+- **WHEN** a photo had 3 manual versions and the user clicks 「清空目前照片的微調」
+- **THEN** all 3 manual version rows are deleted from `photo_adjustment_versions`
+- **AND** the 「N 個版本」 count reflects only the remaining AI versions and original (e.g. shows 「▼ 2 個版本」 if the photo has AI v1 and original)
+- **AND** archived AI versions remain excluded from the count (unchanged from prior behavior)
 
 ### Requirement: AI versions and manual versions use distinct visual treatment
 

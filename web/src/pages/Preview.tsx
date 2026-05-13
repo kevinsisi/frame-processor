@@ -7,6 +7,8 @@ import {
   DEFAULT_ADJUSTMENT_PARAMS,
 } from "@/components/AdjustmentPanel";
 import { BeforeAfter } from "@/components/BeforeAfter";
+import { PresetManagerModal } from "@/components/PresetManagerModal";
+import { buildSourceChain } from "@/utils/photoSourceChain";
 import {
   buildPhotoVersionOptions,
   defaultPhotoVersionOption,
@@ -180,6 +182,7 @@ export default function PreviewPage() {
   const [photoVersionValues, setPhotoVersionValues] = useState<Record<string, string>>({});
   const [pipelinePreset, setPipelinePreset] = useState<ColorGradePreset>(DEFAULT_PIPELINE_PRESET);
   const [presets, setPresets] = useState<AdjustmentPreset[]>([]);
+  const [presetManagerOpen, setPresetManagerOpen] = useState(false);
   const [job, setJob] = useState<ProcessingJob | null>(null);
   const [adjustmentJob, setAdjustmentJob] = useState<AdjustmentJob | null>(null);
   const [pipelineBusy, setPipelineBusy] = useState(false);
@@ -904,6 +907,47 @@ export default function PreviewPage() {
     }
   }
 
+  async function clearAdjustments(
+    photoIds: string[],
+    options: { confirm?: boolean } = {},
+  ) {
+    if (photoIds.length === 0) return;
+    const requestedProjectId = projectId;
+    if (!requestedProjectId) return;
+    if (options.confirm) {
+      const ok = window.confirm(
+        `將刪除 ${photoIds.length} 張照片所有手動微調版本（無法復原）。要繼續嗎？`,
+      );
+      if (!ok) return;
+    }
+    setAdjustmentBusy(true);
+    try {
+      const result = await api.clearPhotoAdjustments(requestedProjectId, photoIds);
+      if (activeProjectIdRef.current !== requestedProjectId) return;
+      updateAdjustmentParams({
+        ...structuredClone(DEFAULT_ADJUSTMENT_PARAMS),
+        source: adjustmentParamsRef.current.source,
+        grade_preset: adjustmentParamsRef.current.grade_preset ?? null,
+      });
+      const skipped = photoIds.length - result.cleared_count;
+      if (result.cleared_count > 0 && skipped > 0) {
+        toast(`已清空 ${result.cleared_count} 張照片的微調（${skipped} 張本來就沒微調，已略過）`, "success");
+      } else if (result.cleared_count > 0) {
+        toast(`已清空 ${result.cleared_count} 張照片的微調`, "success");
+      } else {
+        toast("這些照片本來就沒有手動微調", "info");
+      }
+      reload();
+    } catch (err) {
+      if (activeProjectIdRef.current !== requestedProjectId) return;
+      toast(`清空微調失敗：${String(err)}`, "error");
+    } finally {
+      if (activeProjectIdRef.current === requestedProjectId) {
+        setAdjustmentBusy(false);
+      }
+    }
+  }
+
   function rotateActivePhoto(direction: "left" | "right") {
     if (!activePhotoId) return;
     const current = adjustmentParamsRef.current;
@@ -1032,15 +1076,17 @@ export default function PreviewPage() {
   const progressPct =
     displayedJob && displayedJob.total > 0 ? Math.round((displayedJob.progress / displayedJob.total) * 100) : 0;
   const pipelineRunning = pipelineBusy || displayedJob?.status === "pending" || displayedJob?.status === "running";
-  const pipelineActionLabel = pipelineRunning ? "產生中…" : "開始產生";
+  const pipelineActionLabel = pipelineRunning
+    ? "AI 處理中…"
+    : `開始 AI 處理已選 ${selected.size} 張`;
   const pipelineActionDisabled = pipelineRunning || selected.size === 0;
   const pipelineStatusLabel = pipelineRunning
-    ? `正在產生 ${displayedJob?.progress ?? 0} / ${displayedJob?.total ?? selected.size} 張`
+    ? `AI 處理中 ${displayedJob?.progress ?? 0} / ${displayedJob?.total ?? selected.size} 張`
     : displayedJob?.status === "done"
-      ? "上一批已完成"
+      ? "上一批 AI 已完成"
       : displayedJob?.status === "failed"
-        ? "上一批失敗"
-        : "準備產生";
+        ? "上一批 AI 失敗"
+        : "準備 AI 處理";
   const adjustmentProgressPct =
     adjustmentJob && adjustmentJob.total > 0
       ? Math.round((adjustmentJob.progress / adjustmentJob.total) * 100)
@@ -1216,14 +1262,28 @@ export default function PreviewPage() {
         </section>
       )}
 
-      {samplePhoto && (
+      {samplePhoto && (() => {
+        const sourceChain = buildSourceChain({
+          photo: samplePhoto,
+          activeVersionValue: sampleVersion?.value ?? null,
+          activeVersionLabel: sampleVersion?.label ?? null,
+          processingVersions: project.processing_versions ?? [],
+          liveDraftParams: adjustmentParams,
+          isLiveDraft: Boolean(activePreviewUrl),
+        });
+        return (
         <section className="section">
           <header className="section__head">
             <h2 className="section__title">前後對比</h2>
             <span className="section__meta mono">
-              {activePreviewUrl ? "目前微調" : sampleVersion?.label ?? "原圖"}
+              {sourceChain.before} · {sourceChain.after}
             </span>
           </header>
+          {sourceChain.sliderSummary.length > 0 && (
+            <p className="preview-compare__slider-summary mono">
+              {sourceChain.sliderSummary.join(" / ")}
+            </p>
+          )}
           <div className="preview-compare">
             <BeforeAfter
               key={`${samplePhoto.id}:${adjustmentParams.orientation}:${sampleVersion?.value ?? "original"}`}
@@ -1266,11 +1326,12 @@ export default function PreviewPage() {
                 <strong>原圖會保留未降噪，AI 版本會在背景產生。</strong>
                 <span>這張照片還沒有批次處理版本；系統會依目前處理設定自動產生 AI 版本，完成後右側會切到處理後。</span>
               </div>
-              <a className="cta cta--primary" href="#pipeline-settings">前往開始產生</a>
+              <a className="cta cta--primary" href="#pipeline-settings">前往 AI 處理區</a>
             </div>
           )}
         </section>
-      )}
+        );
+      })()}
 
       {adjustmentJob && (
         <section className="job-status">
@@ -1299,16 +1360,12 @@ export default function PreviewPage() {
           presets={presets}
           geometryBaseUrl={activeBasePreviewUrl ?? baseDisplayUrl}
           busy={adjustmentBusy}
+          selectedCount={selected.size}
           onChange={updateAdjustmentParams}
           onApplyCurrent={() => void applyAdjustment([activePhotoId])}
           onApplySelected={() => void applyAdjustment(Array.from(selected))}
-          onReset={() =>
-            updateAdjustmentParams({
-              ...structuredClone(DEFAULT_ADJUSTMENT_PARAMS),
-              source: adjustmentParams.source,
-              grade_preset: adjustmentParams.grade_preset ?? null,
-            })
-          }
+          onClearCurrent={() => void clearAdjustments([activePhotoId])}
+          onClearSelected={() => void clearAdjustments(Array.from(selected), { confirm: true })}
           onSavePreset={(name) => void savePreset(name)}
           onLoadPreset={(preset) =>
             updateAdjustmentParams({
@@ -1317,9 +1374,18 @@ export default function PreviewPage() {
               grade_preset: adjustmentParamsRef.current.grade_preset ?? null,
             })
           }
-          onDeletePreset={(preset) => void deletePreset(preset)}
+          onOpenPresetManager={() => setPresetManagerOpen(true)}
           onRotateLeft={() => rotateActivePhoto("left")}
           onRotateRight={() => rotateActivePhoto("right")}
+        />
+      )}
+
+      {presetManagerOpen && (
+        <PresetManagerModal
+          presets={presets}
+          busy={adjustmentBusy}
+          onClose={() => setPresetManagerOpen(false)}
+          onDeletePreset={(preset) => void deletePreset(preset)}
         />
       )}
 

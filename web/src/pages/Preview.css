@@ -106,6 +106,19 @@
   position: relative;
 }
 
+.preview-compare__slider-summary {
+  margin: var(--space-2) 0 var(--space-3);
+  font-size: var(--t-xs);
+  color: var(--text-tertiary);
+  letter-spacing: 0.04em;
+}
+
+@media (max-width: 600px) {
+  .preview-compare__slider-summary {
+    display: none;
+  }
+}
+
 .preview-compare__nav {
   position: absolute;
   top: 50%;
