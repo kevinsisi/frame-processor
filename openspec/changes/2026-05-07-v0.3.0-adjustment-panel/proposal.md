@@ -63,7 +63,7 @@ v0.2.0 ship 後晴晴實際使用發現：preset + auto-pipeline 出來的結果
 - Top Before/After must behave as a large editing workspace. Desktop should prioritize a tall work area; mobile should keep the image area dominant and avoid shrinking into a small strip.
 - Manual color-temperature and tint changes must be visually obvious in the live preview; do not use coefficients so subtle that a full slider move looks unchanged on a phone.
 - Manual geometry is a full-screen single-photo editor, not a cramped two-column modal. It should show one large image, visible crop/level grid guides, direct crop-frame manipulation with fixed-ratio resize handles, bottom controls, live rotation/perspective preview, and explicit cancel/done actions.
-- Batch pipeline defaults are: AI denoise = medium, wide-angle distortion correction checked, Gemini level correction checked, auto-crop aspect = original unless changed. Heavy remains available for explicit stronger cleanup but must not be the automatic/default choice.
+- Batch pipeline defaults are: AI denoise = medium, Chroma Clean = medium, Detail Preserve = low, wide-angle distortion correction off, Gemini level correction off, auto-crop aspect = original, and CPL Look off unless changed. Geometry correction remains optional because pre-corrected phone/camera photos can be overcorrected.
 - New uploads shown in Before/After before batch generation must be labeled as manual preview, not denoised output. If the active original has no generated preset output yet, show a clear CTA to run the batch pipeline.
 - Heavy denoise must remain visible on extreme high-ISO/color-grain images even when NAFNet is unavailable or too conservative; medium/heavy denoise may combine NAFNet with OpenCV denoising, but the blend must be edge-aware so flat skies/dark backgrounds are cleaned strongly while structural detail, face contours, hair, and clothing folds are not globally smeared.
 - If the current preset has no generated output for uploaded photos, Preview auto-starts a batch job from the current pipeline settings in the background. The Before side remains the undenoised original so denoise impact stays visible; the After side switches to generated output when the job completes.
@@ -90,6 +90,7 @@ v0.2.0 ship 後晴晴實際使用發現：preset + auto-pipeline 出來的結果
 - 點任何一張 photo → 上方 BeforeAfter 立即切換到該照片，不再固定第一張 processed sample
 - 每張有處理結果的照片可單張下載 processed JPG
 - `showroom_white` 輸出不會比原圖更暖，白色/灰色區域應維持中性或微冷
+- `showroom_white` 內建足夠車商展間照對比，不需要每張再手動加 contrast；對比提升應為 luma-only，且白/灰大面積車身漸層不應出現明顯 posterization。
 - 拖任何 slider 後 < 500ms 看到 preview 變化
 - 「儲存為 preset」→ name 後 reload 仍在
 - 「套用到全部」→ 進度條跑、處理完每張的 processed_paths.adjusted 都更新

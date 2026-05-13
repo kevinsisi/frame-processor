@@ -58,7 +58,7 @@
 
 ## Verification
 
-- [ ] Smoke test with real photos for showroom white neutrality.
+- [x] Smoke test with real photos for showroom white neutrality, stronger built-in contrast, and smooth white/gray panel gradients on production 911 samples (v0.4.14).
 - [x] Smoke test live preview and manual geometry apply correctness.
 - [ ] Verify individual processed downloads.
 - [x] Run frontend build/typecheck and backend lint/compile.
