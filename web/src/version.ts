@@ -1,2 +1,2 @@
-// v0.5.9 - fix: comparison always shows AI version not original-draft; showroom_white banding + highlight detail.
-export const APP_VERSION = "0.5.9";
+// v0.5.10 - fix: showroom_white highlight protection threshold raised — white car body detail preserved.
+export const APP_VERSION = "0.5.10";

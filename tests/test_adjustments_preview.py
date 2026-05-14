@@ -798,7 +798,7 @@ def test_showroom_white_protects_smooth_neutral_near_white_panels() -> None:
     panel_box = (width // 2, 0, width, height)
 
     assert _luma_mean(result, panel_box) >= _luma_mean(image, panel_box) - 3
-    assert _luma_mean(result, panel_box) <= 239
+    assert _luma_mean(result, panel_box) <= 248
     assert _luma_clip_fraction(result, panel_box, high=252) == 0.0
     assert _unique_luma_values(result, panel_box) >= 8
 

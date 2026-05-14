@@ -140,14 +140,14 @@ def _protect_smooth_neutral_highlights(rgb: np.ndarray, *, source_rgb: np.ndarra
     local_detail = np.abs(source_y - cv2.GaussianBlur(source_y, (0, 0), sigmaX=1.4))
     neutral_weight = 1.0 - np.clip((source_chroma - 0.015) / 0.095, 0.0, 1.0)
     smooth_weight = 1.0 - np.clip((local_detail - 0.004) / 0.055, 0.0, 1.0)
-    near_white_weight = _smoothstep(0.78, 0.9, source_y) * (1.0 - _smoothstep(0.996, 1.0, source_y))
+    near_white_weight = _smoothstep(0.88, 0.97, source_y) * (1.0 - _smoothstep(0.996, 1.0, source_y))
     ycrcb = cv2.cvtColor(np.clip(rgb, 0.0, 1.0), cv2.COLOR_RGB2YCrCb)
     current_y = ycrcb[..., 0]
     current_chroma = np.max(rgb, axis=2) - np.min(rgb, axis=2)
     current_detail = np.abs(current_y - cv2.GaussianBlur(current_y, (0, 0), sigmaX=1.6))
     current_neutral_weight = 1.0 - np.clip((current_chroma - 0.02) / 0.11, 0.0, 1.0)
     current_smooth_weight = 1.0 - np.clip((current_detail - 0.004) / 0.06, 0.0, 1.0)
-    current_near_white_weight = _smoothstep(0.9, 0.965, current_y) * (
+    current_near_white_weight = _smoothstep(0.93, 0.97, current_y) * (
         1.0 - _smoothstep(0.996, 1.0, source_y)
     )
     source_weight = neutral_weight * smooth_weight * near_white_weight
@@ -156,7 +156,7 @@ def _protect_smooth_neutral_highlights(rgb: np.ndarray, *, source_rgb: np.ndarra
     if float(weight.max(initial=0.0)) <= 0.0:
         return rgb
 
-    highlight_cap = 0.885 + (0.062 * _smoothstep(0.78, 0.996, source_y))
+    highlight_cap = 0.930 + (0.045 * _smoothstep(0.84, 0.996, source_y))
     compressed_y = np.minimum(current_y, highlight_cap)
     ycrcb[..., 0] = (current_y * (1.0 - weight)) + (compressed_y * weight)
     out = cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2RGB)
