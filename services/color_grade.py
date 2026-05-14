@@ -42,6 +42,7 @@ def _showroom_white(image: Image.Image) -> Image.Image:
     rgb = _reduce_purple_magenta(rgb)
     pre_boost_y = 0.299 * rgb[..., 0] + 0.587 * rgb[..., 1] + 0.114 * rgb[..., 2]
     rgb = _boost_luma_contrast(rgb, factor=SHOWROOM_WHITE_POST_CONTRAST_FACTOR)
+    rgb = _restore_neutral_highlight_gradient(rgb, source_rgb=source_rgb)
     rgb = _protect_smooth_neutral_highlights(rgb, source_rgb=source_rgb)
     rgb = _dither_smooth_neutral_luma(rgb, pre_boost_y=pre_boost_y)
     rgb = _preserve_true_white_anchor(rgb, source_rgb=source_rgb)
@@ -130,6 +131,36 @@ def _preserve_true_white_anchor(rgb: np.ndarray, *, source_rgb: np.ndarray) -> n
     anchor_floor = 0.965 + (0.035 * _smoothstep(0.997, 1.0, source_y))
     floored_y = np.maximum(current_y, anchor_floor)
     ycrcb[..., 0] = (current_y * (1.0 - white_weight)) + (floored_y * white_weight)
+    out = cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2RGB)
+    return np.clip(out, 0.0, 1.0)
+
+
+def _restore_neutral_highlight_gradient(rgb: np.ndarray, *, source_rgb: np.ndarray) -> np.ndarray:
+    """Lift neutral near-white body panels (source 0.78-0.95) toward a monotonic target.
+
+    The tone curve + boost compress source 0.80-0.97 into a near-flat band and can
+    invert their ordering. This step only lifts (never darkens) using source luma to
+    derive a monotonically increasing target, restoring the car body gradient. Colored
+    highlights are unaffected (their src_chroma is high so neutral mask → 0).
+    """
+    source_y = 0.299 * source_rgb[..., 0] + 0.587 * source_rgb[..., 1] + 0.114 * source_rgb[..., 2]
+    source_chroma = np.max(source_rgb, axis=2) - np.min(source_rgb, axis=2)
+    local_detail = np.abs(source_y - cv2.GaussianBlur(source_y, (0, 0), sigmaX=1.4))
+    neutral = 1.0 - np.clip((source_chroma - 0.015) / 0.095, 0.0, 1.0)
+    smooth = 1.0 - np.clip((local_detail - 0.004) / 0.055, 0.0, 1.0)
+    # Zone: fade in at 0.76, full from 0.85, fade out by 0.96 so truly near-clipped pixels are untouched
+    lift_zone = _smoothstep(0.76, 0.85, source_y) * (1.0 - _smoothstep(0.91, 0.96, source_y))
+    weight = neutral * smooth * lift_zone
+    if float(weight.max(initial=0.0)) <= 0.0:
+        return rgb
+    ycrcb = cv2.cvtColor(np.clip(rgb, 0.0, 1.0), cv2.COLOR_RGB2YCrCb)
+    current_y = ycrcb[..., 0]
+    # Linear map source [0.78, 0.95] → target [0.920, 0.970]; monotonically increasing.
+    # Base 0.920 is above the typical post-boost value for source 0.80 (≈0.914),
+    # so the lift activates across the full body-panel range and restores the gradient.
+    target_y = np.clip(0.920 + (source_y - 0.78) * (0.050 / 0.17), 0.920, 0.970)
+    lifted_y = np.maximum(current_y, target_y)
+    ycrcb[..., 0] = (current_y * (1.0 - weight)) + (lifted_y * weight)
     out = cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2RGB)
     return np.clip(out, 0.0, 1.0)
 
