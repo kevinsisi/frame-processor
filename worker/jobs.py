@@ -65,7 +65,9 @@ def _pick_export_path(
     if latest_processing_path:
         return latest_processing_path
     if processed_paths:
-        for value in processed_paths.values():
+        # Skip "adjusted" (already handled above); sort remaining keys for determinism.
+        for key in sorted(k for k in processed_paths if k != "adjusted"):
+            value = processed_paths[key]
             if value:
                 return value
     return stored_path
@@ -367,30 +369,35 @@ def apply_adjustments_job(job_id: str) -> int:
         job.total = len(photo_ids)
         db.commit()
 
-        try:
-            base_params = dict(job.params or {})
-            sources = base_params.pop("_sources", {})
-            for photo_id in photo_ids:
-                photo = db.get(Photo, photo_id)
-                if photo is None:
-                    job.progress += 1
-                    db.commit()
-                    continue
-                params = dict(base_params)
-                source = sources.get(str(photo_id)) if isinstance(sources, dict) else None
-                if isinstance(source, dict):
-                    params["source"] = source
-                adjustment_renderer.apply_to_photo(db, photo, params)
+        base_params = dict(job.params or {})
+        sources = base_params.pop("_sources", {})
+        failures: list[str] = []
+
+        for photo_id in photo_ids:
+            photo = db.get(Photo, photo_id)
+            if photo is None:
                 job.progress += 1
                 db.commit()
+                continue
+            params = dict(base_params)
+            source = sources.get(str(photo_id)) if isinstance(sources, dict) else None
+            if isinstance(source, dict):
+                params["source"] = source
+            try:
+                adjustment_renderer.apply_to_photo(db, photo, params)
+            except Exception as exc:
+                failures.append(f"{photo_id}: {exc}")
+            job.progress += 1
+            db.commit()
 
-            job.status = ProcessingJobStatus.DONE
-            job.completed_at = datetime.now(tz=timezone.utc)
-            db.commit()
-            return job.progress
-        except Exception as exc:
+        if failures and len(failures) == len(photo_ids):
             job.status = ProcessingJobStatus.FAILED
-            job.error = str(exc)
-            job.completed_at = datetime.now(tz=timezone.utc)
-            db.commit()
-            raise
+            job.error = "; ".join(failures)
+        elif failures:
+            job.status = ProcessingJobStatus.DONE
+            job.error = f"部分失敗 ({len(failures)}/{len(photo_ids)}): " + "; ".join(failures)
+        else:
+            job.status = ProcessingJobStatus.DONE
+        job.completed_at = datetime.now(tz=timezone.utc)
+        db.commit()
+        return job.progress

@@ -235,7 +235,11 @@ def create_adjustment_job(
     db.add(job)
     db.commit()
     db.refresh(job)
-    default_queue.enqueue("worker.jobs.apply_adjustments_job", str(job.id), job_timeout=1800)
+    default_queue.enqueue(
+        "worker.jobs.apply_adjustments_job",
+        str(job.id),
+        job_timeout=settings.rq_job_timeout_adjustment_apply,
+    )
     return AdjustmentJobOut.model_validate(job)
 
 

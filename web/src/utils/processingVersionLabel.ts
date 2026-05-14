@@ -20,7 +20,7 @@ export function denoiseLabel(strength: string): string {
 }
 
 export function cplLabel(strength: string): string {
-  if (strength === "none") return "不做 CPL";
+  if (strength === "none") return "不做 CPL Look";
   if (strength === "low") return "CPL 輕度";
   if (strength === "medium") return "CPL 中度";
   if (strength === "high") return "CPL 重度";
@@ -29,18 +29,42 @@ export function cplLabel(strength: string): string {
 
 export function chromaCleanLabel(strength: string): string {
   if (strength === "none") return "不修正偽色";
-  if (strength === "low") return "偽色輕度";
-  if (strength === "medium") return "偽色中度";
-  if (strength === "high") return "偽色重度";
+  if (strength === "low") return "偽色修正輕度";
+  if (strength === "medium") return "偽色修正中度";
+  if (strength === "high") return "偽色修正重度";
   return strength;
 }
 
 export function detailPreserveLabel(strength: string): string {
   if (strength === "none") return "不保留細節";
-  if (strength === "low") return "細節輕度";
-  if (strength === "medium") return "細節中度";
-  if (strength === "high") return "細節重度";
+  if (strength === "low") return "細節保留輕度";
+  if (strength === "medium") return "細節保留中度";
+  if (strength === "high") return "細節保留重度";
   return strength;
+}
+
+export function aspectLabel(aspect: string): string {
+  if (aspect === "original") return "原始比例";
+  if (aspect === "ratio_3_2") return "3:2";
+  if (aspect === "ratio_4_3") return "4:3";
+  if (aspect === "ratio_16_9") return "16:9";
+  if (aspect === "ratio_1_1") return "1:1";
+  if (aspect === "ratio_9_16") return "9:16";
+  return aspect;
+}
+
+export function jobStatusLabel(status: string): string {
+  if (status === "pending") return "排隊中";
+  if (status === "running") return "處理中";
+  if (status === "done") return "完成";
+  if (status === "failed") return "失敗";
+  return status;
+}
+
+export function retryScopeLabel(scope: string): string {
+  if (scope === "full") return "全批重試";
+  if (scope === "missing_only") return "補缺重試";
+  return scope;
 }
 
 // Minimal shape so callers can pass either a ProcessingVersion or any object

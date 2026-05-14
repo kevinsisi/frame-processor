@@ -247,6 +247,7 @@ export function buildPhotoVersionOptions(
 }
 
 export function defaultPhotoVersionOption(options: PhotoVersionOption[]): PhotoVersionOption {
-  return options.find((option) => option.value === "original") ?? options[0];
+  const best = options.find((option) => option.value !== "original");
+  return best ?? options[options.length - 1] ?? options[0];
 }
 

@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     ultralytics_dir: Path = Path("./data/models-weights/ultralytics")
     nafnet_dir: Path = Path("./data/models-weights/nafnet")
 
+    # RQ job timeouts (seconds)
+    rq_job_timeout_ai_batch: int = 1800
+    rq_job_timeout_adjustment_apply: int = 600
+    rq_job_timeout_zip_export: int = 600
+
     # Pipeline tuning
     nafnet_tile_size: int = 512  # CPU 推理時切 tile 避免 OOM
     lens_distort_k1: float = -0.16  # 通用手機廣角桶形矯正

@@ -18,7 +18,6 @@ Backlog（已寫 spec，未開工）：
 - `add-frame-eslint-v9-migration` — v0.4.10 已加最小 flat config 讓 `npm run lint` 可執行；仍需補 type-aware / recommended / react-refresh 規則與 CI lint step。
 - `add-frame-pipeline-step-docs` — ARCHITECTURE.md 補 chroma_clean / detail_preserve / cpl_look 三節對齊既有 service。
 - `add-frame-error-reporting-frontend` — Preview.tsx 5 個 console.warn 換成 user-visible toast + 共用 errorReporting util。
-- `add-frame-job-timeout-config` — RQ `job_timeout=1800` 寫死的兩處拉到 settings + per-photo budget 文件化。**依賴** `add-frame-test-harness` 才能測。
 - `add-frame-processed-paths-typing` — `processed_paths: dict[str, str]` 收緊到 `ColorGradePreset` key + validator + 統一 writer helper。
 
 未來 phase（ROADMAP 段落已述，OpenSpec 開工時才建檔）：
@@ -205,6 +204,7 @@ Backlog（已寫 spec，未開工）：
 - **0.5.5** — showroom white stronger near-white compression：實測 AI v12 顯示硬 clipping 已下降但近白車身/白地板仍太刺眼，因此把 smooth neutral near-white 保護範圍往下延伸、降低 highlight cap，且只對真正接近純白的 source pixel 做 true-white anchor。
 - **0.5.6** — showroom white visible near-white compression：v0.5.5 的實際輸出差異太小，改為同時依 source 與輸出後 luma/chroma/detail 偵測平滑低彩度近白區，讓白車身/白地板壓縮幅度達到肉眼可見，同時保留純白反射錨點。
 - **0.5.7** — 未納入批次標示：使用者點「查看版本」後，瀏覽到不在該 AI 批次內的照片時，Before/After 右側（After）下角顯示琥珀色 badge「未納入此批次」；After 仍顯示原圖，不遮蔽。
+- **0.5.8** — QoL 修正：① 前端 label 共用工具（`processingVersionLabel.ts`）擴充 `aspectLabel`、`jobStatusLabel`、`retryScopeLabel`，移除 Preview.tsx / Export.tsx 重複的 label map；② AI 版本卡片 status pill 顯示中文（排隊中/處理中/完成/失敗）；③ `defaultPhotoVersionOption` 改為回傳最佳可用版本（手動 > AI > 原圖）；④ 單張套用微調後自動切換卡片至最新手動版本；⑤ BeforeAfter 右側 tag 在 draft preview 載入中期間顯示「載入中…」；⑥ RQ job_timeout 拉進 `api/config.py` Settings，三個 router 改讀設定；⑦ 依賴釘上游版本上限（ultralytics<9, torch<3, google-generativeai<2）；⑧ docker-compose POSTGRES_PASSWORD 改以 `${POSTGRES_PASSWORD:-frame}` 參數化；⑨ apply_adjustments_job 改為逐照片 try/except，部分失敗標 DONE+error 而非直接 FAILED；⑩ `_pick_export_path` fallback 改用 sorted 確保冪等。
 
 ---
 

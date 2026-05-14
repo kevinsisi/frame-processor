@@ -4,8 +4,9 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { api } from "@/api/client";
 import { Spinner } from "@/components/Spinner";
 import { useToast } from "@/components/Toast";
-import type { ChromaCleanStrength, CplStrength, DetailPreserveStrength, DenoiseStrength, Export, ExportStatus, ProcessingVersion, ProjectDetail } from "@/types";
+import type { Export, ExportStatus, ProjectDetail } from "@/types";
 import { formatServiceTime } from "@/utils/time";
+import { formatAIVersionLabel, jobStatusLabel } from "@/utils/processingVersionLabel";
 
 import "./Export.css";
 
@@ -16,43 +17,6 @@ const STATUS_LABEL: Record<ExportStatus, string> = {
   failed: "失敗",
 };
 
-const DENOISE_LABELS: Record<DenoiseStrength, string> = {
-  none: "不降噪",
-  light: "輕度降噪",
-  medium: "中度降噪",
-  heavy: "重度降噪",
-};
-
-const CPL_LABELS: Record<CplStrength, string> = {
-  none: "不做 CPL",
-  low: "CPL 輕度",
-  medium: "CPL 中度",
-  high: "CPL 重度",
-};
-
-const CHROMA_CLEAN_LABELS: Record<ChromaCleanStrength, string> = {
-  none: "不修正偽色",
-  low: "偽色輕度",
-  medium: "偽色中度",
-  high: "偽色重度",
-};
-
-const PRESET_LABELS: Record<ProcessingVersion["preset"], string> = {
-  showroom_white: "展示間白",
-  outdoor_warm: "戶外暖調",
-  night_cold: "夜拍冷調",
-};
-
-const DETAIL_PRESERVE_LABELS: Record<DetailPreserveStrength, string> = {
-  none: "不保留細節",
-  low: "細節輕度",
-  medium: "細節中度",
-  high: "細節重度",
-};
-
-function processingVersionLabel(version: ProcessingVersion): string {
-  return `AI v${version.version_number} · ${PRESET_LABELS[version.preset]} · ${DENOISE_LABELS[version.denoise_strength]} · ${CHROMA_CLEAN_LABELS[version.chroma_clean_strength]} · ${DETAIL_PRESERVE_LABELS[version.detail_preserve_strength]} · ${CPL_LABELS[version.cpl_strength]} · ${version.status}`;
-}
 
 export default function ExportPage() {
   const { projectId } = useParams();
@@ -209,7 +173,7 @@ export default function ExportPage() {
                   <option value="">最新可用版本（手動微調優先）</option>
                   {project.processing_versions.map((version) => (
                     <option key={version.id} value={version.id}>
-                      {processingVersionLabel(version)}
+                      {formatAIVersionLabel(version)} · {jobStatusLabel(version.status)}
                     </option>
                   ))}
                 </select>

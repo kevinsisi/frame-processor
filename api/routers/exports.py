@@ -100,7 +100,11 @@ def create_export(
     db.commit()
     db.refresh(export)
 
-    default_queue.enqueue("worker.jobs.zip_export_job", str(export.id), job_timeout=600)
+    default_queue.enqueue(
+        "worker.jobs.zip_export_job",
+        str(export.id),
+        job_timeout=settings.rq_job_timeout_zip_export,
+    )
 
     return ExportOut.model_validate(export)
 

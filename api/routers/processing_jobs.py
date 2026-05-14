@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from api.config import settings
 from api.database import get_db
 from api.queue import default_queue
 from api.schemas import ProcessingJobCreate, ProcessingJobOut
@@ -124,7 +125,10 @@ def create_processing_job(
     for photo_id in photo_ids:
         try:
             default_queue.enqueue(
-                "worker.jobs.process_photo_version_job", str(job.id), str(photo_id), job_timeout=1800
+                "worker.jobs.process_photo_version_job",
+                str(job.id),
+                str(photo_id),
+                job_timeout=settings.rq_job_timeout_ai_batch,
             )
             enqueued_photo_ids.add(photo_id)
         except Exception as exc:

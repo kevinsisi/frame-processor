@@ -35,6 +35,17 @@ import type {
 } from "@/types";
 import { automaticPipelineCandidatePhotoIds, needsPipelineRunNote } from "@/utils/pipelinePreview";
 import {
+  aspectLabel,
+  chromaCleanLabel,
+  cplLabel,
+  denoiseLabel,
+  detailPreserveLabel,
+  formatAIVersionLabel,
+  jobStatusLabel,
+  presetLabel,
+  retryScopeLabel,
+} from "@/utils/processingVersionLabel";
+import {
   incompletePhotoIdsForProcessingVersion,
   missingPhotoIdsForProcessingVersion,
   photoHasDoneProcessingVersion,
@@ -81,52 +92,6 @@ function sourceToVersionValue(source: AdjustmentParams["source"]): string | null
   return null;
 }
 
-const PRESET_LABELS: Record<ColorGradePreset, string> = {
-  showroom_white: "展示間白",
-  outdoor_warm: "戶外暖調",
-  night_cold: "夜拍冷調",
-};
-
-const DENOISE_LABELS: Record<DenoiseStrength, string> = {
-  none: "不降噪",
-  light: "輕度降噪",
-  medium: "中度降噪",
-  heavy: "重度降噪",
-};
-
-const CPL_LABELS: Record<CplStrength, string> = {
-  none: "不做 CPL Look",
-  low: "CPL 輕度",
-  medium: "CPL 中度",
-  high: "CPL 重度",
-};
-
-const CHROMA_CLEAN_LABELS: Record<ChromaCleanStrength, string> = {
-  none: "不修正偽色",
-  low: "偽色修正輕度",
-  medium: "偽色修正中度",
-  high: "偽色修正重度",
-};
-
-const DETAIL_PRESERVE_LABELS: Record<DetailPreserveStrength, string> = {
-  none: "不保留細節",
-  low: "細節保留輕度",
-  medium: "細節保留中度",
-  high: "細節保留重度",
-};
-
-const ASPECT_LABELS: Record<AspectRatio, string> = {
-  original: "原始比例",
-  ratio_3_2: "3:2",
-  ratio_4_3: "4:3",
-  ratio_16_9: "16:9",
-  ratio_1_1: "1:1",
-  ratio_9_16: "9:16",
-};
-
-function processingVersionLabel(version: ProcessingVersion): string {
-  return `AI v${version.version_number} · ${PRESET_LABELS[version.preset]} · ${DENOISE_LABELS[version.denoise_strength]} · ${CHROMA_CLEAN_LABELS[version.chroma_clean_strength]} · ${DETAIL_PRESERVE_LABELS[version.detail_preserve_strength]} · ${CPL_LABELS[version.cpl_strength]}`;
-}
 
 function matchingPipelineOutputMissingPhotoIds(
   project: ProjectDetail,
@@ -882,7 +847,17 @@ export default function PreviewPage() {
         await api.applyAdjustment(photoIds[0], adjustmentParams);
         if (activeProjectIdRef.current !== submittedProjectId) return;
         toast("已套用微調", "success");
-        reload();
+        const fresh = await reload();
+        if (fresh && activeProjectIdRef.current === submittedProjectId) {
+          const updatedPhoto = fresh.photos.find((p) => p.id === photoIds[0]);
+          const latestManual = (updatedPhoto?.adjustment_versions ?? []).at(-1);
+          if (latestManual && updatedPhoto) {
+            setPhotoVersionValues((prev) => ({
+              ...prev,
+              [updatedPhoto.id]: `manual:${latestManual.id}`,
+            }));
+          }
+        }
         setAdjustmentBusy(false);
         return;
       }
@@ -1160,9 +1135,9 @@ export default function PreviewPage() {
       <section className="preview-action" aria-label="目前處理設定與產生動作">
         <div className="preview-action__main">
           <span className="preview-action__eyebrow mono">目前處理設定</span>
-          <strong>{PRESET_LABELS[pipelinePreset]}</strong>
+          <strong>{presetLabel(pipelinePreset)}</strong>
           <span>
-            {DENOISE_LABELS[pipelineDenoise]} · {CHROMA_CLEAN_LABELS[pipelineChromaCleanStrength]} · {DETAIL_PRESERVE_LABELS[pipelineDetailPreserveStrength]} · {CPL_LABELS[pipelineCplStrength]} · {pipelineLensDistort ? "廣角矯正" : "不做廣角矯正"} · {pipelineLevelCorrect ? "水平校正" : "不做水平校正"} · {ASPECT_LABELS[pipelineAspect]}
+            {denoiseLabel(pipelineDenoise)} · {chromaCleanLabel(pipelineChromaCleanStrength)} · {detailPreserveLabel(pipelineDetailPreserveStrength)} · {cplLabel(pipelineCplStrength)} · {pipelineLensDistort ? "廣角矯正" : "不做廣角矯正"} · {pipelineLevelCorrect ? "水平校正" : "不做水平校正"} · {aspectLabel(pipelineAspect)}
           </span>
         </div>
         <div className="preview-action__side">
@@ -1183,7 +1158,7 @@ export default function PreviewPage() {
           <header className="job-status__head">
             <span className="mono">job #{displayedJob.id.slice(0, 8)}</span>
             <span className={`job-status__pill job-status__pill--${displayedJob.status}`}>
-              {displayedJob.status}
+              {jobStatusLabel(displayedJob.status)}
             </span>
           </header>
           <div className="job-status__bar" aria-hidden>
@@ -1245,16 +1220,16 @@ export default function PreviewPage() {
               return (
                 <article key={version.id} className="ai-version-card">
                   <div className="ai-version-card__main">
-                    <strong>{processingVersionLabel(version)}</strong>
-                    <span className={`job-status__pill job-status__pill--${version.status}`}>{version.status}</span>
+                    <strong>{formatAIVersionLabel(version)}</strong>
+                    <span className={`job-status__pill job-status__pill--${version.status}`}>{jobStatusLabel(version.status)}</span>
                     <span className="ai-version-card__meta mono">
                       {version.progress} / {version.total} 完成
                       {isRunning && incompletePhotoIds.length > 0 ? ` · 待 ${incompletePhotoIds.length} 張` : ""}
                       {!isRunning && missingPhotoIds.length > 0 ? ` · 缺 ${missingPhotoIds.length} 張` : ""}
-                      {version.retry_scope !== "none" ? ` · retry ${version.retry_scope}` : ""}
+                      {version.retry_scope !== "none" ? ` · ${retryScopeLabel(version.retry_scope)}` : ""}
                     </span>
                     <span className="ai-version-card__settings">
-                      {CHROMA_CLEAN_LABELS[version.chroma_clean_strength]} · {DETAIL_PRESERVE_LABELS[version.detail_preserve_strength]} · {CPL_LABELS[version.cpl_strength]} · {version.lens_distort_correct ? "廣角矯正" : "不做廣角矯正"} · {version.level_correct ? "水平校正" : "不做水平校正"} · {ASPECT_LABELS[version.auto_crop_aspect ?? "original"]}
+                      {chromaCleanLabel(version.chroma_clean_strength)} · {detailPreserveLabel(version.detail_preserve_strength)} · {cplLabel(version.cpl_strength)} · {version.lens_distort_correct ? "廣角矯正" : "不做廣角矯正"} · {version.level_correct ? "水平校正" : "不做水平校正"} · {aspectLabel(version.auto_crop_aspect ?? "original")}
                     </span>
                     {missingNames.length > 0 ? (
                       <span className="ai-version-card__error">缺漏照片：{missingNames.slice(0, 6).join("、")}{missingNames.length > 6 ? "…" : ""}</span>
@@ -1342,6 +1317,7 @@ export default function PreviewPage() {
               }
               alt={samplePhoto.original_filename}
               afterBadge={activePhotoMissingFromBatch ? "未納入此批次" : undefined}
+              afterLoading={draftPreviewActive && !liveDraftPreviewActive}
             />
             {project.photos.length > 1 && (
               <>
