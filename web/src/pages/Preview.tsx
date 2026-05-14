@@ -194,6 +194,7 @@ export default function PreviewPage() {
   const [pipelineChromaCleanStrength, setPipelineChromaCleanStrength] = useState<ChromaCleanStrength>(DEFAULT_PIPELINE_CHROMA_CLEAN);
   const [pipelineDetailPreserveStrength, setPipelineDetailPreserveStrength] = useState<DetailPreserveStrength>(DEFAULT_PIPELINE_DETAIL_PRESERVE);
   const [adjustmentBusy, setAdjustmentBusy] = useState(false);
+  const [viewingProcessingVersionId, setViewingProcessingVersionId] = useState<string | null>(null);
   const [draftDirty, setDraftDirty] = useState(false);
   const [draftPreviewActive, setDraftPreviewActive] = useState(false);
   const pollRef = useRef<number | null>(null);
@@ -288,6 +289,7 @@ export default function PreviewPage() {
       setPipelineBusy(false);
       setAdjustmentBusy(false);
       setDraftPreviewActive(false);
+      setViewingProcessingVersionId(null);
       return;
     }
     setProject(null);
@@ -300,6 +302,7 @@ export default function PreviewPage() {
     setPipelineBusy(false);
     setAdjustmentBusy(false);
     setDraftPreviewActive(false);
+    setViewingProcessingVersionId(null);
     processingSubmitRef.current = false;
     autoProcessRef.current.clear();
     pipelineEditedByUserRef.current = false;
@@ -711,6 +714,7 @@ export default function PreviewPage() {
   }
 
   function selectProcessingVersion(jobId: string, sourceProject?: ProjectDetail) {
+    setViewingProcessingVersionId(jobId);
     const targetProject = sourceProject ?? project;
     if (!targetProject) return;
     const photosWithVersion = targetProject.photos.filter((photo) => photoHasDoneProcessingVersion(photo, jobId));
@@ -1083,6 +1087,11 @@ export default function PreviewPage() {
   const inFlightProcessingVersion = projectInFlightProcessingVersion(project);
   const displayedJob = job && inFlightProcessingVersion?.id === job.id ? job : inFlightProcessingVersion ?? job;
   const sampleVersion = samplePhoto ? selectedPhotoVersion(samplePhoto) : null;
+  const activePhotoMissingFromBatch = Boolean(
+    viewingProcessingVersionId &&
+      samplePhoto &&
+      !photoHasDoneProcessingVersion(samplePhoto, viewingProcessingVersionId),
+  );
   const renderPipelinePayload = currentPipelinePayload();
   const sampleHasMatchingPipelineOutput = Boolean(
     samplePhoto &&
@@ -1332,6 +1341,7 @@ export default function PreviewPage() {
                 (sampleVersion?.url ?? api.photoFileUrl(samplePhoto.id))
               }
               alt={samplePhoto.original_filename}
+              afterBadge={activePhotoMissingFromBatch ? "未納入此批次" : undefined}
             />
             {project.photos.length > 1 && (
               <>

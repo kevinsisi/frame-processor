@@ -82,6 +82,25 @@
   right: 12px;
 }
 
+.before-after__badge {
+  position: absolute;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  padding: 4px 10px;
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.before-after__badge--after {
+  bottom: 12px;
+  right: 12px;
+  background: rgba(201, 168, 107, 0.15);
+  border: 1px solid rgba(201, 168, 107, 0.4);
+  color: var(--accent, #c9a86b);
+}
+
 @media (max-width: 720px) {
   .before-after {
     height: 66svh;

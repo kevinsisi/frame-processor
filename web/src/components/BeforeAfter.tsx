@@ -6,9 +6,10 @@ export interface BeforeAfterProps {
   beforeUrl: string;
   afterUrl: string;
   alt: string;
+  afterBadge?: string;
 }
 
-export function BeforeAfter({ beforeUrl, afterUrl, alt }: BeforeAfterProps) {
+export function BeforeAfter({ beforeUrl, afterUrl, alt, afterBadge }: BeforeAfterProps) {
   const [percent, setPercent] = useState(50);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const draggingRef = useRef(false);
@@ -74,6 +75,9 @@ export function BeforeAfter({ beforeUrl, afterUrl, alt }: BeforeAfterProps) {
       </div>
       <span className="before-after__tag before-after__tag--before">原圖</span>
       <span className="before-after__tag before-after__tag--after">處理後</span>
+      {afterBadge && (
+        <span className="before-after__badge before-after__badge--after">{afterBadge}</span>
+      )}
     </div>
   );
 }
