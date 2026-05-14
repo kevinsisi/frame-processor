@@ -1,2 +1,2 @@
-// v0.5.8 - QoL: shared label util, Chinese status pills, RQ timeout config, per-photo error isolation.
-export const APP_VERSION = "0.5.8";
+// v0.5.9 - fix: comparison always shows AI version not original-draft; showroom_white banding + highlight detail.
+export const APP_VERSION = "0.5.9";

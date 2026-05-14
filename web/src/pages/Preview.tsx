@@ -226,7 +226,9 @@ export default function PreviewPage() {
   function selectedPhotoVersion(photo: ProjectDetail["photos"][number]): PhotoVersionOption {
     const options = buildPhotoVersionOptions(photo, project?.processing_versions ?? []);
     const draftValue = sourceToVersionValue(photo.adjustment_params?.source);
-    const value = photoVersionValues[photo.id] ?? draftValue ?? defaultPhotoVersionOption(options).value;
+    // Skip draftValue of "original" so AI/manual versions are preferred over a stale original-based draft
+    const preferredDraft = draftValue && draftValue !== "original" ? draftValue : null;
+    const value = photoVersionValues[photo.id] ?? preferredDraft ?? defaultPhotoVersionOption(options).value;
     return options.find((option) => option.value === value) ?? defaultPhotoVersionOption(options);
   }
 

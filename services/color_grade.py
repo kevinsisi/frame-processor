@@ -78,12 +78,13 @@ def _reduce_purple_magenta(rgb: np.ndarray) -> np.ndarray:
 
 
 def _clarify_luma_only(rgb: np.ndarray) -> np.ndarray:
-    rgb_u8 = np.clip(rgb * 255.0, 0, 255).astype(np.uint8)
-    ycrcb = cv2.cvtColor(rgb_u8, cv2.COLOR_RGB2YCrCb)
-    y = Image.fromarray(ycrcb[:, :, 0], mode="L")
-    ycrcb[:, :, 0] = np.asarray(y.filter(ImageFilter.UnsharpMask(radius=1.4, percent=34, threshold=7)))
+    # Stay in float32 — only Y briefly visits uint8 for PIL UnsharpMask; chroma is never quantized
+    ycrcb = cv2.cvtColor(np.clip(rgb, 0.0, 1.0), cv2.COLOR_RGB2YCrCb)
+    y_u8 = np.clip(ycrcb[:, :, 0] * 255.0, 0, 255).astype(np.uint8)
+    y_sharp = np.asarray(Image.fromarray(y_u8, mode="L").filter(ImageFilter.UnsharpMask(radius=1.4, percent=34, threshold=7)))
+    ycrcb[:, :, 0] = y_sharp.astype(np.float32) / 255.0
     out = cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2RGB)
-    return out.astype(np.float32) / 255.0
+    return np.clip(out, 0.0, 1.0)
 
 
 def _boost_luma_contrast(rgb: np.ndarray, *, factor: float) -> np.ndarray:
