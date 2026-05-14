@@ -40,6 +40,7 @@
 - [x] Add retry action for failed/partial versions.
 - [x] Add version settings detail UI for historical AI versions.
 - [x] Show per-photo unavailable/error states for selected partial/failed versions.
+- [x] Show `未納入此批次` badge on Before/After After-side when active photo has no output in the currently viewed AI version (v0.5.7).
 - [x] Label legacy pre-version outputs separately from immutable AI versions.
 
 ## Verification
@@ -53,3 +54,4 @@
 - [x] Version bump and docs/memory updates.
 - [x] Merge to `main`, push, track CI/CD, and production smoke on `noiseTest`.
 - [x] Production v0.5.6 follow-up verification on the current 911 batch: live health returned `0.5.6`, AI v14 completed `18/18`, selected AI v13/v14 image requests returned distinct `.ai-v13.jpg` / `.ai-v14.jpg` responses via `processing_job_id`, and Preview code path still maps 「查看版本」 to `processing:<job id>` URLs rather than preset cache URLs.
+- [x] v0.5.7 shipped: `未納入此批次` amber badge added to Before/After After-side for photos excluded from the currently viewed AI version.
