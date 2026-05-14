@@ -23,6 +23,21 @@ The Preview page's Before/After comparison component SHALL display the currently
 - **WHEN** the viewport width is below the mobile breakpoint and a full source chain would overflow
 - **THEN** the BeforeAfter header collapses the slider summary, showing only the version layers (e.g. `After: 手動 v2 — 基於 AI v1`) without the per-slider deviation list
 
+### Requirement: Selected AI version drives displayed image
+
+When the user selects an AI batch version, the Preview page SHALL display that exact immutable AI version output in PhotoCards and the Before/After after-side by using the selected version's `processing_job_id`, not the latest preset compatibility cache.
+
+#### Scenario: Selecting a completed AI version
+- **WHEN** the user clicks 「查看版本」 for `AI v14`
+- **THEN** every photo with a completed `AI v14` output has its selected version value set to that AI version
+- **AND** the photo tile and Before/After after-side image URL use `/photos/{photo}/file?processing_job_id={AI v14 job id}`
+- **AND** the display does not fall back to `/photos/{photo}/file?variant=processed&preset=showroom_white` while that selected AI output exists
+
+#### Scenario: Active comparison photo is outside a partial AI version
+- **WHEN** the currently active comparison photo has no completed output in the AI version the user selected
+- **THEN** the Preview page switches the active comparison photo to the first project photo with a completed output in that selected AI version
+- **AND** the Before/After after-side shows that selected AI version output rather than the previously active photo's older version
+
 ### Requirement: PhotoCard displays current AI and manual version chips
 
 Each photo card in the Preview grid SHALL display two color-coded chips below the thumbnail naming the photo's currently selected AI version and manual version, plus an entry point to switch versions.

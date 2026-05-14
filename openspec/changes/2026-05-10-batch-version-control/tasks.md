@@ -52,3 +52,4 @@
 - [x] Gemini review with `No findings`.
 - [x] Version bump and docs/memory updates.
 - [x] Merge to `main`, push, track CI/CD, and production smoke on `noiseTest`.
+- [x] Production v0.5.6 follow-up verification on the current 911 batch: live health returned `0.5.6`, AI v14 completed `18/18`, selected AI v13/v14 image requests returned distinct `.ai-v13.jpg` / `.ai-v14.jpg` responses via `processing_job_id`, and Preview code path still maps 「查看版本」 to `processing:<job id>` URLs rather than preset cache URLs.

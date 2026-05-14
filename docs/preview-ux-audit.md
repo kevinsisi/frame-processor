@@ -28,6 +28,8 @@ The current implementation supports that workflow, but `/preview` also contains 
 - Before/After now has inline previous/next controls and an index/filename counter.
 - The manual geometry editor is separated into a full-screen workspace instead of cramped inline controls.
 - Version dropdowns hide internal names and can switch tile image, comparison source, manual source, and download target.
+- AI version selection now uses explicit `processing_job_id` image URLs for PhotoCard and Before/After, and the 「查看版本」 action switches the comparison photo to one that actually has the selected partial-version output when needed.
+- Production showroom-white smoke testing on the 911 batch reached v0.5.6 / AI v14, with visible near-white highlight compression while preserving pure-white anchors.
 
 ## Findings
 
@@ -135,6 +137,6 @@ Recommended direction: add request cancellation or a latest-only backend strateg
 ## Not Yet Closed
 
 - iPhone Safari mobile layout validation.
-- Real-photo showroom white neutrality smoke test.
+- Broader visual QA for showroom white neutrality across non-911 batches.
 - Individual processed download smoke test.
 - Visual QA for denoise strength on representative indoor, outdoor, low-light, and dealership photos.
