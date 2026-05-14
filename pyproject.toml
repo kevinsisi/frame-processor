@@ -1,6 +1,6 @@
 [project]
 name = "frame-processor"
-version = "0.5.11"
+version = "0.5.10"
 description = "車輛照片批次後製工具（FastAPI + React + RQ worker）"
 requires-python = ">=3.11"
 dependencies = [

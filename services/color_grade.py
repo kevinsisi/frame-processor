@@ -156,7 +156,7 @@ def _protect_smooth_neutral_highlights(rgb: np.ndarray, *, source_rgb: np.ndarra
     if float(weight.max(initial=0.0)) <= 0.0:
         return rgb
 
-    highlight_cap = 0.880 + (0.110 * _smoothstep(0.78, 0.996, source_y))
+    highlight_cap = 0.930 + (0.045 * _smoothstep(0.84, 0.996, source_y))
     compressed_y = np.minimum(current_y, highlight_cap)
     ycrcb[..., 0] = (current_y * (1.0 - weight)) + (compressed_y * weight)
     out = cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2RGB)
