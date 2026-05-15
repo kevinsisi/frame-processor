@@ -7,6 +7,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: deploy-desktop-production
+  cancel-in-progress: false
+
 env:
   DEPLOY_SERVER_IP: 100.83.112.20
   DEPLOY_PATH: D:/GitClone/_HomeProject/frame-processor/deploy
@@ -22,6 +26,7 @@ env:
 jobs:
   deploy-desktop:
     runs-on: [self-hosted, Windows, X64, frame-processor-prod]
+    timeout-minutes: 60
     if: >
       (github.event_name == 'workflow_dispatch') ||
       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
@@ -156,6 +161,12 @@ jobs:
           Assert-ComposeBind $config 'api' '/data' $env:EXPECTED_STORAGE_DIR
           Assert-ComposeBind $config 'worker' '/data' $env:EXPECTED_STORAGE_DIR
 
+      - name: Clean stale Docker auth configs
+        shell: powershell
+        run: |
+          Get-ChildItem -LiteralPath $env:TEMP -Directory -Filter 'frame-processor-docker-config-*' -ErrorAction SilentlyContinue |
+            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+
       - name: Deploy via local Docker Compose
         env:
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -189,6 +200,13 @@ jobs:
           finally {
             Remove-Item -LiteralPath $dockerConfig -Recurse -Force -ErrorAction SilentlyContinue
           }
+
+      - name: Clean Docker auth configs
+        if: always()
+        shell: powershell
+        run: |
+          Get-ChildItem -LiteralPath $env:TEMP -Directory -Filter 'frame-processor-docker-config-*' -ErrorAction SilentlyContinue |
+            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 
       - name: Verify running images, restart policies, and G drive mounts
         shell: powershell
