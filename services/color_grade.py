@@ -19,7 +19,7 @@ from models.enums import ColorGradePreset
 SHOWROOM_WHITE_POST_CONTRAST_FACTOR = 1.40
 SHOWROOM_WHITE_DITHER_STRENGTH = 2.5
 SHOWROOM_WHITE_STRUCTURED_HIGHLIGHT_MAX_BLEND = 1.0
-SHOWROOM_WHITE_SMOOTH_NEUTRAL_MAX_BLEND = 0.94
+SHOWROOM_WHITE_SMOOTH_NEUTRAL_MAX_BLEND = 1.0
 
 
 def apply_grade(image: Image.Image, preset: ColorGradePreset) -> Image.Image:
@@ -206,12 +206,15 @@ def _limit_smooth_neutral_luma_lift(rgb: np.ndarray, *, source_rgb: np.ndarray) 
     current_chroma = np.max(rgb, axis=2) - np.min(rgb, axis=2)
     current_detail = np.abs(current_y - cv2.GaussianBlur(current_y, (0, 0), sigmaX=2.0))
 
-    neutral_weight = 1.0 - np.clip((np.maximum(source_chroma, current_chroma) - 0.018) / 0.105, 0.0, 1.0)
+    source_neutral_weight = 1.0 - np.clip((source_chroma - 0.018) / 0.105, 0.0, 1.0)
+    current_neutral_weight = 1.0 - np.clip((current_chroma - 0.018) / 0.105, 0.0, 1.0)
+    source_moderate_chroma_weight = 1.0 - np.clip((source_chroma - 0.035) / 0.180, 0.0, 1.0)
+    neutral_weight = np.maximum(source_neutral_weight, current_neutral_weight * source_moderate_chroma_weight)
     smooth_weight = 1.0 - np.clip((np.maximum(source_detail, current_detail) - 0.003) / 0.045, 0.0, 1.0)
     panel_weight = _smoothstep(0.64, 0.90, source_y) * (1.0 - _smoothstep(0.985, 0.997, source_y))
 
-    max_lift = 0.118 - (0.085 * _smoothstep(0.74, 0.94, source_y))
-    smooth_cap = 0.936 + (0.010 * _smoothstep(0.95, 0.985, source_y))
+    max_lift = 0.095 - (0.082 * _smoothstep(0.70, 0.92, source_y))
+    smooth_cap = 0.920 + (0.018 * _smoothstep(0.94, 0.985, source_y))
     luma_cap = np.maximum(source_y, np.minimum(source_y + max_lift, smooth_cap))
     capped_y = np.minimum(current_y, luma_cap)
     lift_weight = _smoothstep(0.004, 0.030, current_y - capped_y)

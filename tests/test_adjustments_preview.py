@@ -804,6 +804,73 @@ def test_showroom_white_protects_smooth_neutral_near_white_panels() -> None:
     assert _unique_luma_values(result, panel_box) >= 8
 
 
+def test_showroom_white_limits_smooth_mid_high_neutral_lift() -> None:
+    width = 160
+    height = 80
+    arr = np.full((height, width, 3), (32, 34, 36), dtype=np.uint8)
+    _, xx = np.indices((height, width))
+    panel = xx >= 40
+    gradient = 220 + ((xx - 40) / 120 * 12)
+    arr[panel] = np.stack(
+        [
+            gradient[panel] + 5,
+            gradient[panel] + 2,
+            gradient[panel],
+        ],
+        axis=1,
+    ).clip(0, 255).astype(np.uint8)
+    image = Image.fromarray(arr, "RGB")
+
+    result = color_grade.apply_grade(image, ColorGradePreset.SHOWROOM_WHITE)
+    panel_box = (40, 0, width, height)
+
+    assert _luma_clip_fraction(image, panel_box, high=235) < 0.20
+    assert _luma_clip_fraction(result, panel_box, high=235) < 0.12
+    assert _luma_clip_fraction(result, panel_box, high=245) == 0.0
+    assert _unique_luma_values(result, panel_box) >= 6
+
+
+def test_showroom_white_limits_smooth_warm_highlight_lift_after_neutralizing() -> None:
+    width = 160
+    height = 80
+    arr = np.full((height, width, 3), (24, 25, 27), dtype=np.uint8)
+    _, xx = np.indices((height, width))
+    panel = xx >= 40
+    gradient = 226 + ((xx - 40) / 120 * 16)
+    arr[panel] = np.stack(
+        [
+            gradient[panel] + 12,
+            gradient[panel] + 5,
+            gradient[panel] - 2,
+        ],
+        axis=1,
+    ).clip(0, 255).astype(np.uint8)
+    image = Image.fromarray(arr, "RGB")
+
+    result = color_grade.apply_grade(image, ColorGradePreset.SHOWROOM_WHITE)
+    panel_box = (40, 0, width, height)
+
+    assert _luma_clip_fraction(result, panel_box, high=235) < 0.08
+    assert _luma_clip_fraction(result, panel_box, high=245) == 0.0
+    assert _unique_luma_values(result, panel_box) >= 6
+
+
+def test_showroom_white_keeps_pale_colored_highlight_bright_without_clipping() -> None:
+    width = 160
+    height = 80
+    image = Image.new("RGB", (width, height), (24, 25, 27))
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((40, 0, width - 1, height - 1), fill=(238, 220, 196))
+
+    result = color_grade.apply_grade(image, ColorGradePreset.SHOWROOM_WHITE)
+    panel_box = (40, 0, width, height)
+
+    assert _luma_mean(result, panel_box) >= _luma_mean(image, panel_box) + 6
+    assert _luma_mean(result, panel_box) <= 238
+    assert _luma_clip_fraction(result, panel_box, high=245) == 0.0
+    assert _unique_luma_values(result, panel_box) >= 6
+
+
 def test_showroom_white_preserves_structured_highlight_gradients() -> None:
     width = 180
     height = 96
@@ -897,6 +964,20 @@ def test_showroom_white_reduces_but_preserves_saturated_magenta() -> None:
     after = _mean_chroma_spread(result, (0, 0, 32, 32))
     assert after < before
     assert after > before * 0.35
+
+
+def test_showroom_white_preserves_bright_saturated_color_from_neutral_cap() -> None:
+    image = Image.new("RGB", (96, 48), (150, 150, 150))
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((0, 0, 47, 47), fill=(240, 185, 72))
+
+    result = color_grade.apply_grade(image, ColorGradePreset.SHOWROOM_WHITE)
+    color_box = (0, 0, 48, 48)
+
+    before = _mean_chroma_spread(image, color_box)
+    after = _mean_chroma_spread(result, color_box)
+    assert after > before * 0.40
+    assert _luma_mean(result, color_box) >= _luma_mean(image, color_box) - 10
 
 
 def test_showroom_white_keeps_neutral_cast_from_turning_magenta() -> None:
