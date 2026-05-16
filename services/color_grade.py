@@ -19,6 +19,7 @@ from models.enums import ColorGradePreset
 SHOWROOM_WHITE_POST_CONTRAST_FACTOR = 1.40
 SHOWROOM_WHITE_DITHER_STRENGTH = 2.5
 SHOWROOM_WHITE_STRUCTURED_HIGHLIGHT_MAX_BLEND = 1.0
+SHOWROOM_WHITE_SMOOTH_NEUTRAL_MAX_BLEND = 0.94
 
 
 def apply_grade(image: Image.Image, preset: ColorGradePreset) -> Image.Image:
@@ -45,6 +46,7 @@ def _showroom_white(image: Image.Image) -> Image.Image:
     rgb = _boost_luma_contrast(rgb, factor=SHOWROOM_WHITE_POST_CONTRAST_FACTOR)
     rgb = _protect_smooth_neutral_highlights(rgb, source_rgb=source_rgb)
     rgb = _preserve_structured_highlight_luma(rgb, source_rgb=source_rgb)
+    rgb = _limit_smooth_neutral_luma_lift(rgb, source_rgb=source_rgb)
     rgb = _dither_smooth_neutral_luma(rgb, pre_boost_y=pre_boost_y)
     rgb = _preserve_true_white_anchor(rgb, source_rgb=source_rgb)
     return Image.fromarray(np.clip(rgb * 255.0, 0, 255).astype(np.uint8), "RGB")
@@ -190,6 +192,33 @@ def _preserve_structured_highlight_luma(rgb: np.ndarray, *, source_rgb: np.ndarr
     max_lift = 0.014 + (0.014 * (1.0 - _smoothstep(0.78, 0.94, source_y)))
     preserved_y = np.minimum(current_y, source_y + max_lift)
     ycrcb[..., 0] = (current_y * (1.0 - weight)) + (preserved_y * weight)
+    out = cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2RGB)
+    return np.clip(out, 0.0, 1.0)
+
+
+def _limit_smooth_neutral_luma_lift(rgb: np.ndarray, *, source_rgb: np.ndarray) -> np.ndarray:
+    source_y = 0.299 * source_rgb[..., 0] + 0.587 * source_rgb[..., 1] + 0.114 * source_rgb[..., 2]
+    source_chroma = np.max(source_rgb, axis=2) - np.min(source_rgb, axis=2)
+    source_detail = np.abs(source_y - cv2.GaussianBlur(source_y, (0, 0), sigmaX=2.0))
+
+    ycrcb = cv2.cvtColor(np.clip(rgb, 0.0, 1.0), cv2.COLOR_RGB2YCrCb)
+    current_y = ycrcb[..., 0]
+    current_chroma = np.max(rgb, axis=2) - np.min(rgb, axis=2)
+    current_detail = np.abs(current_y - cv2.GaussianBlur(current_y, (0, 0), sigmaX=2.0))
+
+    neutral_weight = 1.0 - np.clip((np.maximum(source_chroma, current_chroma) - 0.018) / 0.105, 0.0, 1.0)
+    smooth_weight = 1.0 - np.clip((np.maximum(source_detail, current_detail) - 0.003) / 0.045, 0.0, 1.0)
+    panel_weight = _smoothstep(0.64, 0.90, source_y) * (1.0 - _smoothstep(0.985, 0.997, source_y))
+
+    max_lift = 0.118 - (0.085 * _smoothstep(0.74, 0.94, source_y))
+    smooth_cap = 0.945 + (0.012 * _smoothstep(0.95, 0.985, source_y))
+    capped_y = np.minimum(current_y, np.minimum(source_y + max_lift, smooth_cap))
+    lift_weight = _smoothstep(0.004, 0.030, current_y - capped_y)
+    weight = neutral_weight * smooth_weight * panel_weight * lift_weight * SHOWROOM_WHITE_SMOOTH_NEUTRAL_MAX_BLEND
+    if float(weight.max(initial=0.0)) <= 0.0:
+        return rgb
+
+    ycrcb[..., 0] = (current_y * (1.0 - weight)) + (capped_y * weight)
     out = cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2RGB)
     return np.clip(out, 0.0, 1.0)
 
