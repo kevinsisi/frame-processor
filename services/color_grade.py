@@ -211,8 +211,9 @@ def _limit_smooth_neutral_luma_lift(rgb: np.ndarray, *, source_rgb: np.ndarray) 
     panel_weight = _smoothstep(0.64, 0.90, source_y) * (1.0 - _smoothstep(0.985, 0.997, source_y))
 
     max_lift = 0.118 - (0.085 * _smoothstep(0.74, 0.94, source_y))
-    smooth_cap = 0.945 + (0.012 * _smoothstep(0.95, 0.985, source_y))
-    capped_y = np.minimum(current_y, np.minimum(source_y + max_lift, smooth_cap))
+    smooth_cap = 0.936 + (0.010 * _smoothstep(0.95, 0.985, source_y))
+    luma_cap = np.maximum(source_y, np.minimum(source_y + max_lift, smooth_cap))
+    capped_y = np.minimum(current_y, luma_cap)
     lift_weight = _smoothstep(0.004, 0.030, current_y - capped_y)
     weight = neutral_weight * smooth_weight * panel_weight * lift_weight * SHOWROOM_WHITE_SMOOTH_NEUTRAL_MAX_BLEND
     if float(weight.max(initial=0.0)) <= 0.0:
