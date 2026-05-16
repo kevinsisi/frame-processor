@@ -6,16 +6,17 @@
 - `G:/frame-processor/storage-data`
 - `G:/frame-processor/redis-data`
 
-The current deploy workflow is a placeholder, so production updates still depend on manual build/restart steps. The CI/CD design must publish Docker images, copy the compose file to the desktop, deploy by pulling images, and fail closed if the data mounts are missing or no longer point to G drive.
+The previous deploy workflow was a placeholder, so production updates depended on manual build/restart steps. The CI/CD design publishes Docker images, copies the compose file to the desktop deploy directory from the kevinhome self-hosted runner, deploys by pulling images locally on that desktop, and fails closed if the data mounts are missing or no longer point to G drive.
 
 ## Goals / Non-Goals
 
 **Goals:**
 
 - Use the HomeProject two-workflow pattern: Docker publish after `main` changes, then deploy after publish succeeds.
+- Run deployment on the kevinhome self-hosted runner so Windows Docker commands execute locally instead of over SSH.
 - Build `linux/amd64` images for the Windows desktop Docker runtime.
 - Publish a dedicated CUDA worker image while keeping the API image CPU-only.
-- Keep `deploy/docker-compose.yml` usable for local manual `docker compose up --build` while also supporting registry image pull in CD.
+- Use registry image references in `deploy/docker-compose.yml` so production deploys pull published images by commit SHA.
 - Make deployment fail before `docker compose up` if the required G drive directories are missing or compose no longer uses G drive bind mounts.
 - Make deployment fail after `docker compose up` if running containers use named volumes or non-G drive mount sources.
 - Keep `GEMINI_MODEL` fixed to `gemini-2.5-flash`, keep `GEMINI_API_KEY` as an optional fallback instead of a deploy blocker, keep settings mutations protected by `SETTINGS_ADMIN_TOKEN`, and keep `KEY_MANAGER_URL` optional.
@@ -41,11 +42,11 @@ The `worker` compose service uses the dedicated worker image with `gpus: all` an
 
 Alternative considered: keep reusing the API image for worker. That keeps builds smaller but leaves production AI batch processing on CPU-only torch and can silently waste the desktop GPU.
 
-### Compose image and build compatibility
+### Compose image strategy
 
-Each application service keeps both `image:` and `build:`. CD pulls the required images individually, then runs `docker compose up -d --pull never --no-build`, so it uses the published image without falling back to a local build. Local development can still run `cd deploy && docker compose up -d --build` from the repo checkout.
+Each application service uses an `image:` reference with the deployed commit SHA tag. CD pulls the required images individually, then runs `docker compose up -d --pull never --force-recreate --no-build --remove-orphans postgres redis api worker web`, so production uses the published images without falling back to a local build.
 
-Alternative considered: remove `build:` from production compose. That would make CI/CD cleaner but would break the existing quick-start workflow that uses the same compose file from `deploy/`.
+Alternative considered: keep `build:` blocks in production compose. That preserves a local quick-start path but increases the risk that deploy accidentally builds from a stale checkout instead of running the published image.
 
 ### Deploy path
 
@@ -53,11 +54,17 @@ CD copies `deploy/docker-compose.yml` to `D:/GitClone/_HomeProject/frame-process
 
 Alternative considered: copy compose to the repo root. That would diverge from the existing `deploy/docker-compose.yml` quick-start and `.env` location.
 
-### Remote PowerShell execution
+### Local self-hosted runner execution
 
-CD uploads generated PowerShell scripts for env merge, pre-deploy validation, Docker Compose deployment, and post-deploy runtime verification, then invokes each script through `powershell -Command "& 'script.ps1' ..."`. This avoids multiline SSH command parsing differences between Bash, Windows OpenSSH, and PowerShell.
+CD runs PowerShell steps directly on the kevinhome GitHub self-hosted runner (`DESK-KEVINHOME-frame-processor`, labels `self-hosted`, `Windows`, `X64`, `frame-processor-prod`). This keeps Docker Desktop, the G drive bind mounts, and the production compose path in the same Windows logon context and removes deploy-time dependencies on Windows OpenSSH Server, Tailscale SSH, SSH host-key scans, or remote multiline command parsing.
 
-Alternative considered: keep large multiline PowerShell blocks directly in the SSH command. That can appear successful while only part of the command executes, leaving Docker containers on stale images.
+Alternative considered: deploy from GitHub-hosted runners over Tailscale SSH. That adds SSH key management, host-key scanning, and Windows remote-shell quoting failure modes without improving the single-host production topology.
+
+### Deploy queue hardening
+
+The deploy workflow uses a production concurrency group with `cancel-in-progress: false` so only one desktop deploy mutates the stack at a time. The job has a bounded 60-minute timeout so Docker Desktop stalls cannot hold the self-hosted runner indefinitely. The workflow removes stale `frame-processor-docker-config-*` temp directories before and after deploy so previous interrupted runs do not leave Docker auth config files behind.
+
+Alternative considered: step-level timeout around Docker pulls and compose up. That can terminate PowerShell before `finally` cleanup runs, so the safer boundary is the job-level timeout plus explicit stale-auth cleanup steps.
 
 ### Environment strategy
 
@@ -93,8 +100,8 @@ Alternative considered: string search the compose file only. That catches obviou
 - Missing required GitHub secrets block deployment -> fail fast with explicit required secret validation before writing `.env`; optional runtime fallbacks such as `GEMINI_API_KEY` must not block deployment.
 - Docker Compose JSON output may vary by version -> keep validation focused on stable `services.*.volumes` fields and fail closed if parsing fails.
 - Windows/Docker Desktop may report bind mount sources as Linux VM paths -> normalize known Docker Desktop host mount prefixes before comparing.
-- Multiline remote shell parsing can skip intended Docker commands -> upload PowerShell scripts and execute script files instead of relying on inline multiline SSH strings.
-- Windows SSH sessions may not have an interactive Docker credential-helper logon session -> generate a temporary Docker auth config from GitHub `DOCKERHUB_TOKEN`, upload it to the desktop deploy directory, copy it into a temp Docker config directory for explicit `docker pull` calls, then run `docker compose up --pull never` and clean up local/remote auth config files.
+- Docker Desktop stalls can hold the self-hosted runner -> use deploy concurrency and a bounded job timeout; if Docker Desktop itself is wedged, reboot/recover the host before rerunning deploy.
+- Interrupted deploys could leave temp Docker auth config directories -> clean `frame-processor-docker-config-*` before and after deploy attempts.
 - The first worker image build is heavy because it installs CUDA torch/ultralytics -> use GitHub Actions build cache and publish only amd64 for the desktop target.
 - Web image cannot receive runtime env after build -> do not bake `SETTINGS_ADMIN_TOKEN`; keep the Settings page manual-token path for admin mutations.
 
@@ -102,8 +109,8 @@ Alternative considered: string search the compose file only. That catches obviou
 
 1. Add CI pytest and Docker build validation.
 2. Add Docker publish workflow for api/worker/web images.
-3. Update compose image fields while preserving build fields and G drive bind mounts.
-4. Replace deploy scaffold with Windows desktop deploy workflow.
+3. Update compose image fields while preserving G drive bind mounts.
+4. Replace deploy scaffold with Windows desktop self-hosted runner deploy workflow.
 5. Update project docs and memory with the CI/CD contract.
 6. Push to `main`; GitHub Actions builds images, then deploys to `100.83.112.20`.
 7. Verify health at `http://100.83.112.20:18533/api/health` and final route `https://frame.sisihome.org/api/health`.

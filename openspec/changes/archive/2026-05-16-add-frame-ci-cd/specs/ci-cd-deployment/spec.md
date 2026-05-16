@@ -28,31 +28,32 @@ The system SHALL run backend lint, backend import smoke checks, alembic offline 
 - **THEN** `.dockerignore` excludes `.env` files, deploy `.env` files, local data, caches, and generated frontend artifacts from the build context
 
 ### Requirement: Desktop deployment copies compose before applying changes
-The system SHALL deploy to the Windows desktop at `100.83.112.20` by copying the repository `deploy/docker-compose.yml` to the desktop deploy directory before running Docker Compose.
+The system SHALL deploy to the Windows desktop at `100.83.112.20` from the kevinhome GitHub self-hosted runner by copying the repository `deploy/docker-compose.yml` to the desktop deploy directory before running Docker Compose locally.
 
-#### Scenario: Windows OpenSSH Server accepts deploy SSH
-- **WHEN** the deploy workflow connects to `100.83.112.20`
-- **THEN** the Windows desktop exposes OpenSSH Server on TCP port 22 over Tailscale and accepts `DEPLOY_SSH_KEY` for `DEPLOY_USER`
+#### Scenario: Self-hosted runner executes deployment locally
+- **WHEN** the deploy workflow starts after a successful Docker publish or manual dispatch
+- **THEN** GitHub Actions schedules the job on the kevinhome self-hosted runner with `self-hosted`, `Windows`, `X64`, and `frame-processor-prod` labels
+- **AND** the workflow executes Docker and PowerShell commands locally on the Windows desktop instead of using SSH
 
 #### Scenario: Deploy workflow syncs compose
 - **WHEN** the deploy workflow starts after a successful Docker publish or manual dispatch
 - **THEN** it creates `D:/GitClone/_HomeProject/frame-processor/deploy` if needed and copies `deploy/docker-compose.yml` to `D:/GitClone/_HomeProject/frame-processor/deploy/docker-compose.yml`
 
-#### Scenario: SSH host-key scan is retried and fails closed
-- **WHEN** the deploy workflow prepares SSH access to the desktop
-- **THEN** it retries `ssh-keyscan` for transient Tailscale readiness and fails before copying files if the desktop host key cannot be collected
-
 #### Scenario: Deploy workflow applies published images
 - **WHEN** compose has been copied and pre-deploy guards pass
-- **THEN** the workflow pulls the published commit SHA images and force-recreates api, worker, and web without local builds
-- **AND** desktop pulls use a temporary Docker auth config generated from GitHub `DOCKERHUB_TOKEN` so the Windows Docker credential helper is not invoked from the SSH session
-- **AND** Docker Compose is applied with `--pull never --no-build` after the explicit image pulls succeed
-- **AND** local and remote temporary Docker auth config files are removed after deployment attempts
+- **THEN** the workflow pulls the published commit SHA images and recreates postgres, redis, api, worker, and web without local builds
+- **AND** desktop pulls use a temporary Docker auth config generated from GitHub `DOCKERHUB_TOKEN` so the Windows Docker credential helper is not required
+- **AND** Docker Compose is applied with `up -d --pull never --force-recreate --no-build --remove-orphans postgres redis api worker web` after the explicit image pulls succeed
+- **AND** temporary Docker auth config files are removed after deployment attempts
 
-#### Scenario: Remote Docker commands execute through script files
-- **WHEN** the workflow runs desktop pre-deploy guards, Docker Compose deployment, or runtime verification over SSH
-- **THEN** it uploads generated PowerShell scripts and invokes those scripts with `powershell -Command "& 'script.ps1' ..."`
-- **AND** it does not depend on large multiline PowerShell blocks embedded directly inside the SSH command string
+#### Scenario: Deploy queue is bounded
+- **WHEN** multiple desktop deploys are triggered while a deploy is still running
+- **THEN** the workflow serializes them with a production deploy concurrency group and does not cancel the in-progress deploy
+- **AND** the deploy job has a bounded 60-minute timeout so a Docker Desktop stall cannot occupy the self-hosted runner indefinitely
+
+#### Scenario: Stale Docker auth configs are cleaned
+- **WHEN** a deploy begins or finishes after an earlier interrupted deploy
+- **THEN** the workflow removes stale `frame-processor-docker-config-*` temp directories from the runner temp path without printing Docker credentials
 
 ### Requirement: Deployment fails closed when G drive data paths are unsafe
 The system SHALL refuse to deploy before `docker compose up` if required G drive persistent data directories are missing or if compose does not resolve postgres, redis, api, and worker storage as G drive bind mounts.
@@ -71,6 +72,16 @@ The system SHALL verify running container images, mounts, and the web-proxied he
 #### Scenario: Runtime mount verification succeeds
 - **WHEN** `docker compose up -d` completes
 - **THEN** `docker inspect` confirms postgres, redis, api, and worker mounts are bind mounts whose normalized sources are the expected G drive paths
+
+#### Scenario: Runtime image verification succeeds
+- **WHEN** `docker compose up -d` completes
+- **THEN** `docker inspect` confirms api, worker, and web containers use the expected commit SHA image tag
+- **AND** the worker container uses the dedicated `frame-processor-worker` image
+
+#### Scenario: Worker CUDA verification succeeds
+- **WHEN** runtime image and mount verification passes
+- **THEN** the deploy workflow executes a worker-container CUDA smoke check
+- **AND** deployment fails unless `torch.cuda.is_available()` returns `True`
 
 #### Scenario: Named volume regression is detected
 - **WHEN** any inspected frame-processor container mount source normalizes to Docker Desktop named volume storage or a non-G-drive path

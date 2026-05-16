@@ -1,6 +1,6 @@
 ## 1. Compose And Image Publishing
 
-- [x] 1.1 Add production image names and `${IMAGE_TAG}` support to `deploy/docker-compose.yml` while preserving local `build:` blocks and G drive bind mounts.
+- [x] 1.1 Add production image names and `${IMAGE_TAG}` support to `deploy/docker-compose.yml` while preserving G drive bind mounts.
 - [x] 1.2 Add `.github/workflows/docker-publish.yml` to build and push amd64 api, worker, and web images to Docker Hub.
 - [x] 1.3 Add `.dockerignore` so Docker build context excludes local env files, caches, data, docs, and generated frontend artifacts.
 
@@ -11,11 +11,12 @@
 
 ## 3. Desktop Deployment
 
-- [x] 3.1 Replace `.github/workflows/deploy-dev.yml` scaffold with a Tailscale SSH deploy workflow for `100.83.112.20`.
+- [x] 3.1 Replace `.github/workflows/deploy-dev.yml` scaffold with a kevinhome self-hosted runner deploy workflow for `100.83.112.20`.
 - [x] 3.2 Make the deploy workflow copy `deploy/docker-compose.yml` to `D:/GitClone/_HomeProject/frame-processor/deploy/docker-compose.yml`.
 - [x] 3.3 Make the deploy workflow write runtime `.env` values from GitHub Actions secrets without logging secrets.
 - [x] 3.4 Add pre-deploy guards for required G drive directories and compose-resolved bind mounts.
 - [x] 3.5 Add post-deploy `docker inspect` mount verification and `http://100.83.112.20:18533/api/health` health check.
+- [x] 3.6 Add deploy concurrency, a bounded job timeout, and Docker auth temp cleanup so Docker Desktop stalls do not leave queued deploy piles or stale auth configs.
 
 ## 4. Documentation And Memory
 
