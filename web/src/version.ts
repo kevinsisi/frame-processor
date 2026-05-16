@@ -1,2 +1,2 @@
-// v0.5.16 - fix: showroom_white high smooth panels use source smoothness for highlight caps.
-export const APP_VERSION = "0.5.16";
+// v0.5.17 - fix: showroom_white smooth near-white panels compress below blowout risk.
+export const APP_VERSION = "0.5.17";

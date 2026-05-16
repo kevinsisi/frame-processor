@@ -943,6 +943,33 @@ def test_showroom_white_keeps_near_clipped_edges_bright_but_not_pure_white() -> 
     assert _luma_mean(result, pure_white_box) > _luma_mean(result, near_clipped_box)
 
 
+def test_showroom_white_compresses_smooth_near_white_without_true_white_anchor() -> None:
+    width = 160
+    height = 80
+    arr = np.full((height, width, 3), (30, 32, 34), dtype=np.uint8)
+    _, xx = np.indices((height, width))
+    panel = xx >= 32
+    gradient = 244 + ((xx - 32) / 128 * 7)
+    arr[panel] = np.stack(
+        [
+            gradient[panel],
+            np.minimum(255, gradient[panel] + 1),
+            gradient[panel],
+        ],
+        axis=1,
+    ).astype(np.uint8)
+    image = Image.fromarray(arr, "RGB")
+
+    result = color_grade.apply_grade(image, ColorGradePreset.SHOWROOM_WHITE)
+    panel_box = (32, 0, width, height)
+    result_luma = np.asarray(result.convert("L").crop(panel_box), dtype=np.uint8)
+
+    assert _luma_mean(result, panel_box) >= 230
+    assert _luma_clip_fraction(result, panel_box, high=245) < 0.06
+    assert int(np.percentile(result_luma, 99)) <= 246
+    assert _unique_luma_values(result, panel_box) >= 7
+
+
 def test_showroom_white_adds_subtle_luma_dither_to_smooth_neutral_panels() -> None:
     image = Image.new("RGB", (96, 48), (142, 146, 146))
 
