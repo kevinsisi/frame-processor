@@ -803,6 +803,33 @@ def test_showroom_white_protects_smooth_neutral_near_white_panels() -> None:
     assert _unique_luma_values(result, panel_box) >= 8
 
 
+def test_showroom_white_preserves_structured_highlight_gradients() -> None:
+    width = 180
+    height = 96
+    arr = np.full((height, width, 3), (42, 46, 52), dtype=np.uint8)
+    yy, xx = np.indices((height, width))
+    panel = (xx >= 20) & (xx < 160)
+    panel_gradient = 128 + ((xx - 20) / 140 * 30)
+    arr[panel] = np.stack(
+        [
+            panel_gradient[panel] + 8,
+            panel_gradient[panel] + 2,
+            panel_gradient[panel] - 4,
+        ],
+        axis=1,
+    ).clip(0, 255).astype(np.uint8)
+    reflection_band = np.exp(-((yy - 48) ** 2) / (2 * 3.0**2)) * 62
+    arr[panel] = np.clip(arr[panel].astype(np.float32) + reflection_band[panel, np.newaxis], 0, 255).astype(np.uint8)
+    image = Image.fromarray(arr, "RGB")
+
+    result = color_grade.apply_grade(image, ColorGradePreset.SHOWROOM_WHITE)
+    highlight_box = (20, 38, 160, 58)
+
+    assert _luma_clip_fraction(image, highlight_box, high=235) == 0.0
+    assert _luma_clip_fraction(result, highlight_box, high=235) == 0.0
+    assert _luma_std(result, highlight_box) >= _luma_std(image, highlight_box) * 0.85
+
+
 def test_showroom_white_compresses_near_clipped_vehicle_highlights() -> None:
     width = 180
     height = 96

@@ -18,6 +18,7 @@ from models.enums import ColorGradePreset
 
 SHOWROOM_WHITE_POST_CONTRAST_FACTOR = 1.40
 SHOWROOM_WHITE_DITHER_STRENGTH = 2.5
+SHOWROOM_WHITE_STRUCTURED_HIGHLIGHT_MAX_BLEND = 1.0
 
 
 def apply_grade(image: Image.Image, preset: ColorGradePreset) -> Image.Image:
@@ -43,6 +44,7 @@ def _showroom_white(image: Image.Image) -> Image.Image:
     pre_boost_y = 0.299 * rgb[..., 0] + 0.587 * rgb[..., 1] + 0.114 * rgb[..., 2]
     rgb = _boost_luma_contrast(rgb, factor=SHOWROOM_WHITE_POST_CONTRAST_FACTOR)
     rgb = _protect_smooth_neutral_highlights(rgb, source_rgb=source_rgb)
+    rgb = _preserve_structured_highlight_luma(rgb, source_rgb=source_rgb)
     rgb = _dither_smooth_neutral_luma(rgb, pre_boost_y=pre_boost_y)
     rgb = _preserve_true_white_anchor(rgb, source_rgb=source_rgb)
     return Image.fromarray(np.clip(rgb * 255.0, 0, 255).astype(np.uint8), "RGB")
@@ -159,6 +161,35 @@ def _protect_smooth_neutral_highlights(rgb: np.ndarray, *, source_rgb: np.ndarra
     highlight_cap = 0.930 + (0.045 * _smoothstep(0.84, 0.996, source_y))
     compressed_y = np.minimum(current_y, highlight_cap)
     ycrcb[..., 0] = (current_y * (1.0 - weight)) + (compressed_y * weight)
+    out = cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2RGB)
+    return np.clip(out, 0.0, 1.0)
+
+
+def _preserve_structured_highlight_luma(rgb: np.ndarray, *, source_rgb: np.ndarray) -> np.ndarray:
+    source_y = 0.299 * source_rgb[..., 0] + 0.587 * source_rgb[..., 1] + 0.114 * source_rgb[..., 2]
+    ycrcb = cv2.cvtColor(np.clip(rgb, 0.0, 1.0), cv2.COLOR_RGB2YCrCb)
+    current_y = ycrcb[..., 0]
+    lift = current_y - source_y
+    if float(lift.max(initial=0.0)) <= 0.0:
+        return rgb
+
+    grad_x = cv2.Sobel(source_y, cv2.CV_32F, 1, 0, ksize=3)
+    grad_y = cv2.Sobel(source_y, cv2.CV_32F, 0, 1, ksize=3)
+    gradient = cv2.magnitude(grad_x, grad_y)
+    gradient = cv2.dilate(gradient, np.ones((3, 3), dtype=np.uint8), iterations=1)
+    gradient = cv2.GaussianBlur(gradient, (0, 0), sigmaX=1.0)
+
+    highlight_weight = _smoothstep(0.58, 0.86, source_y) * (1.0 - _smoothstep(0.975, 0.995, source_y))
+    structure_weight = _smoothstep(0.010, 0.050, gradient)
+    lift_weight = _smoothstep(0.004, 0.030, lift)
+    weight = highlight_weight * structure_weight * lift_weight * SHOWROOM_WHITE_STRUCTURED_HIGHLIGHT_MAX_BLEND
+    if float(weight.max(initial=0.0)) <= 0.0:
+        return rgb
+
+    # Preserve object-agnostic glossy/reflective gradients instead of turning them into flat white strokes.
+    max_lift = 0.014 + (0.014 * (1.0 - _smoothstep(0.78, 0.94, source_y)))
+    preserved_y = np.minimum(current_y, source_y + max_lift)
+    ycrcb[..., 0] = (current_y * (1.0 - weight)) + (preserved_y * weight)
     out = cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2RGB)
     return np.clip(out, 0.0, 1.0)
 
