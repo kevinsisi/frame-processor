@@ -1,2 +1,2 @@
-// v0.5.15 - fix: showroom_white near-white smooth panels no longer lift into clipped highlights.
-export const APP_VERSION = "0.5.15";
+// v0.5.16 - fix: showroom_white high smooth panels use source smoothness for highlight caps.
+export const APP_VERSION = "0.5.16";
