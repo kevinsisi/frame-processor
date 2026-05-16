@@ -1,15 +1,18 @@
 # Tasks — Frontend Error Reporting
 
+Status note (2026-05-16): basic toast infrastructure already exists and is used by Upload / Export / Preview. The remaining work is the central `reportError` utility, replacing Preview's remaining direct `console.warn` paths, and adding focused tests/manual error QA.
+
 ## Audit
 
-- [ ] 確認 `web/src/components/` 是否已有 toast component；若有，直接重用。
+- [x] 確認 `web/src/components/` 是否已有 toast component；目前已有 `web/src/components/Toast.tsx` / `Toast.css` 並已重用。
 - [ ] 確認既有 useEffect 是否有 cleanup race（poll 在 unmount 後仍 reject 該不該觸發 toast）。
 
 ## Toast infra
 
-- [ ] 若無既有 toast：新增 `web/src/components/Toast.tsx` + `ToastContainer`，支援 info / warning / error 三種 variant、3-5s auto-dismiss、手動 dismiss。
-- [ ] 新增 `web/src/hooks/useToast.ts` 或 `ToastContext` 把 push/dismiss API 接出。
-- [ ] 在 `App.tsx`（或現有 root）掛 `ToastContainer`。
+- [x] 已有 `web/src/components/Toast.tsx` + `ToastProvider`，支援 info / success / error variant 與 4.2s auto-dismiss。
+- [ ] 若仍需要本 change 原始 scope，補 warning variant 與手動 dismiss。
+- [x] `ToastContext` / `useToast` 已接出 push API（位於 `web/src/components/Toast.tsx`）。
+- [x] 在 `App.tsx` 掛 `ToastProvider`。
 
 ## Error reporting util
 
@@ -25,7 +28,7 @@
 - [ ] `:417 base orientation preview failed` → 對應 toast message
 - [ ] `:546 poll processing job failed` → `silent: true`（背景 poll 不打擾使用者，但仍寫 console）
 - [ ] `:888 poll adjustment job failed` → `silent: true`
-- [ ] 跑 `npm run typecheck` 與 `npm run build` 確認沒 type 漂移。
+- [x] 現有 toast infra 已通過 latest CI frontend typecheck/build；`reportError` 替換後仍需再跑一次。
 
 ## Test
 

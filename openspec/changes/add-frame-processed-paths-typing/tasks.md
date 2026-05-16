@@ -1,5 +1,7 @@
 # Tasks — Tighten processed_paths Typing
 
+Status note (2026-05-16): this hardening has not landed yet. `processed_paths` remains typed as `dict[str, str]`, the `"adjusted"` key is still intentionally used by manual adjustment output, and writers still mutate the dict in multiple services without a shared validator/helper.
+
 ## Audit
 
 - [ ] grep 所有 `processed_paths` 讀寫點，列出每個 caller 的預期 key 集合。

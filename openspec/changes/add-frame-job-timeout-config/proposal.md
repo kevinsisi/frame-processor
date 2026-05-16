@@ -14,8 +14,9 @@
 ## Scope
 
 - `api/config.py` 新增：
-  - `RQ_JOB_TIMEOUT_SECONDS_AI_BATCH` 預設 1800
-  - `RQ_JOB_TIMEOUT_SECONDS_ADJUSTMENT_APPLY` 預設 600（10 分鐘，adjustment 批次純像素 600s 已偏大）
+  - `RQ_JOB_TIMEOUT_AI_BATCH` 預設 1800
+  - `RQ_JOB_TIMEOUT_ADJUSTMENT_APPLY` 預設 600（10 分鐘，adjustment 批次純像素 600s 已偏大）
+  - `RQ_JOB_TIMEOUT_ZIP_EXPORT` 預設 600
   - 透過環境變數覆寫
 - `processing_jobs.py:127` 與 `adjustments.py:67` 改讀 settings。
 - 在 `processing_jobs.py` 建立 AI batch 時加 per-photo time budget log：`logger.info(...)` 印「N photos × 預估 X s = budget Y, RQ timeout = Z」，方便 PM / debug 時對照預期。

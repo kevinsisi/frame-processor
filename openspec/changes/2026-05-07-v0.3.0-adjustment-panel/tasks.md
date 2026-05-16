@@ -60,7 +60,8 @@
 
 - [x] Smoke test with real photos for showroom white neutrality, stronger built-in contrast, and smooth white/gray panel gradients on production 911 samples (v0.4.14).
 - [x] Smoke test live preview and manual geometry apply correctness.
-- [ ] Verify individual processed downloads.
+- [x] Individual processed download UI exists on photo cards via selected version URL (`PhotoGrid.tsx`, label `下載版本 ↓`).
+- [ ] Smoke verify individual processed downloads against production with at least original, AI version, and manual version selections.
 - [x] Run frontend build/typecheck and backend lint/compile.
 - [x] Smoke test preview/apply/preset endpoints with vibrance, clarity, and sharpness payload.
 - [x] Update docs, commit, and push.

@@ -1,5 +1,7 @@
 # Tasks — Backend Integration Test Harness
 
+Status note (2026-05-16): existing tests cover pure functions and focused unit-style behavior, but the integration harness described here is still absent. There is no `tests/conftest.py`, no TestClient fixture, no testcontainers Postgres fixture, and no fake RQ queue fixture yet.
+
 ## Spec / Planning
 
 - [ ] Confirm Option A (testcontainers Postgres 16) vs Option B/C in `design.md` with PM.
