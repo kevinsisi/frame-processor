@@ -93,8 +93,8 @@ DENOISE_MESH_VALUE_LIMIT = 118.0
 DENOISE_MESH_VALUE_RANGE = 82.0
 DENOISE_MESH_SOURCE_TEXTURE_LIMIT = 1.8
 DENOISE_MESH_SOURCE_TEXTURE_RANGE = 3.4
-DENOISE_MESH_ARTIFACT_FLOOR = 0.6
-DENOISE_MESH_ARTIFACT_RANGE = 5.0
+DENOISE_MESH_ARTIFACT_FLOOR = 0.3
+DENOISE_MESH_ARTIFACT_RANGE = 2.6
 DENOISE_MESH_STRUCTURE_FLOOR = 3.5
 DENOISE_MESH_STRUCTURE_RANGE = 18.0
 DENOISE_MESH_SOURCE_CHROMA_LIMIT = 58.0
@@ -290,8 +290,18 @@ def _suppress_denoise_introduced_dark_mesh(
         ((source_cr - cv2.GaussianBlur(source_cr, (0, 0), sigmaX=1.0)) ** 2)
         + ((source_cb - cv2.GaussianBlur(source_cb, (0, 0), sigmaX=1.0)) ** 2)
     )
+    processed_chroma_hf = np.sqrt(
+        ((processed_cr - cv2.GaussianBlur(processed_cr, (0, 0), sigmaX=1.0)) ** 2)
+        + ((processed_cb - cv2.GaussianBlur(processed_cb, (0, 0), sigmaX=1.0)) ** 2)
+    )
     source_texture = np.maximum(source_luma_hf, source_chroma_hf)
-    introduced_texture = np.maximum(processed_luma_hf - source_luma_hf, 0.0)
+    introduced_texture = np.maximum.reduce(
+        [
+            processed_luma_hf - source_luma_hf,
+            processed_chroma_hf - source_chroma_hf,
+            np.zeros_like(processed_luma_hf),
+        ]
+    )
 
     source_chroma_magnitude = np.sqrt(((source_cr - 128.0) ** 2) + ((source_cb - 128.0) ** 2))
     dark_weight = np.clip((DENOISE_MESH_VALUE_LIMIT - source_y) / DENOISE_MESH_VALUE_RANGE, 0.0, 1.0)

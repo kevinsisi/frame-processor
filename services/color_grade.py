@@ -170,28 +170,34 @@ def _protect_smooth_neutral_highlights(rgb: np.ndarray, *, source_rgb: np.ndarra
 
 def _preserve_structured_highlight_luma(rgb: np.ndarray, *, source_rgb: np.ndarray) -> np.ndarray:
     source_y = 0.299 * source_rgb[..., 0] + 0.587 * source_rgb[..., 1] + 0.114 * source_rgb[..., 2]
+    source_low_frequency_y = cv2.GaussianBlur(source_y, (0, 0), sigmaX=4.0)
+    source_fine_texture = np.abs(source_y - source_low_frequency_y)
+    texture_smooth_weight = _smoothstep(0.002, 0.018, source_fine_texture)
+    source_reference_y = (source_y * (1.0 - texture_smooth_weight)) + (
+        np.maximum(source_y, source_low_frequency_y) * texture_smooth_weight
+    )
     ycrcb = cv2.cvtColor(np.clip(rgb, 0.0, 1.0), cv2.COLOR_RGB2YCrCb)
     current_y = ycrcb[..., 0]
     lift = current_y - source_y
     if float(lift.max(initial=0.0)) <= 0.0:
         return rgb
 
-    grad_x = cv2.Sobel(source_y, cv2.CV_32F, 1, 0, ksize=3)
-    grad_y = cv2.Sobel(source_y, cv2.CV_32F, 0, 1, ksize=3)
+    structure_source_y = cv2.GaussianBlur(source_y, (0, 0), sigmaX=2.8)
+    grad_x = cv2.Sobel(structure_source_y, cv2.CV_32F, 1, 0, ksize=3)
+    grad_y = cv2.Sobel(structure_source_y, cv2.CV_32F, 0, 1, ksize=3)
     gradient = cv2.magnitude(grad_x, grad_y)
-    gradient = cv2.dilate(gradient, np.ones((3, 3), dtype=np.uint8), iterations=1)
-    gradient = cv2.GaussianBlur(gradient, (0, 0), sigmaX=1.0)
+    gradient = cv2.GaussianBlur(gradient, (0, 0), sigmaX=2.4)
 
     highlight_weight = _smoothstep(0.58, 0.86, source_y) * (1.0 - _smoothstep(0.975, 0.995, source_y))
-    structure_weight = _smoothstep(0.010, 0.050, gradient)
+    structure_weight = _smoothstep(0.018, 0.065, gradient)
     lift_weight = _smoothstep(0.004, 0.030, lift)
     weight = highlight_weight * structure_weight * lift_weight * SHOWROOM_WHITE_STRUCTURED_HIGHLIGHT_MAX_BLEND
     if float(weight.max(initial=0.0)) <= 0.0:
         return rgb
 
-    # Preserve object-agnostic glossy/reflective gradients instead of turning them into flat white strokes.
+    # Use only low-frequency source luma here; raw source luma embosses fine dirt onto smooth white panels.
     max_lift = 0.014 + (0.014 * (1.0 - _smoothstep(0.78, 0.94, source_y)))
-    preserved_y = np.minimum(current_y, source_y + max_lift)
+    preserved_y = np.minimum(current_y, source_reference_y + max_lift)
     ycrcb[..., 0] = (current_y * (1.0 - weight)) + (preserved_y * weight)
     out = cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2RGB)
     return np.clip(out, 0.0, 1.0)

@@ -434,6 +434,38 @@ def test_denoise_does_not_introduce_dark_luma_mesh(monkeypatch) -> None:
     assert _mean_squared_error(result, source, box) < 3
 
 
+def test_denoise_dark_mesh_guard_catches_chroma_only_mesh() -> None:
+    height = 96
+    width = 128
+    yy, xx = np.indices((height, width))
+    source_ycc = np.full((height, width, 3), (42, 128, 128), dtype=np.uint8)
+    source_ycc[:, :, 0] = (40 + ((xx + yy) % 5)).astype(np.uint8)
+    processed_ycc = source_ycc.copy()
+    mesh = ((xx % 4 == 0) | (yy % 4 == 0))
+    processed_ycc[:, :, 1] = np.where(mesh, 138, 120).astype(np.uint8)
+    processed_ycc[:, :, 2] = np.where(mesh, 120, 138).astype(np.uint8)
+    source = Image.fromarray(cv2.cvtColor(source_ycc, cv2.COLOR_YCrCb2RGB), mode="RGB")
+    processed = Image.fromarray(cv2.cvtColor(processed_ycc, cv2.COLOR_YCrCb2RGB), mode="RGB")
+
+    result = Image.fromarray(
+        np.clip(
+            denoise._suppress_denoise_introduced_dark_mesh(
+                np.asarray(source, dtype=np.float32) / 255.0,
+                np.asarray(processed, dtype=np.float32) / 255.0,
+                DenoiseStrength.MEDIUM,
+            )
+            * 255.0,
+            0,
+            255,
+        ).astype(np.uint8),
+        mode="RGB",
+    )
+    box = (0, 0, width, height)
+
+    assert _chroma_hf_mean(result, box) < _chroma_hf_mean(processed, box) * 0.65
+    assert _luma_mse(result, source, box) < 0.8
+
+
 def test_denoise_dark_mesh_guard_preserves_saturated_detail(monkeypatch) -> None:
     pixels = np.full((80, 140, 3), (32, 34, 34), dtype=np.uint8)
     pixels[22:58, 92:126] = (188, 28, 44)
@@ -896,6 +928,31 @@ def test_showroom_white_preserves_structured_highlight_gradients() -> None:
     assert _luma_clip_fraction(image, highlight_box, high=235) == 0.0
     assert _luma_clip_fraction(result, highlight_box, high=235) == 0.0
     assert _luma_std(result, highlight_box) >= _luma_std(image, highlight_box) * 0.85
+
+
+def test_showroom_white_does_not_emboss_fine_texture_on_smooth_highlight_panel() -> None:
+    width = 180
+    height = 96
+    yy, xx = np.indices((height, width))
+    base = 202 + ((xx / width) * 18)
+    broad_gloss = np.exp(-((yy - 44) ** 2) / (2 * 18.0**2)) * 12
+    fine_texture = (np.sin(xx * 0.52) * 2.0) + (np.sin((xx + yy) * 0.37) * 1.4)
+    values = np.clip(base + broad_gloss + fine_texture, 0, 255)
+    arr = np.stack(
+        [
+            values + 4,
+            values + 2,
+            values,
+        ],
+        axis=2,
+    ).clip(0, 255).astype(np.uint8)
+    image = Image.fromarray(arr, "RGB")
+
+    result = color_grade.apply_grade(image, ColorGradePreset.SHOWROOM_WHITE)
+    panel_box = (0, 0, width, height)
+
+    assert _luma_hf_mean(result, panel_box) <= _luma_hf_mean(image, panel_box) * 1.25
+    assert _luma_mean(result, panel_box) > _luma_mean(image, panel_box)
 
 
 def test_showroom_white_compresses_near_clipped_vehicle_highlights() -> None:
