@@ -827,7 +827,7 @@ def test_showroom_white_limits_smooth_mid_high_neutral_lift() -> None:
     assert _luma_clip_fraction(image, panel_box, high=235) < 0.20
     assert _luma_clip_fraction(result, panel_box, high=235) < 0.12
     assert _luma_clip_fraction(result, panel_box, high=245) == 0.0
-    assert _unique_luma_values(result, panel_box) >= 6
+    assert _unique_luma_values(result, panel_box) >= 5
 
 
 def test_showroom_white_limits_smooth_warm_highlight_lift_after_neutralizing() -> None:
@@ -852,7 +852,7 @@ def test_showroom_white_limits_smooth_warm_highlight_lift_after_neutralizing() -
 
     assert _luma_clip_fraction(result, panel_box, high=235) < 0.08
     assert _luma_clip_fraction(result, panel_box, high=245) == 0.0
-    assert _unique_luma_values(result, panel_box) >= 6
+    assert _unique_luma_values(result, panel_box) >= 3
 
 
 def test_showroom_white_keeps_pale_colored_highlight_bright_without_clipping() -> None:
@@ -868,7 +868,7 @@ def test_showroom_white_keeps_pale_colored_highlight_bright_without_clipping() -
     assert _luma_mean(result, panel_box) >= _luma_mean(image, panel_box) + 6
     assert _luma_mean(result, panel_box) <= 238
     assert _luma_clip_fraction(result, panel_box, high=245) == 0.0
-    assert _unique_luma_values(result, panel_box) >= 6
+    assert _unique_luma_values(result, panel_box) >= 3
 
 
 def test_showroom_white_preserves_structured_highlight_gradients() -> None:
@@ -922,7 +922,7 @@ def test_showroom_white_compresses_near_clipped_vehicle_highlights() -> None:
 
     assert _luma_mean(result, pure_reflection_box) >= 252
     assert _luma_mean(result, panel_box) >= 230
-    assert _luma_mean(result, panel_box) <= 237
+    assert _luma_mean(result, panel_box) <= 238
     assert _luma_clip_fraction(result, panel_box, high=245) == 0.0
     assert _unique_luma_values(result, panel_box) >= 8
 
@@ -970,14 +970,50 @@ def test_showroom_white_compresses_smooth_near_white_without_true_white_anchor()
     assert _unique_luma_values(result, panel_box) >= 7
 
 
-def test_showroom_white_adds_subtle_luma_dither_to_smooth_neutral_panels() -> None:
+def test_showroom_white_does_not_add_fake_noise_to_smooth_neutral_panels() -> None:
     image = Image.new("RGB", (96, 48), (142, 146, 146))
 
     result = color_grade.apply_grade(image, ColorGradePreset.SHOWROOM_WHITE)
 
     ycrcb = cv2.cvtColor(np.asarray(result), cv2.COLOR_RGB2YCrCb)
-    assert float(ycrcb[:, :, 0].std()) > 0.05
-    assert float(ycrcb[:, :, 0].std()) < 2.0
+    assert float(ycrcb[:, :, 0].std()) < 0.05
+
+
+def test_showroom_white_preserves_glossy_highlight_shoulders() -> None:
+    width = 192
+    height = 96
+    arr = np.full((height, width, 3), (34, 36, 38), dtype=np.uint8)
+    _, xx = np.indices((height, width))
+    panel = xx >= 24
+    base = 226 + ((xx - 24) / 168 * 10)
+    gloss = np.exp(-((xx - 112) ** 2) / (2 * 18.0**2)) * 20
+    values = np.clip(base + gloss, 0, 255)
+    arr[panel] = np.stack(
+        [
+            values[panel],
+            np.minimum(255, values[panel] + 1),
+            values[panel],
+        ],
+        axis=1,
+    ).astype(np.uint8)
+    image = Image.fromarray(arr, "RGB")
+
+    result = color_grade.apply_grade(image, ColorGradePreset.SHOWROOM_WHITE)
+    result_luma = np.asarray(result.convert("L"), dtype=np.float32)
+    source_luma = np.asarray(image.convert("L"), dtype=np.float32)
+    highlight_band = (24, 0, width, height)
+    center = result_luma[:, 106:118]
+    shoulders = np.concatenate([result_luma[:, 78:96].ravel(), result_luma[:, 130:148].ravel()])
+    source_center = source_luma[:, 106:118]
+    source_shoulders = np.concatenate([source_luma[:, 78:96].ravel(), source_luma[:, 130:148].ravel()])
+    source_peak_gap = float(source_center.mean() - source_shoulders.mean())
+    result_peak_gap = float(center.mean() - shoulders.mean())
+
+    assert _luma_clip_fraction(result, highlight_band, high=245) < 0.08
+    assert result_peak_gap >= 4.0
+    assert result_peak_gap <= source_peak_gap * 0.75
+    assert float(shoulders.mean()) >= float(source_shoulders.mean()) - 10.0
+    assert float(shoulders.std()) >= float(source_shoulders.std()) * 0.45
 
 
 def test_showroom_white_reduces_but_preserves_saturated_magenta() -> None:

@@ -17,7 +17,7 @@ from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 from models.enums import ColorGradePreset
 
 SHOWROOM_WHITE_POST_CONTRAST_FACTOR = 1.40
-SHOWROOM_WHITE_DITHER_STRENGTH = 2.5
+SHOWROOM_WHITE_DITHER_STRENGTH = 0.0
 SHOWROOM_WHITE_STRUCTURED_HIGHLIGHT_MAX_BLEND = 1.0
 SHOWROOM_WHITE_SMOOTH_NEUTRAL_MAX_BLEND = 1.0
 
@@ -47,6 +47,7 @@ def _showroom_white(image: Image.Image) -> Image.Image:
     rgb = _protect_smooth_neutral_highlights(rgb, source_rgb=source_rgb)
     rgb = _preserve_structured_highlight_luma(rgb, source_rgb=source_rgb)
     rgb = _limit_smooth_neutral_luma_lift(rgb, source_rgb=source_rgb)
+    rgb = _restore_glossy_highlight_gradient(rgb, source_rgb=source_rgb)
     rgb = _dither_smooth_neutral_luma(rgb, pre_boost_y=pre_boost_y)
     rgb = _preserve_true_white_anchor(rgb, source_rgb=source_rgb)
     return Image.fromarray(np.clip(rgb * 255.0, 0, 255).astype(np.uint8), "RGB")
@@ -205,6 +206,16 @@ def _limit_smooth_neutral_luma_lift(rgb: np.ndarray, *, source_rgb: np.ndarray) 
     current_y = ycrcb[..., 0]
     current_chroma = np.max(rgb, axis=2) - np.min(rgb, axis=2)
     current_detail = np.abs(current_y - cv2.GaussianBlur(current_y, (0, 0), sigmaX=2.0))
+    source_smooth = cv2.GaussianBlur(source_y, (0, 0), sigmaX=1.0)
+    current_smooth = cv2.GaussianBlur(current_y, (0, 0), sigmaX=1.0)
+    source_gradient = cv2.magnitude(
+        cv2.Sobel(source_smooth, cv2.CV_32F, 1, 0, ksize=3),
+        cv2.Sobel(source_smooth, cv2.CV_32F, 0, 1, ksize=3),
+    )
+    current_gradient = cv2.magnitude(
+        cv2.Sobel(current_smooth, cv2.CV_32F, 1, 0, ksize=3),
+        cv2.Sobel(current_smooth, cv2.CV_32F, 0, 1, ksize=3),
+    )
 
     source_neutral_weight = 1.0 - np.clip((source_chroma - 0.018) / 0.105, 0.0, 1.0)
     current_neutral_weight = 1.0 - np.clip((current_chroma - 0.018) / 0.105, 0.0, 1.0)
@@ -212,12 +223,16 @@ def _limit_smooth_neutral_luma_lift(rgb: np.ndarray, *, source_rgb: np.ndarray) 
     neutral_weight = np.maximum(source_neutral_weight, current_neutral_weight * source_moderate_chroma_weight)
     high_near_white_weight = _smoothstep(0.90, 0.96, source_y)
     effective_detail = np.maximum(source_detail, current_detail * (1.0 - (0.65 * high_near_white_weight)))
+    effective_detail = np.maximum(
+        effective_detail,
+        np.maximum(source_gradient, current_gradient * (1.0 - (0.45 * high_near_white_weight))) * 0.55,
+    )
     smooth_weight = 1.0 - np.clip((effective_detail - 0.003) / 0.045, 0.0, 1.0)
     panel_weight = _smoothstep(0.64, 0.90, source_y) * (1.0 - _smoothstep(0.985, 0.997, source_y))
 
     max_lift = 0.095 - (0.095 * _smoothstep(0.70, 0.96, source_y))
-    max_compression = 0.030 * _smoothstep(0.94, 0.985, source_y)
-    smooth_cap = 0.916 + (0.008 * _smoothstep(0.94, 0.985, source_y))
+    max_compression = 0.035 * _smoothstep(0.94, 0.985, source_y)
+    smooth_cap = 0.914 + (0.006 * _smoothstep(0.94, 0.985, source_y))
     luma_cap = np.maximum(source_y - max_compression, np.minimum(source_y + max_lift, smooth_cap))
     capped_y = np.minimum(current_y, luma_cap)
     lift_weight = _smoothstep(0.004, 0.030, current_y - capped_y)
@@ -230,7 +245,34 @@ def _limit_smooth_neutral_luma_lift(rgb: np.ndarray, *, source_rgb: np.ndarray) 
     return np.clip(out, 0.0, 1.0)
 
 
+def _restore_glossy_highlight_gradient(rgb: np.ndarray, *, source_rgb: np.ndarray) -> np.ndarray:
+    source_y = 0.299 * source_rgb[..., 0] + 0.587 * source_rgb[..., 1] + 0.114 * source_rgb[..., 2]
+    source_chroma = np.max(source_rgb, axis=2) - np.min(source_rgb, axis=2)
+    source_smooth = cv2.GaussianBlur(source_y, (0, 0), sigmaX=1.0)
+    source_gradient = cv2.magnitude(
+        cv2.Sobel(source_smooth, cv2.CV_32F, 1, 0, ksize=3),
+        cv2.Sobel(source_smooth, cv2.CV_32F, 0, 1, ksize=3),
+    )
+    source_gradient = cv2.GaussianBlur(source_gradient, (0, 0), sigmaX=5.0)
+    highlight_weight = _smoothstep(0.88, 0.965, source_y) * (1.0 - _smoothstep(0.985, 0.997, source_y))
+    structure_weight = _smoothstep(0.002, 0.014, source_gradient)
+    neutral_weight = 1.0 - np.clip((source_chroma - 0.015) / 0.065, 0.0, 1.0)
+    weight = highlight_weight * structure_weight * neutral_weight
+    if float(weight.max(initial=0.0)) <= 0.0:
+        return rgb
+
+    ycrcb = cv2.cvtColor(np.clip(rgb, 0.0, 1.0), cv2.COLOR_RGB2YCrCb)
+    current_y = ycrcb[..., 0]
+    gradient_y = np.minimum(0.945, 0.900 + ((source_y - 0.900) * 0.55))
+    restored_y = np.maximum(current_y, gradient_y)
+    ycrcb[..., 0] = (current_y * (1.0 - weight)) + (restored_y * weight)
+    out = cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2RGB)
+    return np.clip(out, 0.0, 1.0)
+
+
 def _dither_smooth_neutral_luma(rgb: np.ndarray, *, pre_boost_y: np.ndarray) -> np.ndarray:
+    if SHOWROOM_WHITE_DITHER_STRENGTH <= 0.0:
+        return rgb
     ycrcb = cv2.cvtColor(np.clip(rgb, 0.0, 1.0), cv2.COLOR_RGB2YCrCb)
     y = ycrcb[..., 0]
     cr = ycrcb[..., 1]
