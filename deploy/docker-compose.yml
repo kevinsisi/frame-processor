@@ -61,7 +61,13 @@ services:
   worker:
     image: ${DOCKERHUB_USERNAME:-kevin950805}/frame-processor-worker:${IMAGE_TAG:-latest}
     restart: unless-stopped
-    gpus: all
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     environment:
       TZ: Asia/Taipei
       DATABASE_URL: postgresql+psycopg://frame:${POSTGRES_PASSWORD:-frame}@postgres:5432/frame_processor

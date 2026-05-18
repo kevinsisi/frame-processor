@@ -1,0 +1,38 @@
+services:
+  postgres:
+    volumes:
+      - type: bind
+        source: D:/frame-processor/postgres-data
+        target: /var/lib/postgresql/data
+
+  redis:
+    volumes:
+      - type: bind
+        source: D:/frame-processor/redis-data
+        target: /data
+
+  api:
+    volumes:
+      - type: bind
+        source: D:/frame-processor/storage-data
+        target: /data
+
+  worker:
+    # Use the api image (CPU torch) for local dev — no GPU needed
+    image: ${DOCKERHUB_USERNAME:-kevin950805}/frame-processor-api:${IMAGE_TAG:-latest}
+    runtime: runc
+    volumes:
+      - type: bind
+        source: D:/frame-processor/storage-data
+        target: /data
+    # Docker Compose list merge cannot clear `deploy.resources.reservations.devices` from the base
+    # compose via null/empty override. The base devices:[{driver:nvidia}] still reaches Docker and
+    # triggers the NVIDIA OCI prestart hook even with runtime:runc. On machines without NVIDIA GPU
+    # the hook fails unless the hook binary is wrapped to exit-0 for void containers (see memory
+    # feedback-local-docker-nvidia-hook.md). NVIDIA_VISIBLE_DEVICES=void is what the wrapper checks.
+    deploy:
+      resources:
+        reservations:
+          devices: ~
+    environment:
+      NVIDIA_VISIBLE_DEVICES: "void"
