@@ -137,6 +137,6 @@ Recommended direction: add request cancellation or a latest-only backend strateg
 ## Not Yet Closed
 
 - iPhone Safari mobile layout validation.
-- Broader visual QA for showroom white neutrality across non-911 batches.
+- Broader visual QA for showroom white neutrality across non-911 batches. （2026-05-18 補充：v0.5.11~v0.5.19 的 gradient cap masking 造成白色漆面「髒污斑塊」回歸，v0.5.20 已修；已知設計禁忌見 ARCHITECTURE.md § color_grade。）
 - Individual processed download smoke test.
 - Visual QA for denoise strength on representative indoor, outdoor, low-light, and dealership photos.

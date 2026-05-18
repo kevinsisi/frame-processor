@@ -210,6 +210,34 @@ FE ──GET /photos/{id}/processed/{preset}──▶ API ── stream processe
 7. cpl_look 在色調前 — 先壓低車內亮面飾板、儀表玻璃、中控螢幕與車窗反光
 8. color_grade 最後 — 純像素操作
 
+### color_grade — `services/color_grade.py`
+
+**作用：** 套用色調風格（白平衡、對比、曲線、飽和）。目前三個 preset：`showroom_white`、`outdoor_warm`、`night_cold`。
+
+**`showroom_white` 函數鏈（v0.5.20 順序）：**
+
+| 步驟 | 函數 | 說明 |
+|------|------|------|
+| 1 | `_gray_world_white_balance` | Gray-world 白平衡，消除展間燈源偏色 |
+| 2 | `_channel_shift(-1, +1, +2)` | 輕微中性偏冷微調 |
+| 3 | `_showroom_tone_curve` | 壓亮部（×0.91@0.98）+ 拉暗部 |
+| 4 | `_pil_contrast_factor(0.86)` | 向影像均值收縮對比（float32 luma） |
+| 5 | `_clarify_luma_only` | Unsharp mask 只對 luma（percent=34），不觸碰 chroma |
+| 6 | `_reduce_purple_magenta` | 壓 260~335° 飽和色的色飽和度（偽色消除） |
+| 7 | `_boost_luma_contrast(1.40)` | midtone 加強對比，軟限高亮（`_soft_clip_luma`） |
+| 8 | `_protect_smooth_neutral_highlights` | cap smooth near-white 到 0.930~0.975 |
+| 9 | `_preserve_structured_highlight_luma` | 保護有梯度結構的高亮（glossy 邊緣），使用預先模糊的 Sobel |
+| 10 | `_limit_smooth_neutral_luma_lift` | 限制 smooth neutral 中亮部被 boost 過度抬升 |
+| 11 | `_restore_glossy_highlight_gradient` | 補回 glossy highlight shoulder 被 cap 壓平的漸層 |
+| 12 | `_dither_smooth_neutral_luma` | ±0.003 luma dither（`STRENGTH=1.5`），破均勻漸層的量化階差 |
+| 13 | `_preserve_true_white_anchor` | 確保真白（source_y > 0.992）輸出不低於 0.965 |
+
+**已知設計禁忌（v0.5.11~v0.5.19 教訓）：**
+
+- `_limit_smooth_neutral_luma_lift` 的 `effective_detail`（決定「這個像素是否夠 smooth 以受到 cap 保護」）**禁止加入 Sobel gradient 項**。Gradient 偵測會把車身結構邊緣（車身線條、徽章周邊、漆面高光邊界）判定為「非 smooth」，造成邊緣附近的 cap 深度與相鄰漆面不一致，在白色漆面上留下陰影斑塊（外觀像髒污）。`effective_detail` 只能使用 luma HF（`source_detail` / `current_detail`，sigma=2.0 Gaussian residual）。
+- `SHOWROOM_WHITE_DITHER_STRENGTH` 必須保持 > 0（目前 1.5）。停用 dither 會讓所有 cap 函數製造的空間不均勻性直接顯現為系統性斑塊。
+- 若 showroom_white 出現連續 3 次以上的 fix，優先質疑架構（某個 cap 函數邏輯根本有問題），而不是繼續調數值。v0.5.11~v0.5.19 共 9 次連續 fix 均源自 gradient masking 的架構缺陷。
+
 ## 處理資料流（v0.2.0）
 
 ```
