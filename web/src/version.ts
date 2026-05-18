@@ -1,2 +1,2 @@
-// v0.5.19 - fix: stop showroom white embossing clean panels and dark mesh artifacts.
-export const APP_VERSION = "0.5.19";
+// v0.5.20 - fix: remove gradient from smooth cap mask; restore dither to break up banding.
+export const APP_VERSION = "0.5.20";
